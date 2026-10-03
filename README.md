@@ -1,7 +1,8 @@
-# dzzk Job Search OS — Browser Bridge
+# Execution Delivery Harness
 
-Read explicitly shared pages from an existing Firefox session through MCP.
-By Daniel Chechik / dzzk. Independent of Mozilla, OpenAI, LinkedIn and Opera.
+Controlled delivery of agent actions into user-owned execution environments.
+The current reference implementation connects ChatGPT/MCP to explicitly shared browser pages, with Job Search OS as the first real-world consumer.
+By Daniel Chechik. Independent of Mozilla, OpenAI, LinkedIn, Google and Opera.
 
 ## Version 0.1.1
 
@@ -20,8 +21,8 @@ not listed. No browser history, cookie API, raw profile or form-draft export.
 Requires Firefox 140+ and Node.js 22+. The companion is a separate installation:
 
 ```sh
-git clone https://github.com/dzzk-r/dzzk-job-search-os-browser-bridge.git
-cd dzzk-job-search-os-browser-bridge
+git clone https://github.com/dzzk-r/execution-delivery-harness.git
+cd execution-delivery-harness
 npm ci
 npm start
 ```
@@ -90,9 +91,9 @@ uses a disposable profile and synthetic pages, never personal browser sessions.
 [Privacy](docs/PRIVACY.md) · [Security](docs/SECURITY-BOUNDARY.md) · [Controls](docs/CONTROL-MODEL.md) ·
 [Compatibility](docs/COMPATIBILITY.md) · [AMO submission](docs/AMO-LISTING.md).
 
-Opera, Safari and site-specific adapters are later work. The existing Opera
-Browser Connector remains an independent third-party option. No Opera or Safari
-support in this release is claimed. Other websites can be manually shared as
+Chrome/Chromium, Opera, Safari and site-specific adapters are later work. The existing Opera
+Browser Connector remains an independent third-party option. No Chrome, Opera or Safari
+adapter support in this release is claimed. Other websites can be manually shared as
 ordinary pages; dedicated extraction and end-to-end compatibility need testing.
 
 MIT license. Support: GitHub issues. Do not post private browser data or tokens.

@@ -3,6 +3,7 @@
 | Component | Current support |
 | --- | --- |
 | Firefox desktop 140+ | Extension adapter in 0.1.1 |
+| Chrome / Chromium | Target adapter; not implemented in 0.1.1 |
 | Node.js 22+ | Local MCP companion |
 | ChatGPT | Developer-mode MCP transport and OAuth required; live account linking must be verified separately |
 | LinkedIn | Visible, manually shared page text; no messaging API, crawling or writes |

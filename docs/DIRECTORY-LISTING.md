@@ -1,14 +1,14 @@
 # ChatGPT directory draft — not submitted
 
-Name: dzzk Job Search OS
+Name: Execution Delivery Harness
 
-Subtitle: Read job-search evidence from browser pages you choose to share.
+Subtitle: Deliver agent actions into user-controlled browser and local execution environments.
 
-Description: Work with visible job listings and recruiter conversations through
-the independent dzzk Browser Bridge for Firefox. Choose pages in your existing
-browser session, authorize your MCP connection, then read or find passages with
-source URLs and capture timestamps. LinkedIn and other job sites can be shared
-as ordinary pages. Browser access is read-only in version 0.1.1.
+Description: Connect ChatGPT and MCP clients to user-owned execution surfaces with explicit
+sharing, scoped permissions and observable results. The current reference implementation
+reads explicitly shared browser pages and uses Job Search OS as its first real-world workflow.
+Firefox is implemented first; Chrome/Chromium and Opera are compatibility targets rather than
+part of the product name. Browser access is read-only in version 0.1.1.
 
 Requires a separately installed local companion and a supported MCP transport.
 Opera Browser Connector can be used independently when enabled by its user.
