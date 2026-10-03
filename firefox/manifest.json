@@ -1,20 +1,58 @@
 {
   "manifest_version": 3,
   "name": "dzzk Job Search OS Browser Bridge",
-  "version": "0.0.1",
-  "description": "User-controlled browser bridge for dzzk Job Search OS. Works with Firefox.",
-  "permissions": ["activeTab", "tabs", "scripting", "storage"],
-  "host_permissions": [],
+  "version": "0.1.0",
+  "description": "Share selected job pages and recruiter conversations with your MCP client. Requires the local dzzk companion.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*"
+  ],
   "action": {
-    "default_title": "dzzk Job Search OS Browser Bridge"
+    "default_title": "dzzk Job Search OS Browser Bridge",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "icon.svg",
+      "96": "icon.svg"
+    }
   },
   "background": {
-    "scripts": ["background.js"]
+    "scripts": [
+      "core.js",
+      "read-page.js",
+      "background.js"
+    ]
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src http://127.0.0.1:43119"
   },
   "browser_specific_settings": {
     "gecko": {
       "id": "browser-bridge@dzzk.dev",
-      "strict_min_version": "128.0"
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "websiteContent",
+          "browsingActivity",
+          "personalCommunications",
+          "personallyIdentifyingInfo"
+        ]
+      }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
     }
+  },
+  "icons": {
+    "48": "icon.svg",
+    "96": "icon.svg"
   }
 }

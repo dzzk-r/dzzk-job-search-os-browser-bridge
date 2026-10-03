@@ -1,0 +1,36 @@
+{
+  "name": "dzzk-job-search-os-browser-bridge",
+  "version": "0.1.0",
+  "description": "User-controlled browser access for job-search workflows in ChatGPT.",
+  "scripts": {
+    "start": "node server/index.mjs",
+    "test": "node --test tests/*.mjs",
+    "lint": "web-ext lint --source-dir firefox --warnings-as-errors",
+    "build": "web-ext build --source-dir firefox --artifacts-dir dist --overwrite-dest",
+    "test:firefox": "node scripts/firefox-smoke.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dzzk-r/dzzk-job-search-os-browser-bridge.git"
+  },
+  "keywords": [],
+  "author": "Daniel Chechik (dzzk)",
+  "license": "MIT",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/dzzk-r/dzzk-job-search-os-browser-bridge/issues"
+  },
+  "homepage": "https://github.com/dzzk-r/dzzk-job-search-os-browser-bridge#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "selenium-webdriver": "4.50.0",
+    "web-ext": "10.7.0"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  }
+}

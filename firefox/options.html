@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>dzzk Browser Bridge settings</title><link rel="stylesheet" href="ui.css"></head>
+<body><h1>dzzk Job Search OS Browser Bridge</h1><p>Connect your local companion, then choose each page to share from the toolbar button.</p>
+<ol><li>Install Node.js 22 or later and the <a href="https://github.com/dzzk-r/dzzk-job-search-os-browser-bridge#quickstart" target="_blank" rel="noreferrer">open-source companion</a>.</li>
+<li>Run <code>npm start</code> in the project folder.</li><li>Paste its extension pairing token below. Never paste it into a chat or public page.</li></ol>
+<form id="form"><label for="token">Extension pairing token</label><input id="token" type="password" autocomplete="off" required minlength="43" maxlength="43">
+<p>Companion address: <code>http://127.0.0.1:43119</code></p>
+<label><input id="consent" type="checkbox" style="width:auto" required> I understand that shared page text, titles and URLs pass through the local companion to my connected MCP client, such as ChatGPT. They can include recruiter messages and personal information.</label>
+<button class="primary" type="submit">Connect companion</button></form><p id="message" role="status"></p><p id="error" role="alert"></p>
+<button id="disconnect">Disconnect and revoke all</button><h2>What is shared</h2>
+<p>Only normal pages you explicitly share. Access expires after 30 minutes and is revoked by navigation, reload, closing the tab or restarting the extension. This version reads text; it does not send messages or submit applications.</p>
+<p>There is no telemetry or dzzk hosted service. Page text is processed in memory by your companion and sent to the MCP client you authorize. That client's data policy applies.</p>
+<p><a href="https://github.com/dzzk-r/dzzk-job-search-os-browser-bridge/blob/main/docs/PRIVACY.md" target="_blank" rel="noreferrer">Privacy policy</a> · <a href="https://github.com/dzzk-r/dzzk-job-search-os-browser-bridge/issues" target="_blank" rel="noreferrer">Support</a></p>
+<script src="options.js"></script></body></html>

@@ -1,85 +1,78 @@
 # dzzk Job Search OS — Browser Bridge
 
-User-controlled browser access for job-search workflows in ChatGPT.
+Read explicitly shared pages from an existing Firefox session through MCP.
+By Daniel Chechik / dzzk. Independent of Mozilla, OpenAI, LinkedIn and Opera.
 
-The project connects **dzzk Job Search OS** to browser sessions the user already owns, so authenticated job-search evidence can be read and worked with without building a separate integration for every job board, ATS, recruiter portal, or professional network.
+## Version 0.1.0
 
-## Why this exists
+Firefox extension + local Node.js companion. Four read-only tools:
+`list_tabs`, `read_page`, `find_in_page`, `bridge_status`.
+Use it for visible job listings and recruiter conversations, including LinkedIn
+pages you already have open. The bridge does not log in, crawl message history,
+send messages or submit applications. Only loaded main-document text is read.
 
-Job-search evidence is fragmented across:
+Each page is shared from the toolbar for 30 minutes. Navigation, reload, tab
+closure, extension restart and manual revocation end access. Unshared tabs are
+not listed. No browser history, cookie API, raw profile or form-draft export.
 
-- job boards and ATS pages;
-- recruiter messages;
-- application trackers;
-- company career sites;
-- authenticated browser-only pages;
-- email and local artifacts.
+## Quickstart
 
-Browser Bridge provides a narrow, user-controlled bridge from ChatGPT to selected browser tabs instead of treating each site as a separate API integration.
+Requires Firefox 140+ and Node.js 22+. The companion is a separate installation:
 
-## Browser paths
-
-### Opera
-
-dzzk Job Search OS can use the **Opera Browser Connector** when the user has enabled it in Opera and connected it to ChatGPT.
-
-This project does not redistribute or impersonate Opera Browser Connector. Opera and Opera Browser Connector remain third-party products controlled by their respective owners.
-
-### Firefox
-
-The project also provides a **dzzk Job Search OS Browser Bridge extension for Firefox**.
-
-The Firefox path is designed around WebExtensions and the user's existing authenticated browser session. It is intended to expose only explicitly shared tabs and capabilities.
-
-Firefox is a trademark of the Mozilla Foundation. This project is independent and is not affiliated with, sponsored by, or endorsed by Mozilla.
-## Initial capability surface
-
-The first public interface is intentionally small:
-
-- list shared tabs;
-- read page text;
-- capture a screenshot;
-- navigate a shared tab;
-- find text on a page;
-- click an element;
-- type into an element.
-
-Cookies, saved passwords, authentication tokens, and raw browser profile data are **not** part of the public interface.
-
-## Permission model
-
-The target model is tab-centric rather than browser-wide:
-
-```text
-Browser
-  └── explicitly shared tab
-        ├── read
-        ├── screenshot
-        ├── navigate
-        ├── click      [optional]
-        └── type       [optional]
+```sh
+git clone https://github.com/dzzk-r/dzzk-job-search-os-browser-bridge.git
+cd dzzk-job-search-os-browser-bridge
+npm ci
+npm start
 ```
 
-Read access and state-changing actions should remain separately controllable.
+Load `firefox/manifest.json` using Firefox `about:debugging` → This Firefox →
+Load Temporary Add-on. Temporary installation ends when Firefox restarts.
+For permanent installation, Mozilla must sign the submitted package.
 
-## Job Search OS use cases
+Paste the companion's extension pairing token into the extension settings and
+accept the data-flow disclosure. Keep that token out of chats and screenshots.
+Open the toolbar button and check that the companion is Connected.
 
-Examples:
+### ChatGPT
 
-- “Find the recruiter message where we discussed the home assignment.”
-- “Read the current job page and compare it with my application record.”
-- “Check whether this ATS page still shows my application as active.”
-- “Extract the exact office-policy wording from this authenticated posting.”
-- “Open the recruiter thread and show the last concrete next step.”
+Installing the extension alone does not connect ChatGPT. ChatGPT needs a
+supported developer-mode MCP connection to the companion. For a public HTTPS
+transport, set `PUBLIC_URL` to your tunnel's stable HTTPS origin before starting
+`npm start`, and point the tunnel at `http://127.0.0.1:43119`. Connect ChatGPT to
+`https://YOUR-ORIGIN/mcp` with OAuth / dynamic client registration. Keep the
+companion bound to loopback. Alternatively a supported private MCP tunnel can
+reach the local server; availability depends on your account and workspace.
 
-The bridge is transport. Job Search OS remains responsible for reconciliation, evidence provenance, and deciding which source wins when records conflict.
+During OAuth linking, open the extension popup and approve the displayed client
+and callback origin. Then open your job page and click Share this page.
+Ask the client to list shared tabs, read one by its opaque handle, or find text.
+Stop sharing to block subsequent reads. Disconnect also revokes client tokens.
 
-## Project status
+The browser path has no required paid automation service. ChatGPT, hosting and
+transport providers have their own account, plan and availability requirements.
 
-Early public bootstrap. The repository name and product namespace are reserved; implementation is being extracted from a working local Firefox/Marionette proof of concept into a narrower WebExtension-based design.
+## Development
 
-See:
+```sh
+npm test
+npm run lint
+npm run build
+FIREFOX_BIN=/path/to/firefox npm run test:firefox
+```
 
-- `docs/DIRECTORY-LISTING.md`
-- `docs/COMPATIBILITY.md`
-- `docs/SECURITY-BOUNDARY.md`
+`dist/dzzk_job_search_os_browser_bridge-0.1.0.zip` is the unsigned AMO submission
+package. An unsigned ZIP is not an approved AMO release. Firefox smoke testing
+uses a disposable profile and synthetic pages, never personal browser sessions.
+
+## Boundaries and next adapters
+
+[Privacy](docs/PRIVACY.md) · [Security](docs/SECURITY-BOUNDARY.md) ·
+[Compatibility](docs/COMPATIBILITY.md) · [AMO submission](docs/AMO-LISTING.md).
+
+Opera, Safari and site-specific adapters are later work. The existing Opera
+Browser Connector remains an independent third-party option. No Opera or Safari
+support in this release is claimed. Other websites can be manually shared as
+ordinary pages; dedicated extraction and end-to-end compatibility need testing.
+
+MIT license. Support: GitHub issues. Do not post private browser data or tokens.

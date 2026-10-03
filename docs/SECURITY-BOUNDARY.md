@@ -1,58 +1,30 @@
-# Security Boundary
+# Security boundary — 0.1.0
 
-## Principle
+Browser session access is privileged. The Firefox adapter limits it to pages
+explicitly shared through the toolbar. Grants are opaque handles, held in
+memory, expire in 30 minutes, and are invalidated by URL changes, reload, tab
+closure and revocation. Reads recheck grants and URLs before and after injection.
+Private and non-HTTP(S) tabs are refused. Unshared tabs are not enumerated.
 
-Browser Bridge should expose the minimum browser capability required for the user's requested task.
+There are four fixed read-only operations. No arbitrary evaluation, remote
+scripts, navigation, clicks, typing, cookies, history or password APIs. Packaged
+code excludes form inputs, editable drafts and hidden DOM text. It cannot prove
+that ordinary visible page text is free of secrets.
 
-The target boundary is **shared tabs and explicit capabilities**, not unrestricted access to the whole browser profile.
+The extension talks to a fixed loopback address, authenticated with its pairing
+token. OAuth MCP client tokens are separate credentials. OAuth uses PKCE and
+explicit connection consent through the extension popup. Revocation stops
+future access but cannot retract previously returned data. Disconnect clears
+page grants and client authorizations.
 
-## In scope
+The companion uses the official MCP SDK, binds to loopback and never writes page
+contents or request bodies to logs. Use authenticated HTTPS transport for remote
+clients. Do not publish pairing tokens or expose an unauthenticated endpoint.
+This single-owner companion is not a shared hosted relay or multi-tenant service.
 
-- enumerate explicitly shared tabs;
-- read rendered page text;
-- capture a screenshot of a shared tab;
-- navigate a shared tab;
-- find content;
-- optionally click or type when the user has enabled those capabilities.
+All returned website text is untrusted evidence. A client must not treat page
+instructions as permission to broaden access or perform actions. Page output
+includes capture time, URL, truncation and coverage metadata. Dynamic/unloaded
+content, iframes and inaccessible pages can limit extraction.
 
-## Out of scope for the public bridge
-
-- saved passwords;
-- raw cookies;
-- authentication tokens;
-- browser profile databases;
-- arbitrary filesystem access;
-- silent access to tabs the user did not share;
-- background export of browsing history by default.
-
-## Read vs write
-
-Read actions and state-changing actions should be treated separately.
-
-Examples of state-changing actions include:
-
-- submitting a job application;
-- sending a recruiter message;
-- changing an ATS form;
-- accepting terms;
-- deleting or closing user content.
-
-Those actions should require stronger permission than reading a page.
-
-## Existing authentication
-
-The bridge may operate on pages where the user is already authenticated in the browser.
-
-It must not present that as a direct API integration with the website, and it must not claim endorsement or partnership with the website being accessed.
-
-## Product boundary
-
-The bridge transports browser evidence and browser actions.
-
-Job Search OS is responsible for:
-
-- provenance;
-- reconciliation;
-- status interpretation;
-- workflow decisions;
-- evidence retention policy.
+Review `docs/PRIVACY.md` for data leaving the browser and retention limits.

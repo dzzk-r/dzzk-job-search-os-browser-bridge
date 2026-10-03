@@ -1,39 +1,19 @@
-# Proposed ChatGPT Directory Listing
+# ChatGPT directory draft — not submitted
 
-## Name
+Name: dzzk Job Search OS
 
-**dzzk Job Search OS**
+Subtitle: Read job-search evidence from browser pages you choose to share.
 
-## Subtitle
+Description: Work with visible job listings and recruiter conversations through
+the independent dzzk Browser Bridge for Firefox. Choose pages in your existing
+browser session, authorize your MCP connection, then read or find passages with
+source URLs and capture timestamps. LinkedIn and other job sites can be shared
+as ordinary pages. Browser access is read-only in version 0.1.0.
 
-Work with job-search evidence from connected sources and user-shared browser sessions.
+Requires a separately installed local companion and a supported MCP transport.
+Opera Browser Connector can be used independently when enabled by its user.
+Opera and Safari adapters are future work.
 
-## Description
-
-dzzk Job Search OS helps reconcile job-search evidence across applications, recruiter conversations, job pages, and selected authenticated browser tabs.
-
-Use it to inspect the current state of an application, recover recruiter context, compare a live posting with prior evidence, and identify the next concrete action.
-
-Browser workflows can use Opera Browser Connector when enabled by the user, or the independent dzzk Browser Bridge for Firefox.
-
-The product is designed around explicit user control of connected sources and shared browser tabs.
-
-## Example prompts
-
-- Find the recruiter conversation for this role and show the last concrete next step.
-- Compare this live job posting with the role I applied to previously.
-- Check the authenticated ATS page and tell me what status is actually shown.
-- Find the exact wording about hybrid or office attendance in this posting.
-- Reconcile what LinkedIn, email, and the ATS say about this application.
-
-## Naming notes
-
-The product name is **dzzk Job Search OS**.
-
-“Opera Browser Connector” and “Firefox” appear only as descriptive compatibility references. They are not part of the product name and no affiliation or endorsement is implied.
-
-## Directory-policy note
-
-Keep pricing language out of the ChatGPT Directory subtitle and description. OpenAI's current plugin guidelines ask descriptions to explain functionality without advertising pricing, subscriptions, discounts, or promotions.
-
-Cost / no-paid-service details belong in project documentation instead.
+Do not submit this draft as a production public plugin until a stable supported
+endpoint, authentication, review access and complete installation flow are live.
+AMO distribution of the extension does not mean ChatGPT directory publication.
