@@ -2,6 +2,17 @@
 const grants = new DzzkGrants();
 let config = { enabled:false, endpoint:'http://127.0.0.1:43119', token:'' };
 let loopRunning = false, generation = 0, status = 'Disconnected', consents = [], clients = [], activeController;
+let localPaused = false, serverPaused = false, actions = [];
+let policyWrites = Promise.resolve(), pauseIntent = 0;
+const isPaused = () => localPaused || serverPaused;
+function writePolicy(body) {
+  policyWrites = policyWrites.catch(()=>{}).then(()=>companion('/bridge/policy',body));
+  return policyWrites;
+}
+async function clearAccess() {
+  const ids = [...grants.tabs.keys()]; grants.clear();
+  await Promise.all(ids.map(tabId => browser.action.setBadgeText({tabId,text:''}).catch(()=>{})));
+}
 function validateConfig(value) {
   const url = new URL(value.endpoint);
   if (url.origin !== 'http://127.0.0.1:43119' || url.pathname !== '/' || url.search || url.hash || url.username || url.password) throw new Error('Companion address must be http://127.0.0.1:43119');
@@ -32,6 +43,7 @@ async function readShared(handle, maxChars = 30000) {
 }
 async function runCommand(command) {
   if (!config.enabled) throw new Error('Browser bridge is disconnected.');
+  if (isPaused()) throw new Error('Browser actions are paused by the user.');
   const a = command.args || {};
   switch (command.method) {
     case 'tabs.list': return {tabs:grants.list()};
@@ -55,13 +67,19 @@ async function poll() {
       try {
         const batch = await companion('/bridge/next');
         if (!config.enabled || epoch !== generation) break;
-        consents = batch.consents || []; clients = batch.clients || []; status = 'Connected';
+        consents = batch.consents || []; clients = batch.clients || []; actions = batch.actions || [];
+        serverPaused = batch.policy?.paused === true;
+        if (isPaused()) await clearAccess();
+        status = isPaused() ? 'Paused' : 'Connected';
         for (const command of batch.commands || []) {
           let response;
           try { response = {id:command.id,result:await runCommand(command)}; } catch(e) { response = {id:command.id,error:e.message}; }
-          if (config.enabled && epoch === generation) await companion('/bridge/result',response);
+          if (config.enabled && epoch === generation) {
+            if (isPaused()) response = {id:command.id,error:'Browser actions are paused by the user.'};
+            await companion('/bridge/result',response);
+          }
         }
-      } catch { status = 'Companion unavailable'; consents = []; clients = []; }
+      } catch { status = 'Companion unavailable'; consents = []; clients = []; actions = []; }
       await new Promise(resolve => setTimeout(resolve,1000));
     }
   } finally { loopRunning = false; if (config.enabled) void poll(); }
@@ -75,14 +93,15 @@ browser.runtime.onMessage.addListener(async (m,sender) => {
   const ui = [browser.runtime.getURL('popup.html'), browser.runtime.getURL('options.html')];
   if (sender.id !== browser.runtime.id || !ui.includes(sender.url)) throw new Error('Only extension UI can change access.');
   switch (m.type) {
-    case 'state': return {status,enabled:config.enabled,grants:grants.list(),consents,clients};
+    case 'state': return {status,enabled:config.enabled,paused:isPaused(),grants:grants.list(),consents,clients,actions};
     case 'configure': {
       const next = validateConfig(m.config);
       if (config.enabled) {try {await companion('/bridge/disconnect',{});} catch {}}
-      generation++; activeController?.abort(); grants.clear(); consents = []; clients = []; config = next;
+      generation++; activeController?.abort(); await clearAccess(); consents = []; clients = []; actions = []; config = next;
       await browser.storage.local.set({config}); status = config.enabled ? 'Connecting':'Disconnected'; void poll(); return {ok:true};
     }
     case 'share': {
+      if (isPaused()) throw new Error('Browser actions are paused. Resume before sharing a page.');
       if (!config.enabled || status !== 'Connected') throw new Error('Connect the companion before sharing a page.');
       const tab = await browser.tabs.get(m.tabId);
       if (!tab.active || tab.status === 'loading') throw new Error('Select a fully loaded tab before sharing.');
@@ -93,17 +112,38 @@ browser.runtime.onMessage.addListener(async (m,sender) => {
       const g = grants.get(m.handle); grants.revoke(g.tabId); await browser.action.setBadgeText({tabId:g.tabId,text:''}); return {ok:true};
     }
     case 'disconnect': {
-      config.enabled = false; generation++; activeController?.abort(); grants.clear(); consents = []; clients = []; status = 'Disconnected';
+      config.enabled = false; generation++; activeController?.abort(); await clearAccess(); consents = []; clients = []; actions = []; status = 'Disconnected';
       await browser.storage.local.set({config}); await browser.action.setBadgeText({text:''});
       try {await companion('/bridge/disconnect',{});} catch {} return {ok:true};
     }
     case 'consent': return companion('/bridge/consent',{id:m.id,allow:m.allow === true});
     case 'revoke-client': return companion('/bridge/revoke-client',{id:m.id});
+    case 'set-policy': {
+      if (typeof m.paused === 'boolean') {
+        const intent = ++pauseIntent;
+        if (m.paused) {
+          localPaused = true; status = 'Paused'; actions = []; await clearAccess();
+          await browser.storage.local.set({localPaused});
+        }
+        const result = await writePolicy({paused:m.paused});
+        // A failed resume keeps the local prohibition in force.
+        if (intent !== pauseIntent) return result;
+        if (!m.paused) {
+          localPaused = false; serverPaused = false;
+          await browser.storage.local.set({localPaused}); status = config.enabled ? 'Connected' : 'Disconnected';
+        } else serverPaused = true;
+        return result;
+      }
+      if (!['tabs.list','page.read','page.find','bridge.status'].includes(m.method) || !['allow','ask','block'].includes(m.mode) || typeof m.clientId !== 'string') throw new Error('Invalid permission setting.');
+      return writePolicy({clientId:m.clientId,method:m.method,mode:m.mode});
+    }
+    case 'action-consent': return companion('/bridge/action-consent',{id:m.id,allow:m.allow === true});
     default: throw new Error('Unknown UI action.');
   }
 });
 browser.runtime.onInstalled.addListener(() => {void browser.runtime.openOptionsPage();});
 void (async () => {
-  const saved = await browser.storage.local.get('config'); if (saved.config) {try {config = validateConfig(saved.config);} catch {}}
+  const saved = await browser.storage.local.get(['config','localPaused']); localPaused = saved.localPaused === true;
+  if (saved.config) {try {config = validateConfig(saved.config);} catch {}}
   await browser.alarms.create('connection',{periodInMinutes:0.5}); void poll();
 })();

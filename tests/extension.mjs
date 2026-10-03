@@ -27,7 +27,7 @@ async function harness(saved = {}) {
   const send = (message, sender = {id: browser.runtime.id,url:browser.runtime.getURL('popup.html')}) => browser.runtime.onMessage.listeners[0](message, sender);
   // Enable without starting the polling loop, to test commands deterministically.
   const connect = () => evaluate(`config = {enabled:true,endpoint:'http://127.0.0.1:43119',token:'${token}'}; status = 'Connected';`);
-  return { browser, tabs, writes, badges, requests, evaluate, send, connect };
+  return { browser, tabs, writes, badges, requests, evaluate, send, connect, setFetch: fn => { context.fetch = fn; } };
 }
 
 test('grants accept normal HTTP(S), keep tab IDs private, expire and invalidate old handles', async () => {
@@ -182,4 +182,97 @@ test('disconnect clears access and persisted configuration never restores grants
   const restored = await harness(h.writes.at(-1));
   assert.equal((await restored.send({type:'state'})).grants.length,0);
   assert.equal(restored.requests.length,0);
+});
+
+test('global pause cancels an in-flight read, clears badges and requires new grants after resume', async () => {
+  const h = await harness(); h.connect();
+  const {handle} = await h.send({type:'share',tabId:7});
+  let complete, entered;
+  const started = new Promise(resolve => entered = resolve);
+  h.browser.scripting.executeScript = () => { entered(); return new Promise(resolve => complete = resolve); };
+  const pending = h.evaluate(`runCommand({method:'page.read',args:{handle:'${handle}'}})`);
+  await started;
+  await h.send({type:'set-policy',paused:true});
+  const paused = await h.send({type:'state'});
+  assert.equal(paused.paused,true);
+  assert.equal(paused.grants.length,0);
+  assert.equal(paused.actions.length,0);
+  assert.equal(h.badges.at(-1).tabId,7);
+  assert.equal(h.badges.at(-1).text,'');
+  complete([{result:{text:'In-flight secret must be discarded'}}]);
+  await assert.rejects(pending,/not shared|expired|paused/);
+  await assert.rejects(h.send({type:'share',tabId:7}),/paused/);
+  await assert.rejects(h.evaluate(`runCommand({method:'tabs.list'})`),/paused/);
+  await h.send({type:'set-policy',paused:false});
+  assert.equal((await h.send({type:'state'})).paused,false);
+  assert.equal((await h.send({type:'state'})).grants.length,0);
+  await assert.rejects(h.evaluate(`runCommand({method:'page.read',args:{handle:'${handle}'}})`),/not shared/);
+  const renewed = await h.send({type:'share',tabId:7});
+  assert.notEqual(renewed.handle,handle);
+});
+
+test('failed pause/resume retains the local prohibition and persists it across extension restart', async () => {
+  const h = await harness(); h.connect();
+  await h.send({type:'share',tabId:7});
+  h.setFetch(async () => ({ok:false}));
+  await assert.rejects(h.send({type:'set-policy',paused:true}),/Companion refused/);
+  assert.equal((await h.send({type:'state'})).paused,true);
+  assert.equal((await h.send({type:'state'})).grants.length,0);
+  assert.equal(h.writes.at(-1).localPaused,true);
+  await assert.rejects(h.send({type:'set-policy',paused:false}),/Companion refused/);
+  assert.equal((await h.send({type:'state'})).paused,true);
+  assert.equal(h.writes.some(write => write.localPaused === false),false);
+  await assert.rejects(h.send({type:'share',tabId:7}),/paused/);
+  await assert.rejects(h.evaluate(`runCommand({method:'bridge.status'})`),/paused/);
+  const restarted = await harness({config:{enabled:false,endpoint:'http://127.0.0.1:43119',token},localPaused:true});
+  restarted.connect();
+  assert.equal((await restarted.send({type:'state'})).paused,true);
+  assert.equal((await restarted.send({type:'state'})).grants.length,0);
+  await assert.rejects(restarted.send({type:'share',tabId:7}),/paused/);
+  await restarted.send({type:'set-policy',paused:false});
+  assert.equal((await restarted.send({type:'state'})).paused,false);
+  assert.equal(restarted.writes.at(-1).localPaused,false);
+});
+
+test('a new pause takes precedence over an earlier pending resume', async () => {
+  const h = await harness(); h.connect();
+  await h.send({type:'set-policy',paused:true});
+  let completeResume, entered;
+  const started = new Promise(resolve => entered = resolve), calls = [];
+  h.setFetch(async (url, options) => {
+    const body = JSON.parse(options.body); calls.push(body);
+    if (body.paused === false) { entered(); return new Promise(resolve => completeResume = () => resolve({ok:true,json:async () => ({ok:true})})); }
+    return {ok:true,json:async () => ({ok:true})};
+  });
+  const resume = h.send({type:'set-policy',paused:false});
+  await started;
+  const pause = h.send({type:'set-policy',paused:true});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal((await h.send({type:'state'})).paused,true);
+  completeResume();
+  await Promise.all([resume,pause]);
+  assert.equal((await h.send({type:'state'})).paused,true);
+  assert.deepEqual(calls,[{paused:false},{paused:true}]);
+  assert.equal(h.writes.some(write => write.localPaused === false),false);
+});
+
+test('permission policy and per-action approval are restricted to the extension UI', async () => {
+  const h = await harness(); h.connect();
+  for (const sender of [{id:'other',url:h.browser.runtime.getURL('popup.html')},{id:h.browser.runtime.id,url:page.url}]) {
+    for (const message of [{type:'set-policy',paused:true},{type:'set-policy',clientId:'client-1',method:'page.read',mode:'allow'},{type:'action-consent',id:'action-1',allow:true}]) {
+      await assert.rejects(h.send(message,sender),/Only extension UI/);
+    }
+  }
+  assert.equal(h.requests.length,0);
+  for (const policy of [{method:'page.click',mode:'allow'},{method:'page.read',mode:'run'},{method:'page.read',mode:'allow',clientId:42}]) {
+    await assert.rejects(h.send({type:'set-policy',clientId:'client-1',...policy}),/Invalid permission/);
+  }
+  for (const mode of ['allow','ask','block']) await h.send({type:'set-policy',clientId:'client-1',method:'page.read',mode});
+  await h.send({type:'action-consent',id:'action-1',allow:true});
+  await h.send({type:'action-consent',id:'action-2',allow:'yes'});
+  assert.deepEqual(h.requests.map(request => ({path:new URL(request.url).pathname,body:JSON.parse(request.options.body)})),[
+    ...['allow','ask','block'].map(mode => ({path:'/bridge/policy',body:{clientId:'client-1',method:'page.read',mode}})),
+    {path:'/bridge/action-consent',body:{id:'action-1',allow:true}},
+    {path:'/bridge/action-consent',body:{id:'action-2',allow:false}}
+  ]);
 });

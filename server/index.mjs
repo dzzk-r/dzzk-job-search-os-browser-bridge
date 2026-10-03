@@ -13,6 +13,8 @@ const secret = () => randomBytes(32).toString('base64url');
 const hash = value => createHash('sha256').update(value).digest('base64url');
 const equal = (a, b) => typeof a === 'string' && typeof b === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 const scope = 'browser.read';
+const browserMethods = ['tabs.list','page.read','page.find','bridge.status'];
+const permissionModes = ['allow','ask','block'];
 const escape = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function fail(status, error, description = error) { throw Object.assign(new Error(description), {status, error}); }
 function validRedirect(value) {
@@ -29,7 +31,7 @@ async function body(req, limit = 131072) {
   } catch(e) { if (e.status) throw e; fail(400, 'invalid_request'); }
 }
 
-/** A single-user loopback companion. Registration metadata alone is persisted. */
+/** A single-user loopback companion. Page content is never persisted. */
 export async function createBridgeServer(options = {}) {
   const port = options.port ?? 43119;
   const configDir = options.configDir ?? join(homedir(), '.config', 'dzzk-jso-bridge');
@@ -38,6 +40,8 @@ export async function createBridgeServer(options = {}) {
   if (origin && (origin.protocol !== 'https:' || origin.pathname !== '/' || origin.search || origin.hash || origin.username || origin.password)) throw new Error('PUBLIC_URL must be one HTTPS origin without a path.');
   let pairingToken = options.pairingToken;
   const registrations = new Map(), pending = new Map(), codes = new Map(), tokens = new Map(), approved = new Map(), commands = new Map(), rates = new Map();
+  const clientPolicies = new Map(), policyRevisions = new Map();
+  let paused = false, pauseRevision = 0;
   let connectedAt = 0, issuer, resource, localHost, closed = false, persistChain = Promise.resolve();
   await mkdir(configDir, {recursive:true, mode:0o700}); await chmod(configDir, 0o700);
   const pairingPath = join(configDir, 'pairing-token');
@@ -59,12 +63,43 @@ export async function createBridgeServer(options = {}) {
     for (const c of data) if (typeof c.client_id === 'string' && Array.isArray(c.redirect_uris) && c.redirect_uris.every(validRedirect)) registrations.set(c.client_id, c);
     await chmod(registrationPath, 0o600);
   } catch(e) { if (e.code !== 'ENOENT') throw e; }
+  const policyPath = join(configDir,'policy.json');
+  try {
+    const data=JSON.parse(await readFile(policyPath,'utf8'));
+    if (!data || typeof data.paused !== 'boolean' || !data.clients || typeof data.clients !== 'object' || Array.isArray(data.clients) || Object.keys(data).some(k=>!['paused','clients'].includes(k)) || Object.keys(data.clients).length>256) throw new Error('Invalid browser policy.');
+    for (const [id,matrix] of Object.entries(data.clients)) {
+      if (!/^[A-Za-z0-9_-]{43}$/.test(id) || !matrix || typeof matrix !== 'object' || Array.isArray(matrix) || Object.entries(matrix).some(([method,mode])=>!browserMethods.includes(method)||!permissionModes.includes(mode))) throw new Error('Invalid client browser policy.');
+      clientPolicies.set(id,{...matrix});
+    }
+    paused=data.paused; await chmod(policyPath,0o600);
+  } catch(e) {if (e.code !== 'ENOENT') throw e;}
   const persist = () => {
     persistChain = persistChain.then(async () => {
       const tmp = registrationPath + '.tmp';
       await writeFile(tmp, JSON.stringify([...registrations.values()]), {mode:0o600}); await chmod(tmp, 0o600); await rename(tmp, registrationPath);
     }); return persistChain;
   };
+  const persistPolicy = () => {
+    persistChain=persistChain.then(async()=>{
+      const tmp=policyPath+'.tmp';
+      await writeFile(tmp,JSON.stringify({paused,clients:Object.fromEntries(clientPolicies)}),{mode:0o600}); await chmod(tmp,0o600); await rename(tmp,policyPath);
+    }); return persistChain;
+  };
+  const permission = (clientId,method) => clientPolicies.get(clientId)?.[method] ?? 'allow';
+  const permissions = clientId => Object.fromEntries(browserMethods.map(method=>[method,permission(clientId,method)]));
+  const revision = (clientId,method) => pauseRevision+':'+(policyRevisions.get(clientId+':'+method) ?? 0);
+  function checkPermission(auth,method,receipt) {
+    checkToken(auth);
+    if (paused) throw new Error('Browser actions are paused by the user.');
+    const mode=permission(auth.clientId,method);
+    if (mode === 'block') throw new Error('This browser action is blocked by the user.');
+    if (receipt && receipt.revision !== revision(auth.clientId,method)) throw new Error('Browser permission changed; this action was canceled.');
+    if (receipt && mode === 'ask' && !receipt.manualApproved) throw new Error('This browser action requires manual approval.');
+    return mode;
+  }
+  function cancelCommands(predicate,message) {
+    for (const c of commands.values()) if (predicate(c)) {commands.delete(c.id); clearTimeout(c.timer); c.reject(new Error(message));}
+  }
   const json = (res, status, value, headers = {}) => { res.writeHead(status, {'Content-Type':'application/json', ...headers}); res.end(JSON.stringify(value)); };
   const alive = () => Date.now() - connectedAt < 15000;
   function cleanup() {
@@ -79,7 +114,7 @@ export async function createBridgeServer(options = {}) {
     for (const [token,t] of tokens) if (t.clientId === id) tokens.delete(token);
     for (const [code,c] of codes) if (c.clientId === id) codes.delete(code);
     for (const p of pending.values()) if (p.clientId === id) p.denied = true;
-    for (const c of commands.values()) if (c.clientId === id) { commands.delete(c.id); clearTimeout(c.timer); c.reject(new Error(message)); }
+    cancelCommands(c=>c.clientId===id,message);
   }
   function disconnect() { connectedAt = 0; for (const id of [...approved.keys()]) cancelClient(id, 'Browser disconnected.'); for (const p of pending.values()) p.denied = true; }
   function authenticate(req) {
@@ -90,22 +125,22 @@ export async function createBridgeServer(options = {}) {
   }
   function checkToken(auth) { if (!tokens.has(auth.bearer) || auth.expires <= Date.now() || !approved.has(auth.clientId)) throw new Error('Client authorization expired or was revoked.'); }
   async function dispatch(auth, method, args) {
-    checkToken(auth); if (!alive()) throw new Error('Firefox companion is disconnected.');
+    const mode=checkPermission(auth,method); if (!alive()) throw new Error('Firefox companion is disconnected.');
     if (commands.size >= 32) throw new Error('Browser command queue is full.');
     return new Promise((resolve,reject) => {
-      const id = secret(), timer = setTimeout(() => { commands.delete(id); reject(new Error('Browser command timed out.')); }, 20000);
-      commands.set(id, {id,method,args,clientId:auth.clientId,auth,resolve,reject,timer,sent:false});
+      const id = secret(), timer = setTimeout(() => { commands.delete(id); reject(new Error(mode === 'ask' ? 'Manual approval timed out.' : 'Browser command timed out.')); }, mode === 'ask' ? 90000 : 20000);
+      commands.set(id, {id,method,args,clientId:auth.clientId,auth,resolve,reject,timer,sent:false,revision:revision(auth.clientId,method),manualApproved:mode !== 'ask'});
     });
   }
   function mcp(auth) {
-    const server = new McpServer({name:'dzzk-job-search-os-browser-bridge',version:'0.1.0'});
+    const server = new McpServer({name:'dzzk-job-search-os-browser-bridge',version:'0.1.1'});
     const securitySchemes=[{type:'oauth2',scopes:[scope]}], descriptors=[];
     const tool = (name, description, inputSchema, method) => {
       const annotations={readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:true};
       const _meta={securitySchemes};
       descriptors.push({name,description,inputSchema:z.toJSONSchema(z.object(inputSchema),{target:'draft-7'}),annotations,securitySchemes,_meta});
       server.registerTool(name, {description,inputSchema,annotations,_meta}, async args => {
-      try { const result = await dispatch(auth,method,args); checkToken(auth); return {content:[{type:'text',text:JSON.stringify(result)}]}; }
+      try { const {result,receipt} = await dispatch(auth,method,args); checkPermission(auth,method,receipt); return {content:[{type:'text',text:JSON.stringify(result)}]}; }
       catch(e) { return {isError:true,content:[{type:'text',text:e.message}]}; }
       });
     };
@@ -134,8 +169,11 @@ export async function createBridgeServer(options = {}) {
         if (path === '/bridge/next' && req.method === 'GET') {
           connectedAt = Date.now();
           const batch = [];
-          for (const c of commands.values()) if (!c.sent) {c.sent=true; batch.push({id:c.id,method:c.method,args:c.args});}
-          return json(res,200,{commands:batch,consents:[...pending.values()].filter(p => !p.allowed && !p.denied).map(p => ({id:p.id,name:registrations.get(p.clientId)?.client_name ?? 'MCP client',redirectOrigin:new URL(p.redirectUri).origin})),clients:[...approved].map(([id,c]) => ({id,...c}))});
+          for (const c of commands.values()) if (!c.sent && c.manualApproved) {
+            try {checkPermission(c.auth,c.method,c); c.sent=true; batch.push({id:c.id,method:c.method,args:c.args});}
+            catch(e) {cancelCommands(item=>item.id===c.id,e.message);}
+          }
+          return json(res,200,{commands:batch,policy:{paused},actions:[...commands.values()].filter(c=>!c.manualApproved).map(c=>({id:c.id,clientName:registrations.get(c.clientId)?.client_name ?? 'MCP client',method:c.method,target:typeof c.args.handle === 'string' ? c.args.handle : 'Shared pages'})),consents:[...pending.values()].filter(p => !p.allowed && !p.denied).map(p => ({id:p.id,name:registrations.get(p.clientId)?.client_name ?? 'MCP client',redirectOrigin:new URL(p.redirectUri).origin})),clients:[...approved].map(([id,c]) => ({id,...c,permissions:permissions(id)}))});
         }
         if (req.method !== 'POST') fail(405,'method_not_allowed');
         const data = await body(req,path === '/bridge/result' ? 524288 : 16384);
@@ -143,12 +181,39 @@ export async function createBridgeServer(options = {}) {
           const c = commands.get(data.id);
           if (!c) return json(res,200,{discarded:true});
           commands.delete(c.id); clearTimeout(c.timer);
-          try {checkToken(c.auth); if (!alive()) throw new Error('Browser disconnected.'); if (typeof data.error === 'string') c.reject(new Error(data.error.slice(0,500))); else if ('result' in data) c.resolve(data.result); else c.reject(new Error('Invalid browser response.'));} catch(e) {c.reject(e);}
+          try {checkPermission(c.auth,c.method,c); if (!c.sent || !c.manualApproved) throw new Error('Browser action was not approved for execution.'); if (!alive()) throw new Error('Browser disconnected.'); if (typeof data.error === 'string') c.reject(new Error(data.error.slice(0,500))); else if ('result' in data) c.resolve({result:data.result,receipt:{revision:c.revision,manualApproved:c.manualApproved}}); else c.reject(new Error('Invalid browser response.'));} catch(e) {c.reject(e);}
+          return json(res,200,{ok:true});
+        }
+        if (path === '/bridge/policy') {
+          const keys=Object.keys(data);
+          if (keys.length === 1 && keys[0] === 'paused' && typeof data.paused === 'boolean') {
+            if (paused !== data.paused) {
+              paused=data.paused; pauseRevision++;
+              cancelCommands(()=>true,'Browser pause state changed; this action was canceled.');
+              if (paused) {for (const p of pending.values()) p.denied=true; codes.clear();}
+            }
+          } else if (keys.length === 3 && keys.every(k=>['clientId','method','mode'].includes(k)) && typeof data.clientId === 'string' && registrations.has(data.clientId) && browserMethods.includes(data.method) && permissionModes.includes(data.mode)) {
+            if (permission(data.clientId,data.method) !== data.mode) {
+              clientPolicies.set(data.clientId,{...clientPolicies.get(data.clientId),[data.method]:data.mode});
+              const key=data.clientId+':'+data.method; policyRevisions.set(key,(policyRevisions.get(key) ?? 0)+1);
+              cancelCommands(c=>c.clientId===data.clientId&&c.method===data.method,'Browser permission changed; this action was canceled.');
+            }
+          } else fail(400,'invalid_policy');
+          await persistPolicy(); return json(res,200,{ok:true,policy:{paused}});
+        }
+        if (path === '/bridge/action-consent') {
+          if (Object.keys(data).length !== 2 || !Object.hasOwn(data,'id') || typeof data.id !== 'string' || typeof data.allow !== 'boolean') fail(400,'invalid_action_consent');
+          const c=commands.get(data.id);
+          if (!c || c.sent || c.manualApproved) fail(400,'invalid_action_consent');
+          try {checkPermission(c.auth,c.method,{...c,manualApproved:true});} catch(e) {cancelCommands(item=>item.id===c.id,e.message); fail(400,'invalid_action_consent');}
+          if (!data.allow) cancelCommands(item=>item.id===c.id,'Browser action denied by the user.');
+          else {c.manualApproved=true; clearTimeout(c.timer); c.timer=setTimeout(()=>{commands.delete(c.id); c.reject(new Error('Browser command timed out.'));},20000);}
           return json(res,200,{ok:true});
         }
         if (path === '/bridge/consent') {
           const p = pending.get(data.id); if (!p || p.allowed || p.denied || p.expires < Date.now()) fail(400,'invalid_consent');
           if (typeof data.allow !== 'boolean') fail(400,'invalid_request');
+          if (paused && data.allow) fail(403,'browser_paused');
           if (data.allow) {p.allowed=true; approved.set(p.clientId,{name:registrations.get(p.clientId).client_name,redirectOrigin:new URL(p.redirectUri).origin});} else p.denied=true;
           return json(res,200,{ok:true});
         }
@@ -168,6 +233,7 @@ export async function createBridgeServer(options = {}) {
         registrations.set(client.client_id,client); await persist(); return json(res,201,client);
       }
       if (path === '/authorize' && req.method === 'GET') {
+        if (paused) fail(403,'browser_paused');
         const q = url.searchParams, client = registrations.get(q.get('client_id'));
         if (!client || !client.redirect_uris.includes(q.get('redirect_uri'))) fail(400,'invalid_client');
         if (q.get('response_type') !== 'code' || q.get('code_challenge_method') !== 'S256' || !/^[A-Za-z0-9_-]{43}$/.test(q.get('code_challenge') ?? '') || q.get('resource') !== resource || q.get('scope') !== scope || (q.get('state')?.length ?? 0) > 1024) fail(400,'invalid_request');

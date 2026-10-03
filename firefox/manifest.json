@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "dzzk Job Search OS Browser Bridge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Share selected job pages and recruiter conversations with your MCP client. Requires the local dzzk companion.",
   "permissions": [
     "activeTab",

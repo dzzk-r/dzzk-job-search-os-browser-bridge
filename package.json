@@ -1,6 +1,6 @@
 {
   "name": "dzzk-job-search-os-browser-bridge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "User-controlled browser access for job-search workflows in ChatGPT.",
   "scripts": {
     "start": "node server/index.mjs",

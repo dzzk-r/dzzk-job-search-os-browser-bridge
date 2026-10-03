@@ -1,4 +1,4 @@
-# Mozilla Add-ons submission — version 0.1.0
+# Mozilla Add-ons submission — version 0.1.1
 
 Name: dzzk Job Search OS Browser Bridge
 
@@ -15,7 +15,10 @@ pages you have already signed into on LinkedIn and other sites.
 You choose each page from the extension toolbar. Your authorized MCP client can
 list shared pages, read text and find passages. Access expires after 30 minutes
 and ends when you navigate, reload, close the tab or stop sharing. This release
-is read-only: it does not send messages or submit job applications.
+is read-only: it does not send messages or submit job applications. Pause all
+actions stops further calls and removes shared pages. For each authorized client,
+choose Allow, Ask every time or Block for each operation. A one-time approval
+never authorizes later requests.
 
 Setup requires Firefox 140+, Node.js 22+ and the separately installed open-source
 dzzk companion. ChatGPT needs a developer-mode MCP connection and a supported
@@ -48,7 +51,9 @@ The companion is separately installed; run `npm ci`, then `npm start` from the
 repository and paste the displayed pairing token into extension settings.
 Use a normal test web page; no LinkedIn account is required for validation.
 Authorize a test MCP client through the extension popup and share the page.
-Verify read, find, revocation and refusal for an unshared handle. Test scripts
+Verify read, find, revocation and refusal for an unshared handle. Test Ask with
+Allow once and Deny once, then Block and Pause all actions. Resuming must not
+restore prior shared pages. Test scripts
 and the reproducible Firefox smoke check are included in the repository.
 
 The localhost host permission is solely for companion HTTP requests on port

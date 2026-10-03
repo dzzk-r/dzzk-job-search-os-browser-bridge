@@ -3,7 +3,7 @@
 Read explicitly shared pages from an existing Firefox session through MCP.
 By Daniel Chechik / dzzk. Independent of Mozilla, OpenAI, LinkedIn and Opera.
 
-## Version 0.1.0
+## Version 0.1.1
 
 Firefox extension + local Node.js companion. Four read-only tools:
 `list_tabs`, `read_page`, `find_in_page`, `bridge_status`.
@@ -52,6 +52,26 @@ Stop sharing to block subsequent reads. Disconnect also revokes client tokens.
 The browser path has no required paid automation service. ChatGPT, hosting and
 transport providers have their own account, plan and availability requirements.
 
+## Stop and approval controls
+
+In the extension popup, use Pause all actions to stop every client, cancel queued
+or in-flight requests, and remove page grants. Resume does not restore grants;
+share each page again. Local pause stays effective if the companion is unavailable.
+
+Each authorized client has four permission selectors: list shared pages, read page
+text, find passages and check connection. Allow performs that operation within
+existing page grants. Ask every time holds each request until you choose Allow
+once or Deny once in Firefox; an approval is never reused. Block refuses that
+operation until you change it. New authorized clients default to Allow after the
+explicit connection approval. Choose Ask or Block before sharing pages if desired.
+
+Only extension UI can change these settings; MCP client credentials cannot.
+Policies persist in the local companion and survive reauthorization of the same
+registered client. A newly registered client needs fresh connection approval.
+Revoking a connection removes its tokens. Stop and revoke cannot retract data
+already returned to a client. ChatGPT's own plugin approval settings are an
+additional, independent control.
+
 ## Development
 
 ```sh
@@ -61,13 +81,13 @@ npm run build
 FIREFOX_BIN=/path/to/firefox npm run test:firefox
 ```
 
-`dist/dzzk_job_search_os_browser_bridge-0.1.0.zip` is the unsigned AMO submission
+`dist/dzzk_job_search_os_browser_bridge-0.1.1.zip` is the unsigned AMO submission
 package. An unsigned ZIP is not an approved AMO release. Firefox smoke testing
 uses a disposable profile and synthetic pages, never personal browser sessions.
 
 ## Boundaries and next adapters
 
-[Privacy](docs/PRIVACY.md) · [Security](docs/SECURITY-BOUNDARY.md) ·
+[Privacy](docs/PRIVACY.md) · [Security](docs/SECURITY-BOUNDARY.md) · [Controls](docs/CONTROL-MODEL.md) ·
 [Compatibility](docs/COMPATIBILITY.md) · [AMO submission](docs/AMO-LISTING.md).
 
 Opera, Safari and site-specific adapters are later work. The existing Opera

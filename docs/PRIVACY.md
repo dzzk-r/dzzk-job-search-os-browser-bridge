@@ -1,6 +1,6 @@
 # Privacy policy — dzzk Job Search OS Browser Bridge
 
-Version 0.1.0, October 3, 2026. Developer: Daniel Chechik (dzzk).
+Version 0.1.1, October 3, 2026. Developer: Daniel Chechik (dzzk).
 Contact: https://github.com/dzzk-r/dzzk-job-search-os-browser-bridge/issues
 Do not put private messages, page contents or credentials in public issues.
 
@@ -20,11 +20,13 @@ transport path. Data is not confined to your computer once a remote client reads
 Page sharing expires after 30 minutes. Stop sharing, navigating, reloading,
 closing the tab or restarting the extension revokes the page grant. Disconnect
 revokes all grants and client authorizations. Revocation prevents future reads;
-it cannot retract data already returned to a client.
+it cannot retract data already returned to a client. Pause stops further requests,
+cancels outstanding ones and removes shared pages. For each authorized client,
+Allow, Ask every time and Block settings control each fixed read operation.
 
 The extension keeps page grants in memory. It saves the local companion address,
-enabled state and pairing token in Firefox local extension storage. The companion
-stores its pairing token and OAuth client registration metadata in a local file
+enabled state, local pause and pairing token in Firefox local extension storage. The companion
+stores its pairing token, OAuth client registration metadata and access policies in a local file
 with owner-only permissions. Access tokens, requests and page results are processed
 in memory. The application does not persist page text or log request bodies.
 The operating system, proxy/tunnel and MCP client may have their own logging policies.
@@ -41,5 +43,5 @@ messages sent, or applications submitted. Readable website text can itself
 contain sensitive information; only share pages you intend your client to see.
 
 Remove the extension to delete its saved settings. Stop the companion and delete
-its configuration folder to remove pairing and client metadata. Data already held
+its configuration folder to remove pairing, client metadata and access policies. Data already held
 by ChatGPT or another MCP client must be managed in that client's interface.

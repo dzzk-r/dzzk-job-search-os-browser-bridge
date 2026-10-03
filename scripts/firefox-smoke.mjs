@@ -37,7 +37,7 @@ try {
   builder=builder.setFirefoxService(new firefox.ServiceBuilder().addArguments('--allow-system-access'));
  }
  driver=await builder.build();await driver.manage().setTimeouts({implicit:5000,script:15000});
- await driver.installAddon(path.resolve('dist/dzzk_job_search_os_browser_bridge-0.1.0.zip'),true);await wait(1200);
+ await driver.installAddon(path.resolve('dist/dzzk_job_search_os_browser_bridge-0.1.1.zip'),true);await wait(1200);
  await driver.setContext('chrome');
  const uuid=await driver.executeScript("return JSON.parse(Services.prefs.getCharPref('extensions.webextensions.uuids'))['browser-bridge@dzzk.dev']");
  const base='moz-extension://'+uuid+'/';await driver.setContext('content');
@@ -66,12 +66,39 @@ try {
  result=await mcp(token,'find_in_page',{handle,query:'working endpoint'});assert.equal(JSON.parse(result.content[0].text).matches.length,1);
  const current=await driver.getAllWindowHandles();
  for(const h of current){await driver.switchTo().window(h);if((await driver.getCurrentUrl())===base+'popup.html')break;}
- await driver.executeAsyncScript("const done=arguments[arguments.length-1];browser.runtime.sendMessage({type:'revoke',handle:arguments[0]}).then(done,e=>done({error:e.message}));",handle);
- result=await mcp(token,'read_page',{handle});assert.equal(result.isError,true);
+ const choose=async(mode)=>{
+  await driver.wait(until.elementLocated(By.css('select[data-method="page.read"]')),6000);
+  await driver.findElement(By.css(`select[data-method="page.read"] option[value="${mode}"]`)).click();
+  await driver.wait(async()=>{
+   const batch=(await call('/bridge/next',undefined,bridge.pairingToken)).value;
+   return batch.clients[0]?.permissions['page.read']===mode;
+  },6000);
+ };
+ await choose('ask');
+ let pending=mcp(token,'read_page',{handle});
+ await driver.wait(until.elementLocated(By.css('#actions button')),6000);
+ await driver.findElement(By.css('#actions button')).click();
+ result=await pending;assert.ok(!result.isError,JSON.stringify(result));
+ await driver.wait(async()=>await driver.findElements(By.css('#actions button')).then(x=>x.length===0),6000);
+ pending=mcp(token,'read_page',{handle});
+ await driver.wait(until.elementLocated(By.css('#actions button')),6000);
+ await driver.findElement(By.css('#actions button:nth-of-type(2)')).click();
+ result=await pending;assert.equal(result.isError,true);assert.match(result.content[0].text,/denied/i);
+ await choose('block');result=await mcp(token,'read_page',{handle});assert.equal(result.isError,true);assert.match(result.content[0].text,/blocked/i);
+ await choose('allow');result=await mcp(token,'read_page',{handle});assert.ok(!result.isError);
+ await driver.findElement(By.id('pause')).click();
+ await driver.wait(until.elementTextIs(driver.findElement(By.id('status')),'Paused'),6000);
+ result=await mcp(token,'read_page',{handle});assert.equal(result.isError,true);assert.match(result.content[0].text,/paused/i);
+ await driver.wait(async()=>await driver.findElements(By.css('#grants .card')).then(x=>x.length===0),6000);
+ await mkdir('artifacts',{recursive:true});
+ await writeFile('artifacts/firefox-paused.png',Buffer.from(await driver.takeScreenshot(),'base64'));
+ await driver.findElement(By.id('pause')).click();
+ await driver.wait(until.elementTextIs(driver.findElement(By.id('status')),'Connected'),6000);
+ result=await mcp(token,'read_page',{handle});assert.equal(result.isError,true);assert.match(result.content[0].text,/not shared|expired/i);
  await mkdir('artifacts',{recursive:true});
  await writeFile('artifacts/firefox-popup.png',Buffer.from(await driver.takeScreenshot(),'base64'));
- await writeFile('artifacts/firefox-smoke.json',JSON.stringify({firefox:(await driver.getCapabilities()).get('browserVersion'),checks:['installed','configured','OAuth popup approval','unshared tabs excluded','read visible fixture','hidden/forms/drafts excluded','find passage','revoked read refused'],fixture:page,passed:true},null,2)+'\n');
- console.log('PASS: real Firefox install → configure → OAuth approve → share → MCP read/find → revoke.');
+ await writeFile('artifacts/firefox-smoke.json',JSON.stringify({firefox:(await driver.getCapabilities()).get('browserVersion'),checks:['installed','configured','OAuth popup approval','unshared tabs excluded','read visible fixture','hidden/forms/drafts excluded','find passage','ask approval once','denial once','method block','global pause','resume does not restore grants'],fixture:page,passed:true},null,2)+'\n');
+ console.log('PASS: real Firefox install → configure → OAuth approve → share → MCP read/find → ask/deny/block → pause → resume without grants.');
 } finally {
  if(driver) await driver.quit().catch(()=>{});gecko?.kill();await bridge.close();fixture.closeAllConnections();await new Promise(r=>fixture.close(r));await rm(directory,{recursive:true,force:true});
 }
