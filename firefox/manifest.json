@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "dzzk Job Search OS Browser Bridge",
+  "version": "0.0.1",
+  "description": "User-controlled browser bridge for dzzk Job Search OS. Works with Firefox.",
+  "permissions": ["activeTab", "tabs", "scripting", "storage"],
+  "host_permissions": [],
+  "action": {
+    "default_title": "dzzk Job Search OS Browser Bridge"
+  },
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "browser-bridge@dzzk.dev",
+      "strict_min_version": "128.0"
+    }
+  }
+}
