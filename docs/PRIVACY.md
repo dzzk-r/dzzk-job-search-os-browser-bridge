@@ -1,7 +1,7 @@
-# Privacy policy — dzzk Job Search OS Browser Bridge
+# Privacy policy — Execution Delivery Harness Browser Bridge
 
 Version 0.1.1, October 3, 2026. Developer: Daniel Chechik (dzzk).
-Contact: https://github.com/dzzk-r/dzzk-job-search-os-browser-bridge/issues
+Contact: https://github.com/dzzk-r/execution-delivery-harness/issues
 Do not put private messages, page contents or credentials in public issues.
 
 ## Data flow

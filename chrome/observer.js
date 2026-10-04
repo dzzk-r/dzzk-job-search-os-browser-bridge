@@ -21,11 +21,11 @@ function seconds(n) {
   return h+':'+String(m%60).padStart(2,'0')+':'+String(s).padStart(2,'0');
 }
 function openSpans(state) {
-  return (state.spans||[]).filter(s=>!['DONE','ERROR','CANCELED','ENDED?'].includes(s.status));
+  return (state.spans||[]).filter(s=>!['DONE','ERROR','CANCELED','EXITED'].includes(s.status));
 }
 function recentSpans(state) {
   const all=state.spans||[], open=openSpans(state);
-  const terminal=all.filter(s=>['DONE','ERROR','CANCELED','ENDED?'].includes(s.status)).slice(-5);
+  const terminal=all.filter(s=>['DONE','ERROR','CANCELED','EXITED'].includes(s.status)).slice(-5);
   const seen=new Set();
   return [...open,...terminal].filter(s=>!seen.has(s.id)&&seen.add(s.id)).sort((a,b)=>(b.started||0)-(a.started||0));
 }
@@ -74,6 +74,33 @@ function renderActors(state) {
   }
   $('actor-strip').replaceChildren(frag);
 }
+async function currentShareTarget() {
+  const [tab]=await chrome.tabs.query({active:true,currentWindow:true});
+  if(!tab?.id) throw new Error('No active browser tab.');
+  let url=tab.url, title=tab.title||'';
+  if(!url) {
+    try {
+      const result=await chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>({url:location.href,title:document.title})});
+      url=result[0]?.result?.url||'';
+      title=result[0]?.result?.title||title;
+    } catch {}
+  }
+  let parsed=null;
+  try { parsed=new URL(url); } catch {}
+  const shareable=Boolean(parsed&&['http:','https:'].includes(parsed.protocol)&&!tab.incognito&&tab.status!=='loading');
+  return {tabId:tab.id,url,title,host:parsed?.hostname||'',shareable};
+}
+function renderShareTarget(target) {
+  const box=$('share-target');
+  box.replaceChildren();
+  const label=document.createElement('strong');
+  label.textContent=target.shareable ? 'Current target' : 'Current target unavailable';
+  const detail=document.createElement('span');
+  detail.textContent=target.shareable ? ((target.title||'(untitled)')+'\\n'+target.host+'\\n'+target.url) : 'Activate a fully loaded HTTP(S) page and reopen or refresh Bridge controls.';
+  box.append(label,detail);
+  $('share-current').disabled=!target.shareable;
+  $('share-current').textContent=target.shareable ? ('Share '+target.host+' for 30 minutes') : 'Share current tab for 30 minutes';
+}
 function settingsCard(parent,text,buttons) {
   const div=document.createElement('div'); div.className='card';
   const p=document.createElement('p'); p.textContent=text; div.append(p);
@@ -84,7 +111,9 @@ async function refreshSettings() {
   try {
     const s=await send({type:'state'});
     $('bridge-status').textContent=s.status;
-    $('share-current').disabled=s.status!=='Connected'||s.paused;
+    const target=await currentShareTarget();
+    renderShareTarget(target);
+    $('share-current').disabled=$('share-current').disabled || s.status!=='Connected' || s.paused;
     $('pause-actions').textContent=s.paused?'Resume actions':'Pause all actions';
     $('pause-actions').dataset.paused=String(s.paused);
     const box=$('shared-pages'); box.replaceChildren();
@@ -200,9 +229,9 @@ $('settings-toggle').addEventListener('click',async()=>{$('settings-panel').hidd
 $('settings-close').addEventListener('click',()=>{$('settings-panel').hidden=true;});
 $('share-current').addEventListener('click',async()=>{
   try{
-    const [tab]=await chrome.tabs.query({active:true,currentWindow:true});
-    if(!tab?.id) throw new Error('No active tab.');
-    await send({type:'share',tabId:tab.id});
+    const target=await currentShareTarget();
+    if(!target.shareable) throw new Error('Current tab is not a fully loaded HTTP(S) page.');
+    await send({type:'share',tabId:target.tabId});
     await refreshSettings();
   }catch(e){$('settings-error').textContent=e.message;}
 });

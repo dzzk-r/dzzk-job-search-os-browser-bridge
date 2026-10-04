@@ -322,8 +322,8 @@ def process_spans(path: Path, limit=800):
             try:
                 os.kill(span["pid"], 0)
             except OSError:
-                span.update(status="ENDED?", ended=span["updated"],
-                            detail="process no longer exists; final exit not observed")
+                span.update(status="EXITED", ended=span["updated"],
+                            detail="process exited; exit code not captured")
         span["age_seconds"] = max(0, int((span["ended"] or now) - span["started"]))
     return sorted(spans.values(), key=lambda s: s["started"])
 

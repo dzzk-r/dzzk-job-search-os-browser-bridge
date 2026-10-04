@@ -148,7 +148,7 @@ export async function createBridgeServer(options = {}) {
     });
   }
   function mcp(auth) {
-    const server = new McpServer({name:'dzzk-job-search-os-browser-bridge',version:'0.1.1'}); // read-only page bridge; observer is a separate operator surface
+    const server = new McpServer({name:'execution-delivery-harness',version:'0.1.1'}); // read-only page bridge; observer is a separate operator surface
     const securitySchemes=[{type:'oauth2',scopes:[scope]}], descriptors=[];
     const register = (name, description, inputSchema, annotations, handler) => {
       const _meta={securitySchemes};
@@ -259,7 +259,7 @@ export async function createBridgeServer(options = {}) {
         if (path === '/bridge/disconnect') {disconnect(); return json(res,200,{ok:true});}
         fail(404,'not_found');
       }
-      if (req.method === 'GET' && (path === '/.well-known/oauth-protected-resource' || path === '/.well-known/oauth-protected-resource/mcp')) return json(res,200,{resource,authorization_servers:[issuer],scopes_supported:[scope],bearer_methods_supported:['header'],resource_name:'dzzk Job Search OS Browser Bridge'});
+      if (req.method === 'GET' && (path === '/.well-known/oauth-protected-resource' || path === '/.well-known/oauth-protected-resource/mcp')) return json(res,200,{resource,authorization_servers:[issuer],scopes_supported:[scope],bearer_methods_supported:['header'],resource_name:'Execution Delivery Harness Browser Bridge'});
       if (req.method === 'GET' && path === '/.well-known/oauth-authorization-server') return json(res,200,{issuer,authorization_endpoint:issuer+'/authorize',token_endpoint:issuer+'/token',registration_endpoint:issuer+'/register',response_types_supported:['code'],grant_types_supported:['authorization_code'],code_challenge_methods_supported:['S256'],token_endpoint_auth_methods_supported:['none'],scopes_supported:[scope],authorization_response_iss_parameter_supported:true});
       if (path === '/register' && req.method === 'POST') {
         const data = await body(req,16384);
@@ -281,7 +281,7 @@ export async function createBridgeServer(options = {}) {
         const nonce=secret();
         res.setHeader('Content-Security-Policy',`default-src 'none'; script-src 'nonce-${nonce}'; connect-src 'self'; style-src 'nonce-${nonce}'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`);
         res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
-        res.end(`<!doctype html><meta charset="utf-8"><title>Connect dzzk Browser Bridge</title><style nonce="${nonce}">body{font:18px system-ui;max-width:600px;margin:70px auto;padding:20px}h1{font-size:26px}</style><h1>Approve in your Firefox extension</h1><p><strong>${escape(client.client_name)}</strong> requests read access to pages you explicitly share.</p><p>Return to Firefox and open the dzzk Browser Bridge extension. Check the client name and destination: <strong>${escape(new URL(q.get('redirect_uri')).origin)}</strong>.</p><p id="status">Waiting for your choice in the extension. This page cannot approve access.</p><script nonce="${nonce}">const statusUrl=${JSON.stringify('/authorize/status?id='+id+'&key='+pollKey)}; async function poll(){try{const r=await fetch(statusUrl,{cache:'no-store'});const x=await r.json();if(x.redirect){location.replace(x.redirect);return}if(!r.ok){document.getElementById('status').textContent='Authorization expired. Start again from your MCP client.';return}}catch{}setTimeout(poll,1000)}poll();</script>`);
+        res.end(`<!doctype html><meta charset="utf-8"><title>Connect Execution Delivery Harness Browser Bridge</title><style nonce="${nonce}">body{font:18px system-ui;max-width:600px;margin:70px auto;padding:20px}h1{font-size:26px}</style><h1>Approve in your Firefox extension</h1><p><strong>${escape(client.client_name)}</strong> requests read access to pages you explicitly share.</p><p>Return to Firefox and open the Execution Delivery Harness Browser Bridge extension. Check the client name and destination: <strong>${escape(new URL(q.get('redirect_uri')).origin)}</strong>.</p><p id="status">Waiting for your choice in the extension. This page cannot approve access.</p><script nonce="${nonce}">const statusUrl=${JSON.stringify('/authorize/status?id='+id+'&key='+pollKey)}; async function poll(){try{const r=await fetch(statusUrl,{cache:'no-store'});const x=await r.json();if(x.redirect){location.replace(x.redirect);return}if(!r.ok){document.getElementById('status').textContent='Authorization expired. Start again from your MCP client.';return}}catch{}setTimeout(poll,1000)}poll();</script>`);
         return;
       }
       if (path === '/authorize/status' && req.method === 'GET') {
@@ -321,7 +321,7 @@ export async function createBridgeServer(options = {}) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const instance = await createBridgeServer();
-  console.log('dzzk Browser Bridge listening on http://127.0.0.1:43119');
+  console.log('Execution Delivery Harness Browser Bridge listening on http://127.0.0.1:43119');
   console.log('Extension pairing token file: ~/.config/dzzk-jso-bridge/pairing-token');
   console.log('Show token: cat ~/.config/dzzk-jso-bridge/pairing-token');
   console.log('Copy token on macOS without printing it: pbcopy < ~/.config/dzzk-jso-bridge/pairing-token');

@@ -71,8 +71,8 @@ supports the extension APIs used by the current adapter.
 Start the local companion:
 
 ```sh
-git clone https://github.com/dzzk-r/dzzk-job-search-os-browser-bridge.git
-cd dzzk-job-search-os-browser-bridge
+git clone https://github.com/dzzk-r/execution-delivery-harness.git
+cd execution-delivery-harness
 npm ci
 npm start
 ```

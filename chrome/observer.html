@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Execution Harness</title>
+  <title>Execution Delivery Harness — Observer</title>
   <link rel="stylesheet" href="ui.css">
   <link rel="stylesheet" href="observer.css">
 </head>
@@ -25,7 +25,8 @@
   <aside id="settings-panel" class="settings-panel" hidden>
     <div class="settings-head"><strong>Bridge controls</strong><button id="settings-close" class="icon-button" aria-label="Close settings">×</button></div>
     <p id="bridge-status" class="muted">Checking connection…</p>
-    <button id="share-current" class="primary">Share current tab for 30 minutes</button>
+    <div id="share-target" class="target-preview" aria-live="polite">Current target: checking…</div>
+    <button id="share-current" class="primary" disabled>Share current tab for 30 minutes</button>
     <button id="pause-actions">Pause all actions</button>
     <div id="shared-pages"></div>
     <p class="muted">Only explicitly shared HTTP(S) tabs are readable. Navigation, reload, tab close, extension restart or manual revoke ends access.</p>

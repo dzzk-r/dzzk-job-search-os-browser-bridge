@@ -3,7 +3,7 @@
 Checked October 3, 2026. This is a design comparison, not an audit of the hosted
 Remote Desktop Commander implementation (its source is not public).
 
-| Layer | Remote Desktop Commander / ChatGPT | dzzk Browser Bridge |
+| Layer | Remote Desktop Commander / ChatGPT | Execution Delivery Harness Browser Bridge |
 | --- | --- | --- |
 | Host approvals | ChatGPT global and per-app preferences decide when to ask before a tool call | Same host controls apply when connected; tool annotations do not override them |
 | Service authorization | OAuth authorizes a client; paired devices can be revoked from the dashboard | OAuth client approval and connection revocation in the Firefox popup |

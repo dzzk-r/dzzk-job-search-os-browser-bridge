@@ -4,7 +4,7 @@ Verified scope: the synthetic Firefox smoke check was completed. Live ChatGPT
 account OAuth linking, live LinkedIn DOM, and AMO signing/publication have not
 been verified.
 
-Name: dzzk Job Search OS Browser Bridge
+Name: Execution Delivery Harness Browser Bridge
 
 Summary:
 Share selected job pages and recruiter conversations with your MCP client.
@@ -39,11 +39,11 @@ Independent project by Daniel Chechik (dzzk). Not affiliated with or endorsed by
 Mozilla, OpenAI, LinkedIn or Opera. Those names identify compatibility only.
 
 Homepage / support:
-https://github.com/dzzk-r/dzzk-job-search-os-browser-bridge
-https://github.com/dzzk-r/dzzk-job-search-os-browser-bridge/issues
+https://github.com/dzzk-r/execution-delivery-harness
+https://github.com/dzzk-r/execution-delivery-harness/issues
 
 Privacy policy:
-https://github.com/dzzk-r/dzzk-job-search-os-browser-bridge/blob/main/docs/PRIVACY.md
+https://github.com/dzzk-r/execution-delivery-harness/blob/main/docs/PRIVACY.md
 
 License: MIT. Suggested category: Productivity.
 

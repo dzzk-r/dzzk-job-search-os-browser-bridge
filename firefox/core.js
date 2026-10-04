@@ -2,7 +2,9 @@
   class Grants {
     constructor() { this.tabs = new Map(); }
     share(tab, now = Date.now()) {
-      if (!['http:', 'https:'].includes(new URL(tab.url).protocol) || tab.incognito) throw new Error('Only normal HTTP(S) tabs can be shared.');
+      let protocol;
+      try { protocol = typeof tab.url === 'string' ? new URL(tab.url).protocol : null; } catch {}
+      if (!['http:', 'https:'].includes(protocol) || tab.incognito) throw new Error('Only normal HTTP(S) tabs can be shared.');
       const handle = crypto.randomUUID();
       this.revoke(tab.id);
       this.tabs.set(tab.id, { handle, tabId: tab.id, url: tab.url, title: tab.title || '', grantedAt: now, expiresAt: now + 1800000 });

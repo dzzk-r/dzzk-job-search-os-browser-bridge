@@ -36,6 +36,8 @@ test('grants accept normal HTTP(S), keep tab IDs private, expire and invalidate 
   for (const url of ['file:///tmp/secret', 'about:config', 'moz-extension://other/options.html', 'data:text/html,secret']) {
     assert.throws(() => grants.share({...page,url}), /normal HTTP/);
   }
+  assert.throws(() => grants.share({...page,url:undefined}), /normal HTTP/);
+  assert.throws(() => grants.share({...page,url:'not a url'}), /normal HTTP/);
   assert.throws(() => grants.share({...page,incognito:true}), /normal HTTP/);
   const first = grants.share(page, 1000), second = grants.share(page, 2000);
   assert.notEqual(first, second);
