@@ -19,6 +19,7 @@ DEFAULT_REPO = Path("/Users/dzzk/WORK/_bridge-local-execution")
 DEFAULT_COMMANDS = Path("/Users/dzzk/WORK/browser-bridge-runs/2026-10-03/commands.log")
 DEFAULT_MCP = Path.home() / ".claude-server-commander/tool-history.jsonl"
 DEFAULT_ACTORS = Path.home() / ".config/dzzk-jso-bridge/observer-actors.json"
+LOCAL_AGENT_STATE = Path.home() / ".local/state/execution-delivery-harness/local-agent.json"
 
 BUILTIN_ACTORS = [
     {"id":"MCP","label":"MCP","enabled":True},
@@ -376,8 +377,17 @@ def run_started(run: Path):
         return None
 
 
+def local_agent_run(fallback):
+    state = load_json(LOCAL_AGENT_STATE)
+    if isinstance(state, dict):
+        candidate = Path(str(state.get("run_dir") or "")).expanduser()
+        if candidate.is_dir():
+            return candidate, state
+    return fallback, None
+
+
 def snapshot(root: Path, repo: Path, commands: Path, mcp: Path):
-    run = latest_run(root)
+    run, local_agent = local_agent_run(latest_run(root))
     llama = llama_state()
     git, git_total = git_status(repo)
     actors = actor_registry()
@@ -398,12 +408,23 @@ def snapshot(root: Path, repo: Path, commands: Path, mcp: Path):
         "run_opencode": "-",
         "actors": actors,
         "spans": spans,
+        "local_agent": local_agent,
     }
 
     timeline = parse_commands(commands)
     timeline += parse_custom_actor_events(actors)
     mcp_events, mcp_last = parse_mcp_history(mcp)
     timeline += mcp_events
+
+    # Process spans are state, but their lifecycle must also be visible in the
+    # timeline. Otherwise TERM can truthfully be active in the header while the
+    # operator has no TERM evidence below.
+    for span in spans:
+        timeline.append(ev(span.get("started"), "TERM",
+            f"START pid={span.get('pid')} {span.get('label','')}"))
+        if span.get("ended"):
+            timeline.append(ev(span.get("ended"), "TERM",
+                f"{span.get('status')} pid={span.get('pid')} {span.get('detail','')}"))
 
     if run:
         report = load_json(run / "report.json")
@@ -427,7 +448,34 @@ def snapshot(root: Path, repo: Path, commands: Path, mcp: Path):
     else:
         data["last_event"] = mcp_last
 
+    # A local-agent run is a first-class observed execution source. Its
+    # OpenCode/Qwen events come from events.log; these lifecycle observations
+    # make the run and live llama slot state visible even before the first model
+    # text/tool event is emitted.
+    if local_agent:
+        started = local_agent.get("started_at")
+        updated = local_agent.get("updated_at") or started
+        timeline.append(ev(started, "OC",
+            f"local-agent {local_agent.get('status','unknown')} {local_agent.get('model','')}"))
+        if local_agent.get("status") == "running" and "BUSY" in llama:
+            timeline.append(ev(updated, "LLAMA", llama))
+
     data["timeline"] = sorted(timeline, key=lambda x: x["ts"])
+    now = time.time()
+    open_term = any(s.get("status") in ("RUNNING", "WAITING") for s in spans)
+    local_running = bool(local_agent and local_agent.get("status") == "running")
+    recent = {}
+    for item in data["timeline"]:
+        if item.get("ts"):
+            recent[item.get("source")] = item["ts"]
+    data["actor_activity"] = {
+        "MCP": bool(recent.get("MCP") and now - recent["MCP"] <= 4),
+        "TERM": open_term,
+        "OC": local_running or process_actor() == "OC",
+        "QWEN": local_running and "BUSY" in llama,
+        "LLAMA": "BUSY" in llama,
+        "GIT": bool(recent.get("GIT") and now - recent["GIT"] <= 4),
+    }
     return data
 
 
@@ -497,8 +545,10 @@ def process_actor():
 
 
 def active_source(data, merged):
-    if "BUSY" in data["llama"]:
-        return "LLAMA"
+    activity = data.get("actor_activity") or {}
+    for actor in ("QWEN", "OC", "LLAMA", "TERM", "MCP", "GIT"):
+        if activity.get(actor):
+            return actor
     actor = process_actor()
     if actor:
         return actor
@@ -759,6 +809,7 @@ def print_json(root, repo, commands, mcp):
         "versions": d["versions"],
         "run_opencode": d["run_opencode"],
         "active_source": active,
+        "actor_activity": d.get("actor_activity", {}),
         "actors": d.get("actors", BUILTIN_ACTORS),
         "spans": d.get("spans", [])[-40:],
         "timeline": merged,

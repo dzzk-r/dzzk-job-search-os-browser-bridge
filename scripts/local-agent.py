@@ -13,6 +13,20 @@ import subprocess
 import time
 import urllib.request
 
+STATE_FILE = Path.home() / '.local/state/execution-delivery-harness/local-agent.json'
+
+def publish_state(**values):
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    current = {}
+    try:
+        current = json.loads(STATE_FILE.read_text())
+    except (OSError, ValueError):
+        pass
+    current.update(values)
+    tmp = STATE_FILE.with_suffix('.tmp')
+    tmp.write_text(json.dumps(current, indent=2) + '\n')
+    tmp.replace(STATE_FILE)
+
 
 def scoped_path(repo, name):
     path = (repo / name).resolve()
@@ -126,6 +140,7 @@ def main():
         command = [str(opencode), 'run', '--pure', '--print-logs',
             '--agent', 'scoped-task', '--model', report['model'], '--format', 'json', task]
         (output / 'command.json').write_text(json.dumps({'cwd': str(repo), 'argv': command}, indent=2))
+        publish_state(status='running', run_dir=str(output), repo=str(repo), model=report['model'], opencode_version=opencode_version, started_at=time.time(), updated_at=time.time())
         print('RUN_COMMAND', shlex.join(command), flush=True)
         print('AGENT_LOG:', output / 'events.log', 'STOP:', stop, flush=True)
         with (output / 'events.log').open('w') as log:
@@ -170,6 +185,7 @@ def main():
             os.close(master)
         report['seconds'] = round(time.monotonic() - started, 2)
         (output / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
+        publish_state(status=report['status'], run_dir=str(output), repo=str(repo), model=report['model'], opencode_version=opencode_version, updated_at=time.time(), exit=report.get('exit'), termination=report.get('termination'))
         print('REPORT:', output / 'report.json', flush=True)
         print(json.dumps(report), flush=True)
     return 0 if report['status'] == 'artifact_ready_for_review' else 1

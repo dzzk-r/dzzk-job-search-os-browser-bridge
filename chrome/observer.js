@@ -50,22 +50,22 @@ function activeChain(state) {
   return 'safe locally · gateway not authoritative';
 }
 
-function activeChainSource(state) {
-  const open=openSpans(state);
-  if(open.length) {
-    const actor=String(open[0].actor||'').toUpperCase();
-    if(['MCP','TERM','OC','QWEN','LLAMA','GIT'].includes(actor)) return actor;
-  }
-  const src=String(state.active_source||'').toUpperCase();
-  return ['MCP','TERM','OC','QWEN','LLAMA','GIT'].includes(src)?src:'';
-}
 function renderActors(state) {
-  const active=activeChainSource(state);
-  const defs=[['MCP',''],['TERM',''],['OC',''],['QWEN',''],['LLAMA',String(state.llama||'').replace(/^slot\d+:/,'')],['GIT',String(state.git_total??0)]];
+  const activity=state.actor_activity||{};
+  const defs=[
+    ['MCP',''],
+    ['TERM',''],
+    ['OC',''],
+    ['QWEN',''],
+    ['LLAMA',String(state.llama||'').replace(/^slot\d+:/,'')],
+    ['GIT','Δ'+String(state.git_total??0)]
+  ];
   const frag=document.createDocumentFragment();
   for(const [name,detail] of defs) {
+    const isActive=activity[name]===true;
     const chip=document.createElement('span');
-    chip.className='actor-chip '+name.toLowerCase()+(active===name?' active':'')+(name==='LLAMA'&&/BUSY/.test(detail)?' busy':'');
+    chip.className='actor-chip '+name.toLowerCase()+(isActive?' active':'');
+    chip.title=isActive ? name+' has confirmed current activity' : name+' is known but idle';
     const dot=document.createElement('span'); dot.className='dot';
     const label=document.createElement('span'); label.textContent=name;
     chip.append(dot,label);
