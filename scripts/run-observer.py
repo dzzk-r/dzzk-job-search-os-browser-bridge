@@ -325,6 +325,14 @@ def process_spans(path: Path, limit=800):
             except OSError:
                 span.update(status="EXITED", ended=span["updated"],
                             detail="process exited; exit code not captured")
+            else:
+                # Desktop Commander can keep an interactive shell/session alive
+                # long after the command that produced the last observation.
+                # Alive is not the same thing as actively executing.
+                silence = max(0, now - (span["updated"] or span["started"]))
+                if silence > 4:
+                    span.update(status="WAITING",
+                                detail=f"session alive; no activity for {int(silence)}s")
         span["age_seconds"] = max(0, int((span["ended"] or now) - span["started"]))
     return sorted(spans.values(), key=lambda s: s["started"])
 
@@ -462,7 +470,11 @@ def snapshot(root: Path, repo: Path, commands: Path, mcp: Path):
 
     data["timeline"] = sorted(timeline, key=lambda x: x["ts"])
     now = time.time()
-    open_term = any(s.get("status") in ("RUNNING", "WAITING") for s in spans)
+    open_term = any(
+        s.get("status") == "RUNNING"
+        and now - (s.get("updated") or s.get("started") or 0) <= 4
+        for s in spans
+    )
     local_running = bool(local_agent and local_agent.get("status") == "running")
     recent = {}
     for item in data["timeline"]:
