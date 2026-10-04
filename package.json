@@ -1,7 +1,7 @@
 {
-  "name": "dzzk-job-search-os-browser-bridge",
+  "name": "execution-delivery-harness",
   "version": "0.1.1",
-  "description": "User-controlled browser access for job-search workflows in ChatGPT.",
+  "description": "Controlled delivery of agent actions into user-owned browser and local execution environments.",
   "scripts": {
     "start": "node server/index.mjs",
     "test": "node --test tests/*.mjs",
@@ -11,16 +11,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dzzk-r/dzzk-job-search-os-browser-bridge.git"
+    "url": "git+https://github.com/dzzk-r/execution-delivery-harness.git"
   },
   "keywords": [],
   "author": "Daniel Chechik (dzzk)",
   "license": "MIT",
   "type": "module",
   "bugs": {
-    "url": "https://github.com/dzzk-r/dzzk-job-search-os-browser-bridge/issues"
+    "url": "https://github.com/dzzk-r/execution-delivery-harness/issues"
   },
-  "homepage": "https://github.com/dzzk-r/dzzk-job-search-os-browser-bridge#readme",
+  "homepage": "https://github.com/dzzk-r/execution-delivery-harness#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.0",
     "zod": "4.6.5"

@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "dzzk Job Search OS Browser Bridge",
+  "name": "Execution Delivery Harness Browser Bridge",
   "version": "0.1.1",
   "description": "Share selected job pages and recruiter conversations with your MCP client. Requires the local dzzk companion.",
   "permissions": [
@@ -13,7 +13,7 @@
     "http://127.0.0.1/*"
   ],
   "action": {
-    "default_title": "dzzk Job Search OS Browser Bridge",
+    "default_title": "Execution Delivery Harness Browser Bridge",
     "default_popup": "popup.html",
     "default_icon": {
       "48": "icon.svg",

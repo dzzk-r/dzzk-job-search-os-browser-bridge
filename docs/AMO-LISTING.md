@@ -1,15 +1,15 @@
 # Mozilla Add-ons submission — version 0.1.1
 
-Name: dzzk Job Search OS Browser Bridge
+Name: Execution Delivery Harness Browser Bridge
 
 Summary:
 Share selected job pages and recruiter conversations with your MCP client.
-Requires the local dzzk companion.
+Requires the local Execution Delivery Harness companion.
 
 ## Description
 
-Bring selected pages from your existing Firefox session into your job-search
-workflow. Read visible job listings and recruiter conversations, including
+Bring selected pages from your existing Firefox session into a controlled agent
+execution workflow. Job Search OS is the first reference use case. Read visible job listings and recruiter conversations, including
 pages you have already signed into on LinkedIn and other sites.
 
 You choose each page from the extension toolbar. Your authorized MCP client can
@@ -21,7 +21,7 @@ choose Allow, Ask every time or Block for each operation. A one-time approval
 never authorizes later requests.
 
 Setup requires Firefox 140+, Node.js 22+ and the separately installed open-source
-dzzk companion. ChatGPT needs a developer-mode MCP connection and a supported
+Execution Delivery Harness companion. ChatGPT needs a developer-mode MCP connection and a supported
 transport to your companion; installing this extension alone does not connect it
 to ChatGPT. See the README for setup. There is no required paid browser-automation
 service or developer-operated relay. Your MCP client and tunnel provider may
@@ -31,7 +31,7 @@ No browser history or cookies export. No analytics or advertising. Shared text,
 titles and URLs pass to your local companion and then to your authorized MCP
 client, which can be remote. Review the privacy policy before sharing pages.
 
-Independent project by Daniel Chechik (dzzk). Not affiliated with or endorsed by
+Independent project by Daniel Chechik. Not affiliated with or endorsed by
 Mozilla, OpenAI, LinkedIn or Opera. Those names identify compatibility only.
 
 Homepage / support:

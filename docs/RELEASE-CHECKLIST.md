@@ -1,6 +1,16 @@
-# Release status — 0.1.1
+# Release status — Execution Delivery Harness 0.1.1
 
-## Ready
+## Current status
+
+- Product/repository: **Execution Delivery Harness** at `dzzk-r/execution-delivery-harness`.
+- Firefox adapter: **implemented and locally validated** in 0.1.1.
+- Chrome/Chromium adapter: **not implemented yet**.
+- Opera: **official Opera Browser Connector is a separate usable path**; our own Opera adapter/integration is not yet validated.
+- ChatGPT Plugin Directory: **not submitted**.
+- Mozilla Add-ons: **not submitted/published**; unsigned package only.
+- Public hosted relay: **none**; current companion is local and requires a supported transport.
+
+## Ready locally
 
 - Firefox MV3 package, minimum desktop Firefox 140; fixed loopback endpoint.
 - MIT source, attribution, repository homepage and issue tracker.
@@ -15,7 +25,7 @@
 1. Sign into the developer's Mozilla Add-ons account; account/terms steps belong
    to the account owner when user confirmation is required.
 2. Choose public distribution and upload
-   `dist/dzzk_job_search_os_browser_bridge-0.1.1.zip`.
+   `dist/execution_delivery_harness_browser_bridge-0.1.1.zip`.
 3. Use AMO-LISTING.md for the listing and review notes, PRIVACY.md for the policy;
    review the permission/data questions against the manifest.
 4. Check validation, signing, review and the actual public listing URL. Do not
@@ -33,6 +43,6 @@ No Mozilla credentials or signing secrets belong in the repository.
 - A tested installation and reconnect flow suitable for users and reviewers.
 - Production directory review and acceptance; DIRECTORY-LISTING.md is a draft.
 
-Live LinkedIn DOM, Firefox Android, Opera, Safari and dedicated alternative job
+Live LinkedIn DOM, Chrome/Chromium, our Opera adapter/integration, Firefox Android, Safari and dedicated alternative job
 site adapters remain unverified. Generic page extraction is not a guarantee
 that every site's dynamic content will be readable.
