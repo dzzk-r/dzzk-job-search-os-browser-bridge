@@ -63,6 +63,21 @@ test('method block survives disconnect, restart and OAuth reauthorization; remot
   assert.equal((await stat(join(b.configDir,'policy.json'))).mode&0o777,0o600);
 });
 
+test('local executor tools are blocked by default and require explicit per-client enablement',async t=>{
+  const b=await setup(t);
+  const blocked=await b.tool(b.access,'local_status');
+  assert.equal(blocked.value.result.isError,true);
+  assert.match(blocked.value.result.content[0].text,/blocked/);
+  const snapshot=(await b.extension('next')).value;
+  assert.equal(snapshot.clients[0].permissions['local.status'],'block');
+  assert.equal((await b.extension('policy',{clientId:b.client.client_id,method:'local.status',mode:'allow'})).status,200);
+  const allowed=await b.tool(b.access,'local_status');
+  assert.equal(allowed.value.result.isError,undefined);
+  const data=JSON.parse(allowed.value.result.content[0].text);
+  assert.equal(data.execMode,'trusted-shell');
+  assert.ok(Array.isArray(data.allowedRoots));
+});
+
 test('ask withholds command until one-use manual approval; deny does not suppress the next prompt',async t=>{
   const b=await setup(t);await b.extension('policy',{clientId:b.client.client_id,method:'page.read',mode:'ask'});
   const pending=b.tool(b.access,'read_page',{handle:'page-one'}), batch=await b.waitBatch(x=>x.actions.length), action=batch.actions[0];

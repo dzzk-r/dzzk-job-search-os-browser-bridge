@@ -9,7 +9,7 @@ import { createBridgeServer } from '../server/index.mjs';
 
 async function setup(t) {
   const configDir=await mkdtemp(join(tmpdir(),'dzzk-server-test-'));
-  const bridge=await createBridgeServer({port:0,configDir});
+  const bridge=await createBridgeServer({port:0,configDir,observerSnapshot:async()=>({state:'DONE',active_source:'MCP',timeline:[{ts:1,source:'MCP',message:'test'}],versions:{mcp:'test'}})});
   t.after(async()=>{await bridge.close(); await rm(configDir,{recursive:true,force:true});});
   const call=async(path,{method='GET',data,token,headers={}}={})=>{
     const response=await fetch(bridge.issuer+path,{method,headers:{...(data?{'Content-Type':'application/json'}:{}),...(token?{Authorization:'Bearer '+token}:{}),...headers},...(data?{body:JSON.stringify(data)}:{})});
@@ -31,6 +31,16 @@ async function setup(t) {
   return {...bridge,configDir,call,extension,register,authorize,tokenRequest,mcp};
 }
 
+test('observer snapshot is available only through extension pairing',async t=>{
+  const b=await setup(t);
+  assert.equal((await b.call('/bridge/observer')).status,401);
+  const observer=await b.extension('observer');
+  assert.equal(observer.status,200);
+  assert.equal(observer.value.state,'DONE');
+  assert.equal(observer.value.active_source,'MCP');
+  assert.equal(observer.value.timeline[0].message,'test');
+});
+
 test('OAuth and pairing credentials are separate; hostile origin and host are rejected',async t=>{
   const b=await setup(t);
   assert.equal((await b.mcp(b.pairingToken,'tools/list')).status,401);
@@ -42,7 +52,7 @@ test('OAuth and pairing credentials are separate; hostile origin and host are re
   const meta=(await b.call('/.well-known/oauth-protected-resource/mcp')).value; assert.equal(meta.resource,b.resource);
   const client=await b.register(), grant=await b.authorize(client), access=await b.tokenRequest(client,grant);
   assert.equal(access.status,200); assert.equal((await b.call('/bridge/next',{token:access.value.access_token})).status,401);
-  const tools=await b.mcp(access.value.access_token,'tools/list'); assert.equal(tools.status,200); assert.deepEqual(tools.value.result.tools.map(x=>x.name),['list_tabs','read_page','find_in_page','bridge_status']);
+  const tools=await b.mcp(access.value.access_token,'tools/list'); assert.equal(tools.status,200); assert.deepEqual(tools.value.result.tools.map(x=>x.name),['list_tabs','read_page','find_in_page','bridge_status','local_status','local_list_dir','local_read_file','local_write_file','local_exec_start','local_process_output','local_process_stop']);
   for(const tool of tools.value.result.tools) {assert.deepEqual(tool.securitySchemes,[{type:'oauth2',scopes:['browser.read']}]); assert.deepEqual(tool._meta.securitySchemes,tool.securitySchemes);}
   assert.equal((await stat(join(b.configDir,'clients.json'))).mode & 0o777,0o600);
   assert.equal((await stat(join(b.configDir,'pairing-token'))).mode & 0o777,0o600);

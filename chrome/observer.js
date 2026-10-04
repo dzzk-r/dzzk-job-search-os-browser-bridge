@@ -1,0 +1,213 @@
+const $=id=>document.getElementById(id);
+const send=m=>chrome.runtime.sendMessage(m);
+let follow=true;
+let renderedKeys=[];
+let lastState=null;
+const expandedKeys=new Set();
+
+function eventKey(event) { return String(event.ts||0)+'|'+String(event.source||'')+'|'+String(event.message||''); }
+function compactMessage(message) {
+  return String(message||'')
+    .replaceAll('/Users/dzzk/WORK/_bridge-local-execution/','…/harness/')
+    .replaceAll('/Users/dzzk/WORK/browser-bridge-runs/','…/runs/')
+    .replaceAll('/Users/dzzk/','~/');
+}
+function seconds(n) {
+  n=Math.max(0,Number(n)||0);
+  if(n<60) return String(Math.floor(n))+'s';
+  const m=Math.floor(n/60), s=Math.floor(n%60);
+  if(m<60) return m+':'+String(s).padStart(2,'0');
+  const h=Math.floor(m/60);
+  return h+':'+String(m%60).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+function openSpans(state) {
+  return (state.spans||[]).filter(s=>!['DONE','ERROR','CANCELED','ENDED?'].includes(s.status));
+}
+function recentSpans(state) {
+  const all=state.spans||[], open=openSpans(state);
+  const terminal=all.filter(s=>['DONE','ERROR','CANCELED','ENDED?'].includes(s.status)).slice(-5);
+  const seen=new Set();
+  return [...open,...terminal].filter(s=>!seen.has(s.id)&&seen.add(s.id)).sort((a,b)=>(b.started||0)-(a.started||0));
+}
+function derivedStatus(state) {
+  const open=openSpans(state);
+  const stalled=String(state.state||'').startsWith('STALLED');
+  if(stalled) return {label:'STALLED',cls:'stalled',age:state.last_activity_seconds??0};
+  if(open.length) {
+    const running=open.find(s=>s.status==='RUNNING')||open[0];
+    const cls=running.status==='WAITING'?'waiting':'busy';
+    return {label:running.status==='WAITING'?'WAITING':'BUSY',cls,age:running.age_seconds||0};
+  }
+  if(state.state==='FAILED') return {label:'ERROR',cls:'error',age:state.last_activity_seconds??0};
+  return {label:'IDLE',cls:'idle',age:state.last_activity_seconds??0};
+}
+function activeChain(state) {
+  const open=openSpans(state);
+  if(open.length) {
+    return open.slice(-3).map(s=>(s.actor||'?')+(s.pid?' #'+s.pid:'')).join(' › ');
+  }
+  if(state.active_source) return state.active_source;
+  return 'safe locally · gateway not authoritative';
+}
+
+function activeChainSource(state) {
+  const open=openSpans(state);
+  if(open.length) {
+    const actor=String(open[0].actor||'').toUpperCase();
+    if(['MCP','TERM','OC','QWEN','LLAMA','GIT'].includes(actor)) return actor;
+  }
+  const src=String(state.active_source||'').toUpperCase();
+  return ['MCP','TERM','OC','QWEN','LLAMA','GIT'].includes(src)?src:'';
+}
+function renderActors(state) {
+  const active=activeChainSource(state);
+  const defs=[['MCP',''],['TERM',''],['OC',''],['QWEN',''],['LLAMA',String(state.llama||'').replace(/^slot\d+:/,'')],['GIT',String(state.git_total??0)]];
+  const frag=document.createDocumentFragment();
+  for(const [name,detail] of defs) {
+    const chip=document.createElement('span');
+    chip.className='actor-chip '+name.toLowerCase()+(active===name?' active':'')+(name==='LLAMA'&&/BUSY/.test(detail)?' busy':'');
+    const dot=document.createElement('span'); dot.className='dot';
+    const label=document.createElement('span'); label.textContent=name;
+    chip.append(dot,label);
+    if(detail){const d=document.createElement('span');d.className='detail';d.textContent=detail;chip.append(d);}
+    frag.append(chip);
+  }
+  $('actor-strip').replaceChildren(frag);
+}
+function settingsCard(parent,text,buttons) {
+  const div=document.createElement('div'); div.className='card';
+  const p=document.createElement('p'); p.textContent=text; div.append(p);
+  for(const [label,fn] of buttons){const b=document.createElement('button');b.textContent=label;b.addEventListener('click',fn);div.append(b);}
+  parent.append(div);
+}
+async function refreshSettings() {
+  try {
+    const s=await send({type:'state'});
+    $('bridge-status').textContent=s.status;
+    $('share-current').disabled=s.status!=='Connected'||s.paused;
+    $('pause-actions').textContent=s.paused?'Resume actions':'Pause all actions';
+    $('pause-actions').dataset.paused=String(s.paused);
+    const box=$('shared-pages'); box.replaceChildren();
+    for(const g of s.grants) settingsCard(box,(g.title||'Shared page')+'\n'+g.url,[['Stop sharing',async()=>{await send({type:'revoke',handle:g.handle});await refreshSettings();}]]);
+    $('settings-error').textContent='';
+  } catch(e){$('settings-error').textContent=e.message;}
+}
+
+function renderHeader(state) {
+  const status=derivedStatus(state);
+  $('state-label').textContent=status.label;
+  $('state-age').textContent=seconds(status.age);
+  $('active-chain').textContent=activeChain(state);
+  $('state-dot').className='state-dot '+status.cls;
+
+  const v=state.versions||{};
+  const rows=[
+    ['Observer',state.state||'?'],
+    ['Active actor',state.active_source||'-'],
+    ['Run',state.run||'-'],
+    ['OpenCode run',state.run_opencode||'-'],
+    ['OpenCode default',v.opencode_default||'?'],
+    ['OpenCode installed',v.opencode_parallel||'-'],
+    ['llama.cpp',v.llama||'?'],
+    ['llama slot',state.llama||'?'],
+    ['MCP',v.mcp||'?'],
+    ['Git',String(state.git_total||0)+' changed/untracked'],
+    ['Last activity',seconds(state.last_activity_seconds??0)+' ago'],
+    ['Turn truth','MCP gateway not implemented; current ChatGPT dispatch can be invisible']
+  ];
+  const frag=document.createDocumentFragment();
+  for(const [key,value] of rows) {
+    const k=document.createElement('span'); k.className='key'; k.textContent=key;
+    const val=document.createElement('span'); val.className='value'; val.textContent=value;
+    frag.append(k,val);
+  }
+  $('runtime-grid').replaceChildren(frag);
+}
+function renderSpans(state) {
+  const spans=recentSpans(state);
+  const openCount=openSpans(state).length;
+  const frag=document.createDocumentFragment();
+  for(const span of spans) {
+    const row=document.createElement('div');
+    row.className='span-row '+String(span.status||'').toLowerCase();
+    const status=document.createElement('span'); status.className='span-status'; status.textContent=span.status||'?';
+    const actor=document.createElement('span'); actor.textContent=(span.actor||'?')+(span.pid?' #'+span.pid:'');
+    const main=document.createElement('div'); main.className='span-main';
+    const label=document.createElement('div'); label.className='span-label'; label.textContent=compactMessage(span.label||span.id||'operation');
+    const updateAge=span.ended ? Math.max(0,Math.floor(Date.now()/1000-(span.updated||span.ended))) : Math.max(0,Math.floor(Date.now()/1000-(span.updated||span.started||Date.now()/1000)));
+    const meta=document.createElement('div'); meta.className='span-meta';
+    meta.textContent='elapsed '+seconds(span.age_seconds||0)+' · last update '+seconds(updateAge)+' ago · '+(span.detail||'');
+    main.append(label,meta);
+    row.append(status,actor,main);
+    frag.append(row);
+  }
+  $('spans').replaceChildren(frag);
+  $('span-count').textContent=openCount+' open · '+Math.max(0,spans.length-openCount)+' recent';
+  $('spans-section').hidden=spans.length===0;
+}
+function renderTimeline(state) {
+  const box=$('timeline');
+  const events=state.timeline||[];
+  const keys=events.map(eventKey);
+  const unchanged=keys.length===renderedKeys.length && keys.every((key,i)=>key===renderedKeys[i]);
+  if(!unchanged) {
+    for(const row of box.querySelectorAll('.event.expanded')) expandedKeys.add(row.dataset.key);
+    const nearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<24;
+    const frag=document.createDocumentFragment();
+    for(let i=0;i<events.length;i++) {
+      const event=events[i], key=keys[i];
+      const row=document.createElement('div'); row.className='event'; row.dataset.key=key; row.tabIndex=0;
+      if(expandedKeys.has(key)) row.classList.add('expanded');
+      const time=document.createElement('span'); time.textContent=new Date((event.ts||0)*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      const src=document.createElement('span'); src.className='src'; src.textContent=event.source;
+      const msg=document.createElement('span'); msg.className='msg'; msg.textContent=compactMessage(event.message||''); msg.title=event.message||'';
+      const full=document.createElement('div'); full.className='event-full'; full.textContent=event.message||'';
+      const toggle=()=>{ row.classList.toggle('expanded'); if(row.classList.contains('expanded')) expandedKeys.add(key); else expandedKeys.delete(key); };
+      row.addEventListener('click',toggle);
+      row.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); }});
+      row.append(time,src,msg,full); frag.append(row);
+    }
+    box.replaceChildren(frag);
+    renderedKeys=keys;
+    if(follow || nearBottom) { box.scrollTop=box.scrollHeight; follow=true; }
+  }
+  $('position').textContent='LIVE '+events.length;
+}
+async function refresh() {
+  try {
+    const state=await send({type:'observer-state'});
+    $('error').textContent='';
+    lastState=state;
+    renderHeader(state);
+    renderActors(state);
+    renderSpans(state);
+    renderTimeline(state);
+  } catch(e) {
+    $('error').textContent=e.message;
+    $('state-label').textContent='OFFLINE';
+    $('state-dot').className='state-dot error';
+    $('active-chain').textContent='Observer unavailable';
+  }
+}
+$('timeline').addEventListener('scroll',()=>{
+  const box=$('timeline');
+  follow=box.scrollHeight-box.scrollTop-box.clientHeight<24;
+});
+void refresh();
+setInterval(()=>void refresh(),1500);
+
+$('settings-toggle').addEventListener('click',async()=>{$('settings-panel').hidden=false;await refreshSettings();});
+$('settings-close').addEventListener('click',()=>{$('settings-panel').hidden=true;});
+$('share-current').addEventListener('click',async()=>{
+  try{
+    const [tab]=await chrome.tabs.query({active:true,currentWindow:true});
+    if(!tab?.id) throw new Error('No active tab.');
+    await send({type:'share',tabId:tab.id});
+    await refreshSettings();
+  }catch(e){$('settings-error').textContent=e.message;}
+});
+$('pause-actions').addEventListener('click',async()=>{
+  try{await send({type:'set-policy',paused:$('pause-actions').dataset.paused!=='true'});await refreshSettings();}
+  catch(e){$('settings-error').textContent=e.message;}
+});
+$('open-options').addEventListener('click',()=>chrome.runtime.openOptionsPage());

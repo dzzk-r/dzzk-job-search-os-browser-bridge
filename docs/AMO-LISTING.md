@@ -1,5 +1,9 @@
 # Mozilla Add-ons submission — version 0.1.1
 
+Verified scope: the synthetic Firefox smoke check was completed. Live ChatGPT
+account OAuth linking, live LinkedIn DOM, and AMO signing/publication have not
+been verified.
+
 Name: dzzk Job Search OS Browser Bridge
 
 Summary:

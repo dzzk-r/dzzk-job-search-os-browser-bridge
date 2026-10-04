@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "dzzk Job Search OS Browser Bridge",
+  "version": "0.1.1",
+  "description": "Share selected browser pages with an authorized MCP client through a local companion, with a live experimental Observer side panel.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "alarms",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*"
+  ],
+  "action": {
+    "default_title": "Open dzzk Browser Bridge Observer",
+    "default_icon": {
+      "48": "icon.svg",
+      "96": "icon.svg"
+    }
+  },
+  "background": {
+    "service_worker": "bg-entry.js"
+  },
+  "side_panel": {
+    "default_path": "observer.html"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src http://127.0.0.1:43119"
+  },
+  "icons": {
+    "48": "icon.svg",
+    "96": "icon.svg"
+  }
+}

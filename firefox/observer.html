@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>dzzk Browser Bridge Observer</title>
+  <link rel="stylesheet" href="ui.css">
+  <link rel="stylesheet" href="observer.css">
+</head>
+<body class="observer">
+  <header>
+    <h1>Browser Bridge Observer</h1>
+    <div id="summary" class="summary">Loading…</div>
+    <div id="legend" class="legend" aria-label="Execution sources"></div>
+  </header>
+  <main>
+    <section>
+      <div class="section-head">
+        <h2>Unified timeline</h2>
+        <span id="position" class="muted"></span>
+      </div>
+      <div id="timeline" class="timeline" role="log" aria-live="polite"></div>
+    </section>
+    <details id="tools-panel">
+      <summary>Tools / Actors</summary>
+      <div id="tools" class="tools"></div>
+    </details>
+    <p id="error" role="alert"></p>
+  </main>
+  <script src="observer.js"></script>
+</body>
+</html>

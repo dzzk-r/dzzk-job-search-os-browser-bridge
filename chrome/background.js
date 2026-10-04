@@ -11,7 +11,7 @@ function writePolicy(body) {
 }
 async function clearAccess() {
   const ids = [...grants.tabs.keys()]; grants.clear();
-  await Promise.all(ids.map(tabId => browser.action.setBadgeText({tabId,text:''}).catch(()=>{})));
+  await Promise.all(ids.map(tabId => chrome.action.setBadgeText({tabId,text:''}).catch(()=>{})));
 }
 function validateConfig(value) {
   const url = new URL(value.endpoint);
@@ -32,12 +32,25 @@ async function companion(path, body, cfg = config) {
     return await response.json();
   } finally { clearTimeout(timer); }
 }
+async function hydratedTab(tabId) {
+  const tab = await chrome.tabs.get(tabId);
+  if (typeof tab.url === 'string' && tab.url) return tab;
+  try {
+    const result = await chrome.scripting.executeScript({
+      target:{tabId},
+      func:()=>({url:location.href,title:document.title})
+    });
+    const page = result[0]?.result;
+    if (page?.url) return {...tab,url:page.url,title:page.title || tab.title || ''};
+  } catch {}
+  return tab;
+}
 async function readShared(handle, maxChars = 30000) {
-  const g = grants.get(handle); grants.check(handle, await browser.tabs.get(g.tabId));
+  const g = grants.get(handle); grants.check(handle, await hydratedTab(g.tabId));
   const limit = Math.min(Math.max(Number(maxChars) || 30000,1000),60000);
-  const result = await browser.scripting.executeScript({target:{tabId:g.tabId},func:dzzkReadPage,args:[g.url,limit]});
+  const result = await chrome.scripting.executeScript({target:{tabId:g.tabId},func:dzzkReadPage,args:[g.url,limit]});
   // Revocation/navigation during a read discards the result.
-  grants.check(handle, await browser.tabs.get(g.tabId));
+  grants.check(handle, await hydratedTab(g.tabId));
   if (result[0]?.error || !result[0]?.result) throw new Error('Page could not be read. Share a regular webpage again.');
   return {...result[0].result, handle};
 }
@@ -84,14 +97,14 @@ async function poll() {
     }
   } finally { loopRunning = false; if (config.enabled) void poll(); }
 }
-browser.tabs.onUpdated.addListener((id,change) => {
-  if (change.status === 'loading' || change.url) {grants.revoke(id); void browser.action.setBadgeText({tabId:id,text:''});}
+chrome.tabs.onUpdated.addListener((id,change) => {
+  if (change.status === 'loading' || change.url) {grants.revoke(id); void chrome.action.setBadgeText({tabId:id,text:''});}
 });
-browser.tabs.onRemoved.addListener(id => grants.revoke(id));
-browser.alarms.onAlarm.addListener(() => {grants.list(); void poll();});
-browser.runtime.onMessage.addListener(async (m,sender) => {
-  const ui = [browser.runtime.getURL('popup.html'), browser.runtime.getURL('options.html'), browser.runtime.getURL('observer.html')];
-  if (sender.id !== browser.runtime.id || !ui.includes(sender.url)) throw new Error('Only extension UI can change access.');
+chrome.tabs.onRemoved.addListener(id => grants.revoke(id));
+chrome.alarms.onAlarm.addListener(() => {grants.list(); void poll();});
+chrome.runtime.onMessage.addListener(async (m,sender) => {
+  const ui = [chrome.runtime.getURL('popup.html'), chrome.runtime.getURL('options.html'), chrome.runtime.getURL('observer.html')];
+  if (sender.id !== chrome.runtime.id || !ui.includes(sender.url)) throw new Error('Only extension UI can change access.');
   switch (m.type) {
     case 'state': return {status,enabled:config.enabled,paused:isPaused(),grants:grants.list(),consents,clients,actions};
     case 'observer-state': {
@@ -102,22 +115,22 @@ browser.runtime.onMessage.addListener(async (m,sender) => {
       const next = validateConfig(m.config);
       if (config.enabled) {try {await companion('/bridge/disconnect',{});} catch {}}
       generation++; activeController?.abort(); await clearAccess(); consents = []; clients = []; actions = []; config = next;
-      await browser.storage.local.set({config}); status = config.enabled ? 'Connecting':'Disconnected'; void poll(); return {ok:true};
+      await chrome.storage.local.set({config}); status = config.enabled ? 'Connecting':'Disconnected'; void poll(); return {ok:true};
     }
     case 'share': {
       if (isPaused()) throw new Error('Browser actions are paused. Resume before sharing a page.');
       if (!config.enabled || status !== 'Connected') throw new Error('Connect the companion before sharing a page.');
-      const tab = await browser.tabs.get(m.tabId);
+      const tab = await hydratedTab(m.tabId);
       if (!tab.active || tab.status === 'loading') throw new Error('Select a fully loaded tab before sharing.');
       const handle = grants.share(tab);
-      await browser.action.setBadgeText({tabId:tab.id,text:'ON'}); await browser.action.setBadgeBackgroundColor({tabId:tab.id,color:'#176b4b'}); return {handle};
+      await chrome.action.setBadgeText({tabId:tab.id,text:'ON'}); await chrome.action.setBadgeBackgroundColor({tabId:tab.id,color:'#176b4b'}); return {handle};
     }
     case 'revoke': {
-      const g = grants.get(m.handle); grants.revoke(g.tabId); await browser.action.setBadgeText({tabId:g.tabId,text:''}); return {ok:true};
+      const g = grants.get(m.handle); grants.revoke(g.tabId); await chrome.action.setBadgeText({tabId:g.tabId,text:''}); return {ok:true};
     }
     case 'disconnect': {
       config.enabled = false; generation++; activeController?.abort(); await clearAccess(); consents = []; clients = []; actions = []; status = 'Disconnected';
-      await browser.storage.local.set({config}); await browser.action.setBadgeText({text:''});
+      await chrome.storage.local.set({config}); await chrome.action.setBadgeText({text:''});
       try {await companion('/bridge/disconnect',{});} catch {} return {ok:true};
     }
     case 'consent': return companion('/bridge/consent',{id:m.id,allow:m.allow === true});
@@ -127,14 +140,14 @@ browser.runtime.onMessage.addListener(async (m,sender) => {
         const intent = ++pauseIntent;
         if (m.paused) {
           localPaused = true; status = 'Paused'; actions = []; await clearAccess();
-          await browser.storage.local.set({localPaused});
+          await chrome.storage.local.set({localPaused});
         }
         const result = await writePolicy({paused:m.paused});
         // A failed resume keeps the local prohibition in force.
         if (intent !== pauseIntent) return result;
         if (!m.paused) {
           localPaused = false; serverPaused = false;
-          await browser.storage.local.set({localPaused}); status = config.enabled ? 'Connected' : 'Disconnected';
+          await chrome.storage.local.set({localPaused}); status = config.enabled ? 'Connected' : 'Disconnected';
         } else serverPaused = true;
         return result;
       }
@@ -145,9 +158,9 @@ browser.runtime.onMessage.addListener(async (m,sender) => {
     default: throw new Error('Unknown UI action.');
   }
 });
-browser.runtime.onInstalled.addListener(() => {void browser.runtime.openOptionsPage();});
+chrome.runtime.onInstalled.addListener(() => {void chrome.runtime.openOptionsPage();});
 void (async () => {
-  const saved = await browser.storage.local.get(['config','localPaused']); localPaused = saved.localPaused === true;
+  const saved = await chrome.storage.local.get(['config','localPaused']); localPaused = saved.localPaused === true;
   if (saved.config) {try {config = validateConfig(saved.config);} catch {}}
-  await browser.alarms.create('connection',{periodInMinutes:0.5}); void poll();
+  await chrome.alarms.create('connection',{periodInMinutes:0.5}); void poll();
 })();

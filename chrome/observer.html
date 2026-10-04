@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Execution Harness</title>
+  <link rel="stylesheet" href="ui.css">
+  <link rel="stylesheet" href="observer.css">
+</head>
+<body class="observer">
+  <header class="status-header">
+    <div class="status-line">
+      <span id="state-dot" class="state-dot" aria-hidden="true"></span>
+      <strong id="state-label">LOADING</strong>
+      <span id="state-age" class="state-age">--:--</span>
+      <span id="active-chain" class="active-chain">observer</span>
+      <button id="settings-toggle" class="icon-button" aria-label="Bridge settings" title="Bridge settings">⚙</button>
+      <details id="runtime-details" class="runtime-details">
+        <summary aria-label="Runtime details" title="Runtime details">?</summary>
+        <div id="runtime-grid" class="runtime-grid"></div>
+      </details>
+    </div>
+    <div id="truth-note" class="truth-note">Current ChatGPT/MCP dispatch is not authoritative until the gateway exists.</div>
+    <div id="actor-strip" class="actor-strip" aria-label="Observed actors"></div>
+  </header>
+  <aside id="settings-panel" class="settings-panel" hidden>
+    <div class="settings-head"><strong>Bridge controls</strong><button id="settings-close" class="icon-button" aria-label="Close settings">×</button></div>
+    <p id="bridge-status" class="muted">Checking connection…</p>
+    <button id="share-current" class="primary">Share current tab for 30 minutes</button>
+    <button id="pause-actions">Pause all actions</button>
+    <div id="shared-pages"></div>
+    <p class="muted">Only explicitly shared HTTP(S) tabs are readable. Navigation, reload, tab close, extension restart or manual revoke ends access.</p>
+    <p><button id="open-options">Advanced settings</button></p>
+    <p id="settings-error" role="alert"></p>
+  </aside>
+  <main>
+    <section id="spans-section">
+      <div class="section-head">
+        <h2>Execution spans</h2>
+        <span id="span-count" class="muted"></span>
+      </div>
+      <div id="spans" class="spans"></div>
+    </section>
+    <section>
+      <div class="section-head">
+        <h2>Unified timeline</h2>
+        <span id="position" class="muted"></span>
+      </div>
+      <div id="timeline" class="timeline" role="log" aria-live="polite"></div>
+    </section>
+    <p id="error" role="alert"></p>
+  </main>
+  <script src="observer.js"></script>
+</body>
+</html>

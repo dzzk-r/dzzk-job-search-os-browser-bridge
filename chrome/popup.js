@@ -1,4 +1,4 @@
-const $ = id => document.getElementById(id), send = m => browser.runtime.sendMessage(m);
+const $ = id => document.getElementById(id), send = m => chrome.runtime.sendMessage(m);
 const safely = fn => async () => {try {$('error').textContent=''; await fn(); await refresh();} catch(e) {$('error').textContent=e.message;}};
 function card(parent,text,buttons) {
   const div=document.createElement('div'); div.className='card';
@@ -37,9 +37,9 @@ async function refresh() {
   }
   for(const g of s.grants) card($('grants'),`${g.title||'Shared page'}\n${g.url}`,[['Stop sharing',()=>send({type:'revoke',handle:g.handle})]]);
 }
-$('share').addEventListener('click',safely(async()=>{const [tab]=await browser.tabs.query({active:true,currentWindow:true}); await send({type:'share',tabId:tab.id});}));
+$('share').addEventListener('click',safely(async()=>{const [tab]=await chrome.tabs.query({active:true,currentWindow:true}); await send({type:'share',tabId:tab.id});}));
 $('pause').addEventListener('click',safely(()=>send({type:'set-policy',paused:$('pause').dataset.paused!=='true'})));
 $('disconnect').addEventListener('click',safely(()=>send({type:'disconnect'})));
-$('observer').addEventListener('click',()=>browser.tabs.create({url:browser.runtime.getURL('observer.html')}));
-$('settings').addEventListener('click',()=>browser.runtime.openOptionsPage());
+$('observer').addEventListener('click',()=>chrome.tabs.create({url:chrome.runtime.getURL('observer.html')}));
+$('settings').addEventListener('click',()=>chrome.runtime.openOptionsPage());
 void refresh().catch(e=>{$('error').textContent=e.message;}); setInterval(()=>{if(document.activeElement?.tagName!=='SELECT') void refresh().catch(()=>{});},1500);

@@ -1,23 +1,74 @@
 # dzzk Job Search OS — Browser Bridge
 
-Read explicitly shared pages from an existing Firefox session through MCP.
-By Daniel Chechik / dzzk. Independent of Mozilla, OpenAI, LinkedIn and Opera.
+A local, user-controlled bridge between explicitly shared browser pages and an
+authorized MCP client such as ChatGPT, plus an experimental operator surface
+called **Browser Bridge Observer**.
 
-## Version 0.1.1
+By Daniel Chechik / dzzk. Independent of Mozilla, Google, OpenAI, LinkedIn and
+Opera.
 
-Firefox extension + local Node.js companion. Four read-only tools:
+## Current development status
+
+The project currently has two layers:
+
+1. **Read-only Browser Bridge** — the original page-sharing/MCP bridge.
+2. **Browser Bridge Observer** — a local observability/operator layer for MCP,
+   terminal, OpenCode/Qwen, llama.cpp and Git activity.
+
+The read-only bridge is the baseline. The Observer is already usable locally in
+Chrome and Firefox, but it is still under active development and must **not** yet
+be treated as an authoritative indicator that the current ChatGPT turn is idle.
+
+Verified locally on 2026-10-03:
+
+- Firefox read-only bridge synthetic smoke;
+- Chrome unpacked extension with live Side Panel Observer;
+- Firefox Observer page;
+- loopback pairing for Firefox and Chrome;
+- observer timeline from completed MCP history, terminal markers, OpenCode/Qwen,
+  llama.cpp and Git;
+- child-process lifecycle reconstruction for tracked PIDs;
+- OpenCode 1.14.48 and 1.18.34 bounded-edit compatibility smoke.
+
+Known limitations:
+
+- Desktop Commander writes tool history after a call returns, so an in-flight MCP
+  call can be temporarily invisible;
+- ChatGPT may look ready for a new message while an MCP/local execution chain is
+  still running;
+- authoritative CHAT TURN BUSY/IDLE/STALLED state requires the planned
+  pre-dispatch MCP gateway / turn lease;
+- PAUSE / BREAK / STOP ALL for the observer execution plane are not implemented;
+- Firefox Sidebar and Opera observer adapters are not yet verified;
+- live LinkedIn DOM, live ChatGPT OAuth linking, AMO signing/publication and
+  public store release remain outside the verified scope.
+
+See [Current status](docs/STATUS.md) and
+[Observer architecture](docs/OBSERVER-ARCHITECTURE.md).
+
+> **Repository state:** local development can be ahead of GitHub. As of
+> 2026-10-03 the running Chrome/Observer/local-agent work is still in the
+> `chore/local-execution` worktree and has not yet been reviewed, committed and
+> pushed to `origin/main`.
+
+## Version 0.1.1 baseline
+
+The MCP server exposes four read-only page tools:
 `list_tabs`, `read_page`, `find_in_page`, `bridge_status`.
-Use it for visible job listings and recruiter conversations, including LinkedIn
-pages you already have open. The bridge does not log in, crawl message history,
+Use them for browser pages you explicitly share, including visible job listings
+and recruiter conversations. The bridge does not log in, crawl message history,
 send messages or submit applications. Only loaded main-document text is read.
 
-Each page is shared from the toolbar for 30 minutes. Navigation, reload, tab
+Each page is shared from the browser UI for 30 minutes. Navigation, reload, tab
 closure, extension restart and manual revocation end access. Unshared tabs are
 not listed. No browser history, cookie API, raw profile or form-draft export.
 
 ## Quickstart
 
-Requires Firefox 140+ and Node.js 22+. The companion is a separate installation:
+Requires Node.js 22+ and either Firefox 140+ or a Chromium-family browser that
+supports the extension APIs used by the current adapter.
+
+Start the local companion:
 
 ```sh
 git clone https://github.com/dzzk-r/dzzk-job-search-os-browser-bridge.git
@@ -26,12 +77,43 @@ npm ci
 npm start
 ```
 
+### Firefox
+
 Load `firefox/manifest.json` using Firefox `about:debugging` → This Firefox →
 Load Temporary Add-on. Temporary installation ends when Firefox restarts.
 For permanent installation, Mozilla must sign the submitted package.
 
-Paste the companion's extension pairing token into the extension settings and
-accept the data-flow disclosure. Keep that token out of chats and screenshots.
+### Chrome
+
+Open `chrome://extensions`, enable Developer mode, choose **Load unpacked** and
+select the repository's `chrome/` directory. The current Chrome adapter provides
+the Browser Bridge Observer through the Side Panel API. This is a local
+development path, not a Chrome Web Store release.
+
+The companion creates one persistent extension pairing token for this local
+installation. It is stored at:
+
+`~/.config/dzzk-jso-bridge/pairing-token`
+
+Show it in Terminal only when you actually need to read it:
+
+```sh
+cat ~/.config/dzzk-jso-bridge/pairing-token
+```
+
+On macOS, copy it without printing it:
+
+```sh
+pbcopy < ~/.config/dzzk-jso-bridge/pairing-token
+```
+
+Paste that same token into the Browser Bridge settings for every Firefox or
+Chrome profile you want to pair with this companion, then accept the data-flow
+disclosure. Browser profiles keep separate extension storage, so Firefox and
+Chrome each need this one-time pairing even though they use the same companion
+token. Restarting the companion reuses the token; it is regenerated only if the
+pairing-token file is removed. Keep it out of chats and screenshots.
+
 Open the toolbar button and check that the companion is Connected.
 
 ### ChatGPT
@@ -88,7 +170,8 @@ uses a disposable profile and synthetic pages, never personal browser sessions.
 ## Boundaries and next adapters
 
 [Privacy](docs/PRIVACY.md) · [Security](docs/SECURITY-BOUNDARY.md) · [Controls](docs/CONTROL-MODEL.md) ·
-[Compatibility](docs/COMPATIBILITY.md) · [AMO submission](docs/AMO-LISTING.md).
+[Observer architecture](docs/OBSERVER-ARCHITECTURE.md) · [Compatibility](docs/COMPATIBILITY.md) ·
+[AMO submission](docs/AMO-LISTING.md).
 
 Opera, Safari and site-specific adapters are later work. The existing Opera
 Browser Connector remains an independent third-party option. No Opera or Safari
