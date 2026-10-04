@@ -1,4 +1,5 @@
 const $=id=>document.getElementById(id);
+const must=id=>{const element=$(id);if(!element) throw new Error('Missing required Observer element #'+id);return element;};
 const send=m=>chrome.runtime.sendMessage(m);
 let follow=true;
 let renderedKeys=[];
@@ -297,18 +298,18 @@ async function refresh() {
     $('active-chain').textContent='Observer unavailable';
   }
 }
-$('timeline').addEventListener('scroll',()=>{
-  const box=$('timeline');
+must('timeline').addEventListener('scroll',()=>{
+  const box=must('timeline');
   follow=box.scrollHeight-box.scrollTop-box.clientHeight<24;
 });
 void refresh();
 setInterval(()=>void refresh(),1500);
 
-$('help-toggle').addEventListener('click',()=>{$('help-panel').hidden=false;if(lastState){renderRunInspection(lastState);renderHeader(lastState);}});
-$('help-close').addEventListener('click',()=>{$('help-panel').hidden=true;});
-$('settings-toggle').addEventListener('click',async()=>{$('settings-panel').hidden=false;await refreshSettings();});
-$('settings-close').addEventListener('click',()=>{$('settings-panel').hidden=true;});
-$('share-current').addEventListener('click',async()=>{
+must('help-toggle').addEventListener('click',()=>{$('help-panel').hidden=false;if(lastState){renderRunInspection(lastState);renderHeader(lastState);}});
+must('help-close').addEventListener('click',()=>{$('help-panel').hidden=true;});
+must('settings-toggle').addEventListener('click',async()=>{$('settings-panel').hidden=false;await refreshSettings();});
+must('settings-close').addEventListener('click',()=>{$('settings-panel').hidden=true;});
+must('share-current').addEventListener('click',async()=>{
   try{
     const target=await currentShareTarget();
     if(!target.shareable) throw new Error('Current tab is not a fully loaded HTTP(S) page.');
@@ -316,8 +317,8 @@ $('share-current').addEventListener('click',async()=>{
     await refreshSettings();
   }catch(e){$('settings-error').textContent=e.message;}
 });
-$('pause-actions').addEventListener('click',async()=>{
+must('pause-actions').addEventListener('click',async()=>{
   try{await send({type:'set-policy',paused:$('pause-actions').dataset.paused!=='true'});await refreshSettings();}
   catch(e){$('settings-error').textContent=e.message;}
 });
-$('open-options').addEventListener('click',()=>chrome.runtime.openOptionsPage());
+must('open-options').addEventListener('click',()=>chrome.runtime.openOptionsPage());
