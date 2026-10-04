@@ -1,4 +1,4 @@
-# dzzk Job Search OS — Browser Bridge
+# Execution Delivery Harness
 
 A local, user-controlled bridge between explicitly shared browser pages and an
 authorized MCP client such as ChatGPT, plus an experimental operator surface
@@ -9,11 +9,16 @@ Opera.
 
 ## Current development status
 
-The project currently has two layers:
+The project currently has three working surfaces around one MCP boundary:
 
-1. **Read-only Browser Bridge** — the original page-sharing/MCP bridge.
-2. **Browser Bridge Observer** — a local observability/operator layer for MCP,
+1. **Read-only Browser Bridge** — explicit page-sharing through browser adapters.
+2. **Local Executor** — bounded filesystem/process tools, blocked by default for
+   newly authorized clients.
+3. **Browser Bridge Observer** — a local observability/operator layer for MCP,
    terminal, OpenCode/Qwen, llama.cpp and Git activity.
+
+The client-facing architecture is intentionally transport-neutral; see
+[Clients and transports](docs/CLIENTS-AND-TRANSPORTS.md).
 
 The read-only bridge is the baseline. The Observer is already usable locally in
 Chrome and Firefox, but it is still under active development and must **not** yet
@@ -43,13 +48,14 @@ Known limitations:
 - live LinkedIn DOM, live ChatGPT OAuth linking, AMO signing/publication and
   public store release remain outside the verified scope.
 
-See [Current status](docs/STATUS.md) and
-[Observer architecture](docs/OBSERVER-ARCHITECTURE.md).
+See [Current status](docs/STATUS.md),
+[Observer architecture](docs/OBSERVER-ARCHITECTURE.md),
+[Clients and transports](docs/CLIENTS-AND-TRANSPORTS.md), and the
+[cross-cutting ToDo](ToDo.md).
 
-> **Repository state:** local development can be ahead of GitHub. As of
-> 2026-10-03 the running Chrome/Observer/local-agent work is still in the
-> `chore/local-execution` worktree and has not yet been reviewed, committed and
-> pushed to `origin/main`.
+> **Repository state:** as of 2026-10-04 the active local worktree is
+> `chore/local-execution` and is pushed to `origin/chore/local-execution`.
+> It has not yet been reviewed/integrated into `main`.
 
 ## Version 0.1.1 baseline
 
@@ -170,8 +176,8 @@ uses a disposable profile and synthetic pages, never personal browser sessions.
 ## Boundaries and next adapters
 
 [Privacy](docs/PRIVACY.md) · [Security](docs/SECURITY-BOUNDARY.md) · [Controls](docs/CONTROL-MODEL.md) ·
-[Observer architecture](docs/OBSERVER-ARCHITECTURE.md) · [Compatibility](docs/COMPATIBILITY.md) ·
-[AMO submission](docs/AMO-LISTING.md).
+[Observer architecture](docs/OBSERVER-ARCHITECTURE.md) · [Clients and transports](docs/CLIENTS-AND-TRANSPORTS.md) ·
+[Compatibility](docs/COMPATIBILITY.md) · [Cross-cutting ToDo](ToDo.md) · [AMO submission](docs/AMO-LISTING.md).
 
 Opera, Safari and site-specific adapters are later work. The existing Opera
 Browser Connector remains an independent third-party option. No Opera or Safari

@@ -46,6 +46,12 @@ Observer event plane
 The gateway and event plane are the contract. Browser APIs are adapters around
 that contract, not separate observer implementations.
 
+The upstream client is also an adapter concern rather than an Observer-specific
+architecture. ChatGPT Web, ChatGPT Desktop, the OpenAI Responses API and generic
+MCP hosts should reach the same harness tool/event contracts through compatible
+transports. See [Clients and transports](CLIENTS-AND-TRANSPORTS.md) for that
+boundary and its validation matrix.
+
 ## Why completed MCP history is not enough
 
 Desktop Commander writes its tool-history record after a tool call returns.
