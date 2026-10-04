@@ -1,5 +1,14 @@
 # Browser Bridge execution rules
 
+## Local planning before execution
+
+Routine work should not depend on ChatGPT manually authoring each worker prompt.
+Use the local planning contract in `docs/LOCAL-PLANNING.md`: intent -> validated
+bounded task envelope -> local worker -> local verification -> done/repair or a
+compact escalation packet. Task and escalation documents must validate against
+`schemas/task-envelope.schema.json` and
+`schemas/escalation-packet.schema.json` before they are acted on.
+
 ## Local execution first
 
 Use the owner's local Qwen via OpenCode for routine implementation, bounded
@@ -13,10 +22,11 @@ for concrete concerns. This is a routing target, not an enforced billing cap.
 An installed executable, successful HTTP response or process exit zero does not
 establish task completion. Require the requested artifact and validation.
 
-Escalate a narrow question only when evidence shows a security/access-control
-concern, destructive or irreversible action, conflicting evidence, or a failure
-remaining after one bounded repair attempt. Missing credentials or a user's
-decision require that input; do not send the project through another model audit.
+Escalate a narrow question only when the local planner emits a valid escalation
+packet because evidence shows a security/access-control concern, destructive or
+irreversible action, conflicting evidence, public-contract/architecture change,
+missing user decision, or a failure remaining after the allowed bounded repair.
+Missing credentials or a user's decision require that input; do not send the project through another model audit.
 Include the task, relevant diff/excerpt, exact failed command, log path and the
 single decision needed. Never resend the whole project by default.
 

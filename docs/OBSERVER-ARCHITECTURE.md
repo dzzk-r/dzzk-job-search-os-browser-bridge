@@ -92,6 +92,48 @@ Examples of correlation already available locally:
 The Side Panel and TUI expose an **Open / Waiting** view so a START without an END
 is visible instead of silently aging in the timeline.
 
+## Causal chain and correlation model
+
+Flat timeline events are diagnostic evidence, not a full causal trace. A flat
+event stream can show what happened but cannot by itself prove which client,
+turn, run, span, tool and acceptance result are connected. The observer must
+therefore render a causal chain on top of the flat evidence:
+
+```text
+source client -> chat / tab / turn -> orchestrator
+    -> Harness gateway / span -> executor
+    -> model / runtime -> tool / artifact
+    -> acceptance result
+```
+
+The gateway (GW-01) owns pre-dispatch correlation IDs. The observer consumes and
+renders those IDs; it does not invent or reassign them.
+
+The operator UI should group and filter events by source client, conversation or
+session, tab, **specific turn/message/step**, and run. Provenance should preserve
+the most specific locator the source adapter can supply. For ChatGPT this means
+conversation plus turn/message when technically available; for local OpenCode /
+Qwen execution it means session, message/step and model-request evidence. A
+conversation-level link is not a substitute for a turn-level locator when the
+source exposes one. Navigation back to the originating source is allowed only
+when that adapter provides a safe usable locator.
+
+Generic MCP history does not prove which MCP host produced an event. The UI must
+not label an unattributed MCP event as Remote Desktop Commander, ChatGPT, or any
+other client without source evidence carried by the gateway/span.
+
+Failure reporting must use a structured record with at least stage, actor, code,
+message and cause, correlated to a run and span. An overall FAILED status is only
+a summary. Distinct failure classes that must remain distinguishable:
+
+- gateway failure
+- executor failure
+- model failure
+- runtime failure
+- tool failure
+- budget / policy failure
+- acceptance failure
+
 ## Run provenance and task truth
 
 Actor activity answers **who is doing something now**. It is not enough to answer
@@ -107,6 +149,10 @@ run/
   events.log     OpenCode / model / tool event stream
   report.json    semantic acceptance result
 ```
+
+`task.txt` is the bounded task envelope, not necessarily the exact model request.
+The exact OpenCode-to-model request, system context and tool schemas require
+separate provenance capture when available.
 
 The Observer projects this bundle as a **run inspection** view. The projection
 must expose at least the task, executor and model, step/token/deadline budget,
@@ -129,6 +175,46 @@ The run directory is the durable provenance record. Browser UI, TUI and future
 remote panels are projections of that record plus live event state; they are not
 the source of truth themselves. This also gives post-mortem inspection a stable
 path when a live event has already disappeared from the timeline.
+
+### Progress, waiting and interruption safety
+
+`RUNNING` or `WAITING` alone is not enough operator truth. A live run should
+publish a compact checkpoint containing at least:
+
+```text
+plan / acceptance checklist
+current phase
+completed work
+current work
+pending work
+budget used / remaining
+waiting reason
+safe_to_interrupt: yes | no | after_checkpoint
+last durable checkpoint / artifact
+```
+
+A percentage is valid only when there is a meaningful denominator. Agent turns,
+token count and wall-clock time are budgets, not task-completion percentages.
+If progress cannot be quantified, render checklist/phase progress instead of a
+fabricated percentage.
+
+A user message must not be the implicit cancellation mechanism for long local
+work. Once dispatched as durable Harness work, the run must own its process and
+persist enough plan/checkpoint/artifact state to survive the originating UI turn.
+The source client may detach, continue another work vector, or explicitly request
+pause/stop; interruption semantics must be explicit rather than accidental.
+
+### Semantic compaction and raw evidence
+
+The default operator timeline is a semantic projection, not a dump of every
+polling call. Repeated `read_process_output`, sleep/grep probes and duplicated
+MCP/TERM lifecycle observations should collapse into one span with state changes,
+progress and elapsed time. Raw events remain available as drill-down evidence.
+
+The same rule applies to architect escalation: local execution should produce a
+small semantic checkpoint/report for ChatGPT. The architect should not need to
+consume the full raw event log on every run; raw log retrieval is reserved for
+failure diagnosis, disputed provenance or explicit inspection.
 
 ### Causal chain
 

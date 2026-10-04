@@ -39,13 +39,57 @@ ChatGPT turn state.
   verified scope.
 - AMO signing/publication is not complete.
 
+## Current debt / next cycle
+
+- Target flow is ChatGPT supervision plus Harness -> OpenCode -> local
+  model/runtime for routine bounded work; RDC is only fallback. This ChatGPT
+  Web chat still has no direct Harness MCP path.
+- Timeline is flat diagnostic history, not causal execution trace; no
+  grouping/navigation by source client/conversation/session/tab/specific
+  turn/message/step/run. Generic `MCP` history cannot currently be attributed to
+  Remote Desktop Commander or another host without extra source evidence.
+- `WAITING`/`RUNNING` does not expose the whole active plan, completed/current/
+  pending work, acceptance checklist, budget remaining, waiting reason or whether
+  a new user message is safe. Long work is still too coupled to the active chat
+  turn instead of a durable Harness-owned run/handoff.
+- Polling and observer self-noise (`read_process_output`, sleep/grep probes,
+  duplicated MCP/TERM events) dominate the default timeline. The target is a
+  semantic compact view with raw evidence only on drill-down, and a compact local
+  checkpoint for ChatGPT so routine runs do not require shipping full logs into
+  the architect context.
+- Help UI has real defects: missing help-toggle wiring, duplicate runtime-grid
+  id, and layout/nowrap debt.
+- Run files exist, but UI artifact-content inspection is incomplete and the
+  exact OpenCode-to-model serialized request is not captured.
+- Failure UI needs structured stage/actor/code/message/cause instead of only
+  overall FAILED.
+- 4-step default is wrapper policy, not model limit; a 6-step run also
+  exhausted, so budget design needs revision.
+- OpenCode reaches Harness OAuth after DCR compatibility repair, but latest
+  status still reports needs authentication.
+- The current `chore/local-execution` checkpoint passes npm test 34/34; this does not imply review or integration into `main`.
+- Qwen/OpenCode/llama.cpp is one owner profile, not a universal user stack.
+- Local planning now has a first executable slice: `scripts/local-planner.mjs`
+  accepts goal/evidence plus Harness-owned boundaries, calls local Qwen once, and
+  emits a schema-valid bounded `task.json`. A live Help-planning run completed as
+  `task_ready` in about 53 seconds. Model-authored acceptance is declarative
+  evidence only; Harness must own executable verification. The planner is not
+  yet wired to the worker runner or local verification/escalation loop.
+- Current automated suite is 34/34 passing after planner-contract tests.
+
+Next-cycle order: planner -> validated-envelope worker adapter -> Harness-owned
+verification/escalation -> execute the bounded Help/layout task through that path
+-> artifact/prompt provenance -> component failure locus -> causal
+correlation/navigation -> direct Harness local-tool path -> portable profiles.
+
 ## Source-of-truth warning
 
 Local development may be ahead of GitHub. Before relying on the repository state,
 compare the current worktree with `origin/main` and check for uncommitted files.
 
-As of 2026-10-03, the locally running observer/Chrome work is ahead of
-`origin/main` and still needs a reviewed commit/push.
+As of 2026-10-04, `chore/local-execution` is the execution/checkpoint branch and
+may be ahead of `main`. Always inspect its HEAD and worktree status separately;
+no checkpoint on this branch implies approval to merge into `main`.
 
 ## Important paths
 
@@ -54,5 +98,8 @@ As of 2026-10-03, the locally running observer/Chrome work is ahead of
 - Chrome extension: `chrome/`
 - Observer engine/TUI: `scripts/run-observer.py`
 - Local bounded agent: `scripts/local-agent.py`
+- Local planner: `scripts/local-planner.mjs`
+- Planning contract: `docs/LOCAL-PLANNING.md`
+- Planning schemas: `schemas/`
 - Observer architecture: `docs/OBSERVER-ARCHITECTURE.md`
 - Pairing token: `~/.config/dzzk-jso-bridge/pairing-token`

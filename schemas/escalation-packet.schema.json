@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://execution-delivery-harness.local/schemas/escalation-packet.schema.json",
+  "title": "Execution Delivery Harness Escalation Packet",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "escalation_id",
+    "plan_id",
+    "task_id",
+    "trigger",
+    "decision_required",
+    "evidence",
+    "attempted",
+    "options",
+    "exact_question",
+    "artifacts",
+    "source"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "escalation_id": { "type": "string", "minLength": 1 },
+    "plan_id": { "type": "string", "minLength": 1 },
+    "task_id": { "type": "string", "minLength": 1 },
+    "trigger": {
+      "type": "string",
+      "enum": [
+        "security_boundary",
+        "destructive_action",
+        "conflicting_evidence",
+        "public_contract_change",
+        "missing_user_decision",
+        "bounded_repairs_exhausted",
+        "architectural_ambiguity",
+        "other"
+      ]
+    },
+    "decision_required": { "type": "string", "minLength": 1 },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["locator", "summary"],
+        "properties": {
+          "locator": { "type": "string", "minLength": 1 },
+          "summary": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "attempted": { "type": "array", "items": { "type": "string" } },
+    "options": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "description"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "tradeoffs": { "type": "string" }
+        }
+      }
+    },
+    "recommended_local_choice": { "type": ["string", "null"] },
+    "exact_question": { "type": "string", "minLength": 1 },
+    "artifacts": { "type": "array", "items": { "type": "string" } },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["client"],
+      "properties": {
+        "client": { "type": "string", "minLength": 1 },
+        "conversation_id": { "type": ["string", "null"] },
+        "turn_id": { "type": ["string", "null"] },
+        "message_id": { "type": ["string", "null"] },
+        "locator": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

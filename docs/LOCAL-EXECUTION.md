@@ -1,10 +1,32 @@
 # Finite local execution
 
-Routine coding and checks belong to local Qwen. ChatGPT is reserved for a narrow
-decision supported by concrete risk, contradictory evidence or an unresolved
-failure after one bounded repair. The target is roughly 90% local work and 10%
-escalation, not a measured or enforced billing limit. See `AGENTS.md` for scope,
-logging and STOP requirements. These rules do not yet implement a complete
+## Current execution policy
+
+- Routing target: roughly 90% routine bounded local work and 10% ChatGPT
+  supervision/escalation. This is an operating target, not proof that routing is
+  automated today.
+- Current local profile: OpenCode 1.14.48 -> Qwen3.8-27B -> llama.cpp at
+  loopback. Treat this as an owner profile, not a universal user requirement.
+- Current wrapper policy: task text limited to 3,000 chars, steps to 1..6 with
+  default steps=4, and tokens to 2,048. These are wrapper policy limits, not
+  model or runtime capabilities.
+- Live evidence: a 4-step run exhausted before completing a Help task; a later
+  6-step run also exhausted after code edits but before its required test. Fixed
+  step count is therefore too coarse to use as completion truth; acceptance
+  criteria remain authoritative.
+- `max_steps` exhaustion must make the semantic result failed even when the
+  process exit code is 0 and the expected file changed.
+- Future portable execution profiles should define executor/provider/model/
+  runtime/budgets/permissions/acceptance separately. User authorization remains
+  explicit.
+
+Routine coding and checks belong to a bounded local worker. The worker task
+should normally be emitted by the local planner contract in
+`docs/LOCAL-PLANNING.md`, rather than hand-authored by ChatGPT. ChatGPT is
+reserved for a narrow decision supported by a valid escalation packet: concrete
+risk, contradictory evidence, architectural/policy ambiguity, a user decision,
+or unresolved failure after the permitted bounded repair. See `AGENTS.md` for
+scope, logging and STOP requirements. These rules do not yet implement a complete
 autonomous OpenCode executor.
 
 The runner `scripts/local-check.py` performs npm tests, Firefox extension linting
