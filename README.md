@@ -51,7 +51,7 @@ Known limitations:
 See [Current status](docs/STATUS.md),
 [Observer architecture](docs/OBSERVER-ARCHITECTURE.md),
 [Clients and transports](docs/CLIENTS-AND-TRANSPORTS.md), and the
-[cross-cutting ToDo](ToDo.md).
+[cross-cutting TODO](TODO.md).
 
 > **Repository state:** as of 2026-10-04 the active local worktree is
 > `chore/local-execution` and is pushed to `origin/chore/local-execution`.
@@ -177,7 +177,7 @@ uses a disposable profile and synthetic pages, never personal browser sessions.
 
 [Privacy](docs/PRIVACY.md) · [Security](docs/SECURITY-BOUNDARY.md) · [Controls](docs/CONTROL-MODEL.md) ·
 [Observer architecture](docs/OBSERVER-ARCHITECTURE.md) · [Clients and transports](docs/CLIENTS-AND-TRANSPORTS.md) ·
-[Compatibility](docs/COMPATIBILITY.md) · [Cross-cutting ToDo](ToDo.md) · [AMO submission](docs/AMO-LISTING.md).
+[Compatibility](docs/COMPATIBILITY.md) · [Cross-cutting TODO](TODO.md) · [AMO submission](docs/AMO-LISTING.md).
 
 Opera, Safari and site-specific adapters are later work. The existing Opera
 Browser Connector remains an independent third-party option. No Opera or Safari
