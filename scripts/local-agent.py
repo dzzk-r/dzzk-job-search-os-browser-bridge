@@ -187,7 +187,7 @@ def main():
             str(path.relative_to(repo)) for path in writes
             if fingerprint(path) != before_writes.get(str(path))
         ]
-        accepted = child.returncode == 0 and not fatal and not report.get('termination') and edits and after != before and expected.is_file() and expected.stat().st_size > 0
+        accepted = child.returncode == 0 and not fatal and not max_steps and not report.get('termination') and edits and after != before and expected.is_file() and expected.stat().st_size > 0
         if accepted:
             reason = 'acceptance_passed'
         elif report.get('termination'):

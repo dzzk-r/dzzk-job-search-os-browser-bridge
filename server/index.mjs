@@ -16,6 +16,10 @@ const secret = () => randomBytes(32).toString('base64url');
 const hash = value => createHash('sha256').update(value).digest('base64url');
 const equal = (a, b) => typeof a === 'string' && typeof b === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 const scope = 'browser.read';
+// Grants the authorization server actually performs. Refresh tokens are not
+// issued yet, so refresh_token is intentionally excluded; discovery and
+// registration responses must reflect exactly this.
+const supportedGrantTypes = ['authorization_code'];
 const browserMethods = ['tabs.list','page.read','page.find','bridge.status'];
 const localMethods = ['local.status','local.list_dir','local.read_file','local.write_file','local.exec_start','local.process_output','local.process_stop'];
 const policyMethods = [...browserMethods,...localMethods];
@@ -260,14 +264,20 @@ export async function createBridgeServer(options = {}) {
         fail(404,'not_found');
       }
       if (req.method === 'GET' && (path === '/.well-known/oauth-protected-resource' || path === '/.well-known/oauth-protected-resource/mcp')) return json(res,200,{resource,authorization_servers:[issuer],scopes_supported:[scope],bearer_methods_supported:['header'],resource_name:'Execution Delivery Harness Browser Bridge'});
-      if (req.method === 'GET' && path === '/.well-known/oauth-authorization-server') return json(res,200,{issuer,authorization_endpoint:issuer+'/authorize',token_endpoint:issuer+'/token',registration_endpoint:issuer+'/register',response_types_supported:['code'],grant_types_supported:['authorization_code'],code_challenge_methods_supported:['S256'],token_endpoint_auth_methods_supported:['none'],scopes_supported:[scope],authorization_response_iss_parameter_supported:true});
+      if (req.method === 'GET' && path === '/.well-known/oauth-authorization-server') return json(res,200,{issuer,authorization_endpoint:issuer+'/authorize',token_endpoint:issuer+'/token',registration_endpoint:issuer+'/register',response_types_supported:['code'],grant_types_supported:supportedGrantTypes,code_challenge_methods_supported:['S256'],token_endpoint_auth_methods_supported:['none'],scopes_supported:[scope],authorization_response_iss_parameter_supported:true});
       if (path === '/register' && req.method === 'POST') {
         const data = await body(req,16384);
         if (registrations.size >= 256) fail(503,'registration_limit');
         if (!Array.isArray(data.redirect_uris) || data.redirect_uris.length < 1 || data.redirect_uris.length > 5 || !data.redirect_uris.every(validRedirect)) fail(400,'invalid_redirect_uri');
         if (data.token_endpoint_auth_method && data.token_endpoint_auth_method !== 'none') fail(400,'invalid_client_metadata');
-        if (data.grant_types && (!Array.isArray(data.grant_types) || data.grant_types.some(x => x !== 'authorization_code'))) fail(400,'invalid_client_metadata');
-        const client = {client_id:secret(),client_id_issued_at:Math.floor(Date.now()/1000),client_name:typeof data.client_name === 'string' ? data.client_name.slice(0,120) : 'MCP client',redirect_uris:data.redirect_uris,token_endpoint_auth_method:'none',grant_types:['authorization_code'],response_types:['code']};
+        // Accept the standard MCP/OAuth DCR metadata that clients such as
+        // OpenCode send (grant_types may include authorization_code and
+        // refresh_token). Reject grant types the authorization server does not
+        // support (client_credentials, password, urn:ietf:params:oauth:...).
+        // The stored and returned grant_types stay limited to what the server
+        // actually performs (authorization_code); refresh tokens are not issued.
+        if (data.grant_types !== undefined && (!Array.isArray(data.grant_types) || !data.grant_types.includes('authorization_code') || data.grant_types.some(x => typeof x !== 'string' || !(x === 'authorization_code' || x === 'refresh_token')))) fail(400,'invalid_client_metadata');
+        const client = {client_id:secret(),client_id_issued_at:Math.floor(Date.now()/1000),client_name:typeof data.client_name === 'string' ? data.client_name.slice(0,120) : 'MCP client',redirect_uris:data.redirect_uris,token_endpoint_auth_method:'none',grant_types:supportedGrantTypes,response_types:['code']};
         registrations.set(client.client_id,client); await persist(); return json(res,201,client);
       }
       if (path === '/authorize' && req.method === 'GET') {

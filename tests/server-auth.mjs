@@ -59,6 +59,25 @@ test('OAuth and pairing credentials are separate; hostile origin and host are re
   const persisted=await readFile(join(b.configDir,'clients.json'),'utf8'); assert.ok(!persisted.includes(access.value.access_token)); assert.ok(!persisted.includes(b.pairingToken));
 });
 
+test('OpenCode-style DCR metadata is accepted without advertising unsupported refresh grants',async t=>{
+  const b=await setup(t);
+  const discovery=await b.call('/.well-known/oauth-authorization-server');
+  assert.deepEqual(discovery.value.grant_types_supported,['authorization_code']);
+  const openCode=await b.call('/register',{method:'POST',data:{
+    client_name:'OpenCode',
+    client_uri:'https://opencode.ai',
+    redirect_uris:['http://127.0.0.1:19876/mcp/oauth/callback'],
+    grant_types:['authorization_code','refresh_token'],
+    response_types:['code'],
+    token_endpoint_auth_method:'none'
+  }});
+  assert.equal(openCode.status,201);
+  assert.deepEqual(openCode.value.grant_types,['authorization_code']);
+  assert.deepEqual(openCode.value.response_types,['code']);
+  assert.equal((await b.call('/register',{method:'POST',data:{redirect_uris:['http://127.0.0.1:19876/mcp/oauth/callback'],grant_types:['refresh_token'],token_endpoint_auth_method:'none'}})).status,400);
+  assert.equal((await b.call('/register',{method:'POST',data:{redirect_uris:['http://127.0.0.1:19876/mcp/oauth/callback'],grant_types:['authorization_code','client_credentials'],token_endpoint_auth_method:'none'}})).status,400);
+});
+
 test('PKCE S256, single use codes, audience and extension-only consent',async t=>{
   const b=await setup(t), client=await b.register(), grant=await b.authorize(client);
   assert.equal((await b.tokenRequest(client,grant,{code_verifier:'x'.repeat(43)})).status,400);
