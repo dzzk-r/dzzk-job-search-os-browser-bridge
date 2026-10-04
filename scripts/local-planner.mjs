@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { validatePlanningDocument } from './planning-contract.mjs';
+import { startLifecycle, updateLifecycle } from './run-lifecycle.mjs';
 
 const SYSTEM_PROMPT = `You are the local planner inside Execution Delivery Harness.
 Choose exactly one next bounded worker task from the supplied goal, evidence and constraints.
@@ -54,7 +55,7 @@ function parseJsonContent(content) {
   return JSON.parse(text);
 }
 
-export async function planOneTask(request,{endpoint='http://127.0.0.1:8080/v1',model='qwen3.8-27b',timeoutMs=120000}={}) {
+export async function planOneTask(request,{endpoint='http://127.0.0.1:8080/v1',model='qwen3.8-27b',timeoutMs=120000,onProgress=null}={}) {
   assertRequest(request);
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),timeoutMs);
@@ -82,6 +83,7 @@ export async function planOneTask(request,{endpoint='http://127.0.0.1:8080/v1',m
     if(!response.ok) throw new Error('planner HTTP '+response.status);
     const raw=await response.json();
     const proposal=parseJsonContent(raw?.choices?.[0]?.message?.content);
+    if(onProgress) await onProgress({phase:'VALIDATING',completed:['proposal_generated'],current:'Validate bounded task envelope',pending:[],waiting_reason:null,safe_to_interrupt:'after_checkpoint'});
     const envelope=assembleTaskEnvelope(request,proposal);
     await validatePlanningDocument('task',envelope);
     return {envelope,raw};
@@ -103,14 +105,37 @@ async function main() {
   await mkdir(output,{recursive:true});
   const started=Date.now();
   await writeFile(output+'/planning-request.json',JSON.stringify(request,null,2)+'\n');
+  await startLifecycle(output,{
+    run_id:'planner:'+request.task_id,
+    plan_id:request.plan_id,
+    task_id:request.task_id,
+    goal:request.goal,
+    phase:'PLANNING',
+    completed:[],
+    current:'Generate one bounded worker task',
+    pending:['Validate task envelope','Persist task.json'],
+    budget:request.budget,
+    safe_to_interrupt:'no',
+    source:request.source,
+    execution_profile:request.execution_profile,
+    message:'local planner started'
+  });
   try {
-    const {envelope,raw}=await planOneTask(request);
+    const {envelope,raw}=await planOneTask(request,{onProgress:patch=>updateLifecycle(output,patch,{type:'PROGRESS'})});
     await writeFile(output+'/planner-response.json',JSON.stringify(raw,null,2)+'\n');
     await writeFile(output+'/task.json',JSON.stringify(envelope,null,2)+'\n');
+    await updateLifecycle(output,{
+      status:'DONE',phase:'TASK_READY',completed:['proposal_generated','task_validated','task_persisted'],current:null,pending:[],
+      safe_to_interrupt:'yes',last_durable_checkpoint:'task.json'
+    },{type:'DONE',message:'validated task envelope is ready'});
     const report={status:'task_ready',plan_id:envelope.plan_id,task_id:envelope.task_id,seconds:(Date.now()-started)/1000};
     await writeFile(output+'/planner-report.json',JSON.stringify(report,null,2)+'\n');
     process.stdout.write(JSON.stringify(report)+'\n');
   } catch(error) {
+    await updateLifecycle(output,{
+      status:'ERROR',phase:'FAILED',current:null,pending:[],safe_to_interrupt:'yes',waiting_reason:null,
+      last_durable_checkpoint:'planning-request.json'
+    },{type:'ERROR',message:String(error.message||error)}).catch(()=>{});
     const report={status:'failed',error_type:error.name,error:String(error.message||error),seconds:(Date.now()-started)/1000};
     await writeFile(output+'/planner-report.json',JSON.stringify(report,null,2)+'\n');
     console.error(JSON.stringify(report));

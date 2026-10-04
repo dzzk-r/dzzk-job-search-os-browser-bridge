@@ -131,6 +131,32 @@ function appendKeyValues(parent, rows) {
   }
   parent.replaceChildren(frag);
 }
+function renderTaskLifecycle(state) {
+  const task=state.task_lifecycle;
+  const section=$('task-lifecycle-section');
+  if(!task) { section.hidden=true; return; }
+  section.hidden=false;
+  $('task-safety').textContent='safe to interrupt: '+String(task.safe_to_interrupt||'?');
+  appendKeyValues($('task-lifecycle-summary'),[
+    ['Task',task.task_id||'-'],
+    ['Status',task.status||'-'],
+    ['Phase',task.phase||'-'],
+    ['Goal',task.goal||'-'],
+    ['Waiting',task.waiting_reason||'-'],
+    ['Checkpoint',task.last_durable_checkpoint||'-']
+  ]);
+  const frag=document.createDocumentFragment();
+  const rows=[
+    ['Completed',(task.completed||[]).join(' · ')||'none'],
+    ['Current',task.current||'none'],
+    ['Pending',(task.pending||[]).join(' · ')||'none'],
+    ['Budget',JSON.stringify(task.budget||{})],
+    ['Budget used',JSON.stringify(task.budget_used||{})]
+  ];
+  for(const [name,value] of rows){const row=document.createElement('div');row.className='artifact-row';const strong=document.createElement('strong');strong.textContent=name+': ';const span=document.createElement('span');span.textContent=value;row.append(strong,span);frag.append(row);}
+  $('task-lifecycle-work').replaceChildren(frag);
+}
+
 function renderRunInspection(state) {
   const run=state.run_inspection;
   if(!run) {
@@ -245,6 +271,7 @@ async function refresh() {
     lastState=state;
     renderHeader(state);
     renderActors(state);
+    renderTaskLifecycle(state);
     renderSpans(state);
     renderTimeline(state);
   } catch(e) {

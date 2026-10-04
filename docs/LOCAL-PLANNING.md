@@ -125,6 +125,8 @@ local model at all.
 
 ## First implementation slice
 
+Durable representation uses a hybrid: JSON snapshots (`plan.json`, `task.json`, `checkpoint.json`, reports) for current entity state, plus append-only JSONL (`lifecycle.jsonl`) for transitions/events. Relationships use IDs (`plan_id`, `task_id`, `parent_task_id`, `run_id`, `span_id`) rather than recursively embedding child objects; unbounded history belongs in JSONL, not ever-growing arrays inside snapshots.
+
 The first implementation should be intentionally small:
 
 1. validate task-envelope and escalation-packet documents;

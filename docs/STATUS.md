@@ -48,10 +48,12 @@ ChatGPT turn state.
   grouping/navigation by source client/conversation/session/tab/specific
   turn/message/step/run. Generic `MCP` history cannot currently be attributed to
   Remote Desktop Commander or another host without extra source evidence.
-- `WAITING`/`RUNNING` does not expose the whole active plan, completed/current/
-  pending work, acceptance checklist, budget remaining, waiting reason or whether
-  a new user message is safe. Long work is still too coupled to the active chat
-  turn instead of a durable Harness-owned run/handoff.
+- A first durable task lifecycle now exists: JSON snapshot (`checkpoint.json`) +
+  append-only `lifecycle.jsonl` transitions, with plan/task IDs, phase,
+  completed/current/pending work, budget, waiting reason, durable checkpoint and
+  `safe_to_interrupt`. Observer payload and Chrome Side Panel have a first
+  Current task projection, pending Chrome Reload/live acceptance. Long worker
+  execution is still not fully detached from the originating chat turn.
 - Polling and observer self-noise (`read_process_output`, sleep/grep probes,
   duplicated MCP/TERM events) dominate the default timeline. The target is a
   semantic compact view with raw evidence only on drill-down, and a compact local
@@ -67,15 +69,16 @@ ChatGPT turn state.
   exhausted, so budget design needs revision.
 - OpenCode reaches Harness OAuth after DCR compatibility repair, but latest
   status still reports needs authentication.
-- The current `chore/local-execution` checkpoint passes npm test 34/34; this does not imply review or integration into `main`.
+- The current `chore/local-execution` checkpoint passes npm test 35/35; this does not imply review or integration into `main`.
 - Qwen/OpenCode/llama.cpp is one owner profile, not a universal user stack.
 - Local planning now has a first executable slice: `scripts/local-planner.mjs`
   accepts goal/evidence plus Harness-owned boundaries, calls local Qwen once, and
   emits a schema-valid bounded `task.json`. A live Help-planning run completed as
   `task_ready` in about 53 seconds. Model-authored acceptance is declarative
-  evidence only; Harness must own executable verification. The planner is not
-  yet wired to the worker runner or local verification/escalation loop.
-- Current automated suite is 34/34 passing after planner-contract tests.
+  evidence only; Harness owns executable verification. A first
+  `run-task-envelope.mjs` worker adapter now exists but has not yet live-run the
+  Help task; verification/escalation is still incomplete.
+- Current automated suite is 35/35 passing after lifecycle + planner-contract tests.
 
 Next-cycle order: planner -> validated-envelope worker adapter -> Harness-owned
 verification/escalation -> execute the bounded Help/layout task through that path

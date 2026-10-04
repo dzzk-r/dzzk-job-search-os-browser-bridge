@@ -20,6 +20,7 @@ DEFAULT_COMMANDS = Path("/Users/dzzk/WORK/browser-bridge-runs/2026-10-03/command
 DEFAULT_MCP = Path.home() / ".claude-server-commander/tool-history.jsonl"
 DEFAULT_ACTORS = Path.home() / ".config/dzzk-jso-bridge/observer-actors.json"
 LOCAL_AGENT_STATE = Path.home() / ".local/state/execution-delivery-harness/local-agent.json"
+CURRENT_RUN_STATE = Path.home() / ".local/state/execution-delivery-harness/current-run.json"
 
 BUILTIN_ACTORS = [
     {"id":"MCP","label":"MCP","enabled":True},
@@ -394,6 +395,18 @@ def local_agent_run(fallback):
     return fallback, None
 
 
+def current_task_lifecycle():
+    pointer = load_json(CURRENT_RUN_STATE)
+    if not isinstance(pointer, dict):
+        return None
+    run_dir = Path(str(pointer.get("run_dir") or "")).expanduser()
+    checkpoint = load_json(run_dir / "checkpoint.json") if run_dir.is_dir() else None
+    if not isinstance(checkpoint, dict):
+        return pointer
+    checkpoint["run_dir"] = str(run_dir)
+    return checkpoint
+
+
 def detect_failure_reason(run: Path, report):
     if not run:
         return None
@@ -487,6 +500,7 @@ def snapshot(root: Path, repo: Path, commands: Path, mcp: Path):
         "spans": spans,
         "local_agent": local_agent,
         "run_inspection": None,
+        "task_lifecycle": current_task_lifecycle(),
     }
 
     timeline = parse_commands(commands)
@@ -896,6 +910,7 @@ def print_json(root, repo, commands, mcp):
         "actor_activity": d.get("actor_activity", {}),
         "actors": d.get("actors", BUILTIN_ACTORS),
         "run_inspection": d.get("run_inspection"),
+        "task_lifecycle": d.get("task_lifecycle"),
         "spans": d.get("spans", [])[-40:],
         "timeline": merged,
     }
