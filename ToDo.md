@@ -19,7 +19,31 @@ client integrations and release/distribution.
 - **ETA** - approximate remaining engineering effort, not a calendar promise and
   not external review/wait time.
 
-Snapshot: 2026-10-04, branch `chore/local-execution` after `8071d84`.
+### Task ID prefixes
+
+The prefix is a stable workstream/category label. It is **not** a priority,
+status or dependency indicator.
+
+| Prefix | Workstream | Scope |
+| --- | --- | --- |
+| **REP** | Repository / provenance | Canonical repo, branches, worktrees, Git provenance and integration hygiene |
+| **BRW** | Browser Bridge core | Browser-neutral explicit page grants and read-only browser/MCP contract |
+| **CHR** | Chrome | Chrome-specific extension, Side Panel and adapter behavior |
+| **FFX** | Firefox | Firefox-specific extension, sidebar/operator surface and packaging behavior |
+| **OPR** | Opera | Opera/Chromium-specific compatibility and adapter work |
+| **LOC** | Local Executor | Filesystem, terminal and process-control MCP tools on the owner's machine |
+| **SEC** | Security / isolation | Execution boundaries, sandboxing, path/policy enforcement and privilege reduction |
+| **OBS** | Observer | Actors, timeline, lifecycle reconstruction and operator UI/event rendering |
+| **GW** | Gateway | Pre-dispatch MCP gateway, authoritative spans, leases, heartbeat and correlation |
+| **CT** | Clients / transports | ChatGPT Web/Desktop, OpenAI API and generic MCP client transport compatibility |
+| **LLM** | Local model execution | OpenCode/Qwen/llama.cpp local-first work and bounded escalation to remote models |
+| **REL** | Release / external integration | Live account/tool discovery, browser-store release and public plugin/distribution tracks |
+
+Example: `CT-03` means the third tracked task in the **Clients / transports**
+workstream. The number does not imply that `CT-01` must finish before
+`CT-03` unless a dependency is stated in the task itself.
+
+Snapshot: 2026-10-04, branch `chore/local-execution`.
 
 ## Cross-cutting plan
 
