@@ -22,6 +22,23 @@
     <div id="truth-note" class="truth-note">Current ChatGPT/MCP dispatch is not authoritative until the gateway exists.</div>
     <div id="actor-strip" class="actor-strip" aria-label="Observed actors"></div>
   </header>
+  <aside id="help-panel" class="overlay-panel" hidden>
+    <div class="overlay-head"><strong>Observer help</strong><button id="help-close" class="icon-button" aria-label="Close help">×</button></div>
+    <p><strong>Actors.</strong> MCP, TERM, OC, QWEN, LLAMA and GIT are known actors. Gray means known/idle; a blinking dot means confirmed current activity. LLAMA BUSY is live slot state. GIT Δn is working-tree state, not Git activity.</p>
+    <p><strong>Execution spans.</strong> Show managed process lifecycle such as RUNNING, WAITING and terminal states. <strong>Unified timeline</strong> shows observed events; click a row to expand the full event.</p>
+    <p><strong>Turn truth.</strong> "Current ChatGPT/MCP dispatch is not authoritative until the gateway exists" means GW-01 has not yet made the current ChatGPT dispatch correlatable end-to-end. It does not invalidate Browser Bridge reads.</p>
+    <p><strong>Bridge controls.</strong> The gear opens explicit page-sharing controls. Only pages you share are readable.</p>
+    <section class="help-section">
+      <h2>Current run</h2>
+      <div id="run-summary" class="run-summary"></div>
+      <details id="run-task-details"><summary>Task / prompt</summary><pre id="run-task"></pre></details>
+      <details><summary>Artifacts and logs</summary><div id="run-artifacts" class="artifact-list"></div></details>
+    </section>
+    <section class="help-section">
+      <h2>Runtime diagnostics</h2>
+      <div id="runtime-grid" class="runtime-grid"></div>
+    </section>
+  </aside>
   <aside id="settings-panel" class="settings-panel" hidden>
     <div class="settings-head"><strong>Bridge controls</strong><button id="settings-close" class="icon-button" aria-label="Close settings">×</button></div>
     <p id="bridge-status" class="muted">Checking connection…</p>

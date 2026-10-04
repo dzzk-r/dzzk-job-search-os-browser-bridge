@@ -122,6 +122,47 @@ async function refreshSettings() {
   } catch(e){$('settings-error').textContent=e.message;}
 }
 
+function appendKeyValues(parent, rows) {
+  const frag=document.createDocumentFragment();
+  for(const [key,value,cls] of rows) {
+    const k=document.createElement('span'); k.className='key'; k.textContent=key;
+    const val=document.createElement('span'); val.className='value'+(cls?' '+cls:''); val.textContent=value??'-';
+    frag.append(k,val);
+  }
+  parent.replaceChildren(frag);
+}
+function renderRunInspection(state) {
+  const run=state.run_inspection;
+  if(!run) {
+    appendKeyValues($('run-summary'),[['Status','No local-agent run observed']]);
+    $('run-task').textContent='';
+    $('run-artifacts').replaceChildren();
+    return;
+  }
+  appendKeyValues($('run-summary'),[
+    ['Run',run.id],
+    ['Result',String(run.status||'?').toUpperCase()],
+    ['Reason',run.reason||'-','failure-reason'],
+    ['Executor','OpenCode '+(run.opencode_version||'-')],
+    ['Model',run.model||'-'],
+    ['Budget',(run.steps??'?')+' steps · '+(run.tokens_per_turn??'?')+' tokens/turn · '+(run.deadline_seconds??'?')+'s deadline'],
+    ['Elapsed',run.elapsed_seconds==null?'-':String(run.elapsed_seconds)+'s'],
+    ['Process exit',run.process_exit==null?'-':String(run.process_exit)],
+    ['Expected',run.expected||'-'],
+    ['Changed',(run.changed_files||[]).join(', ')||'none'],
+    ['Run dir',run.run_dir||'-']
+  ]);
+  $('run-task').textContent=run.task||'(task text unavailable)';
+  const frag=document.createDocumentFragment();
+  for(const [name,path] of Object.entries(run.artifacts||{})) {
+    const row=document.createElement('div'); row.className='artifact-row';
+    const strong=document.createElement('strong'); strong.textContent=name+': ';
+    const value=document.createElement('span'); value.textContent=path;
+    row.append(strong,value); frag.append(row);
+  }
+  $('run-artifacts').replaceChildren(frag);
+}
+
 function renderHeader(state) {
   const status=derivedStatus(state);
   $('state-label').textContent=status.label;
@@ -144,13 +185,8 @@ function renderHeader(state) {
     ['Last activity',seconds(state.last_activity_seconds??0)+' ago'],
     ['Turn truth','MCP gateway not implemented; current ChatGPT dispatch can be invisible']
   ];
-  const frag=document.createDocumentFragment();
-  for(const [key,value] of rows) {
-    const k=document.createElement('span'); k.className='key'; k.textContent=key;
-    const val=document.createElement('span'); val.className='value'; val.textContent=value;
-    frag.append(k,val);
-  }
-  $('runtime-grid').replaceChildren(frag);
+  appendKeyValues($('runtime-grid'),rows);
+  renderRunInspection(state);
 }
 function renderSpans(state) {
   const spans=recentSpans(state);
@@ -225,6 +261,8 @@ $('timeline').addEventListener('scroll',()=>{
 void refresh();
 setInterval(()=>void refresh(),1500);
 
+$('help-toggle').addEventListener('click',()=>{$('help-panel').hidden=false;if(lastState){renderRunInspection(lastState);renderHeader(lastState);}});
+$('help-close').addEventListener('click',()=>{$('help-panel').hidden=true;});
 $('settings-toggle').addEventListener('click',async()=>{$('settings-panel').hidden=false;await refreshSettings();});
 $('settings-close').addEventListener('click',()=>{$('settings-panel').hidden=true;});
 $('share-current').addEventListener('click',async()=>{

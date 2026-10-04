@@ -92,6 +92,72 @@ Examples of correlation already available locally:
 The Side Panel and TUI expose an **Open / Waiting** view so a START without an END
 is visible instead of silently aging in the timeline.
 
+## Run provenance and task truth
+
+Actor activity answers **who is doing something now**. It is not enough to answer
+**what task is being attempted, under which limits, and why it failed**.
+
+A local-agent run therefore has a durable evidence bundle:
+
+```text
+run/
+  task.txt       exact bounded task / prompt
+  config.json    model, permissions and execution budget
+  command.json   executor argv and working directory
+  events.log     OpenCode / model / tool event stream
+  report.json    semantic acceptance result
+```
+
+The Observer projects this bundle as a **run inspection** view. The projection
+must expose at least the task, executor and model, step/token/deadline budget,
+elapsed time, process exit, semantic outcome reason, expected/changed files and
+artifact paths.
+
+This creates two deliberately separate truths:
+
+```text
+PROCESS TRUTH                       TASK TRUTH
+OpenCode exit=0                     FAILED: max_steps_reached
+llama.cpp returned normally         expected artifact unchanged
+shell process ended                 artifact not ready for review
+```
+
+A successful process exit must never be rendered as successful task completion
+unless the task's acceptance condition also passed.
+
+The run directory is the durable provenance record. Browser UI, TUI and future
+remote panels are projections of that record plus live event state; they are not
+the source of truth themselves. This also gives post-mortem inspection a stable
+path when a live event has already disappeared from the timeline.
+
+### Causal chain
+
+For delegated local implementation the intended causal chain is explicit:
+
+```text
+requesting client / orchestrator
+        -> local-agent task envelope
+        -> OpenCode executor
+        -> selected local model (Qwen)
+        -> llama.cpp runtime
+        -> bounded tools / artifacts
+        -> acceptance report
+```
+
+Transport used to start `local-agent` is not the executor identity. For example,
+Desktop Commander may currently launch the wrapper, but the run must still
+identify OpenCode as executor and Qwen/llama.cpp as model/runtime. When Local
+Executor replaces Desktop Commander on the critical path, this provenance model
+does not change.
+
+### Budget exhaustion
+
+Step, token and deadline limits are policy inputs, not generic infrastructure
+errors. `max_steps_reached`, deadline, STOP, model/tool errors and acceptance
+failure must remain distinguishable. A bounded agent may return process exit 0
+after reaching its step policy; the semantic run result is still failed until
+the expected artifact passes acceptance.
+
 ## Turn safety
 
 The eventual gateway exposes a turn-level state independent of ChatGPT's visual
@@ -191,9 +257,10 @@ Implemented:
   and Git
 - fixed-screen TUI with history navigation
 - Chrome Side Panel and Firefox observer page using the same companion snapshot
-- active-actor indication
+- active-actor indication with known/idle separated from confirmed activity
 - process spans reconstructed from PID-correlated Desktop Commander history
 - Open / Waiting data contract
+- local-agent run provenance projection: task, executor/model, budget, semantic outcome and artifact/log paths
 - configurable actor registry and custom JSONL telemetry actors
 
 Not yet implemented:

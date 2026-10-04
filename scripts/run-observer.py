@@ -394,6 +394,75 @@ def local_agent_run(fallback):
     return fallback, None
 
 
+def detect_failure_reason(run: Path, report):
+    if not run:
+        return None
+    if report:
+        if report.get("outcome_reason"):
+            return str(report["outcome_reason"])
+        if report.get("termination"):
+            return str(report["termination"])
+        if report.get("error"):
+            return str(report["error"])
+    path = run / "events.log"
+    try:
+        text = path.read_text(errors="replace")
+    except OSError:
+        return None
+    if "MAXIMUM STEPS REACHED" in text:
+        return "max_steps_reached"
+    return None
+
+
+def run_inspection(run: Path, report, local_agent):
+    if not run:
+        return None
+    task = ""
+    try:
+        task = (run / "task.txt").read_text(encoding="utf-8").strip()
+    except OSError:
+        pass
+    config = load_json(run / "config.json") or {}
+    command = load_json(run / "command.json") or {}
+    agent = ((config.get("agent") or {}).get("scoped-task") or {})
+    model = (report or {}).get("model") or (local_agent or {}).get("model") or config.get("model") or "-"
+    opencode_version = (report or {}).get("opencode_version") or (local_agent or {}).get("opencode_version") or "-"
+    reason = detect_failure_reason(run, report)
+    status = (report or {}).get("status") or (local_agent or {}).get("status") or "running"
+    changed = (report or {}).get("changed_files") or []
+    if not changed and report and report.get("expected") and report.get("before_sha256") != report.get("after_sha256"):
+        try:
+            changed = [str(Path(report["expected"]).resolve().relative_to(DEFAULT_REPO.resolve()))]
+        except Exception:
+            changed = [str(report["expected"])]
+    artifacts = {}
+    for name in ("task.txt", "config.json", "command.json", "events.log", "report.json"):
+        path = run / name
+        if path.exists():
+            artifacts[name] = str(path)
+    return {
+        "id": run.name,
+        "status": status,
+        "reason": reason,
+        "task": task,
+        "model": model,
+        "opencode_version": opencode_version,
+        "opencode": (report or {}).get("opencode") or ((command.get("argv") or ["-"])[0]),
+        "steps": (report or {}).get("steps") or agent.get("steps"),
+        "tokens_per_turn": (report or {}).get("tokens_per_turn") or (((config.get("provider") or {}).get("llamacpp") or {}).get("models") or {}).get("qwen3.8-27b", {}).get("limit", {}).get("output"),
+        "deadline_seconds": (report or {}).get("deadline_seconds"),
+        "elapsed_seconds": (report or {}).get("seconds"),
+        "process_exit": (report or {}).get("exit"),
+        "reads": (report or {}).get("reads") or [],
+        "writes": (report or {}).get("writes") or [],
+        "expected": (report or {}).get("expected_relative") or (report or {}).get("expected"),
+        "changed_files": changed,
+        "confirmed_edit_tools": (report or {}).get("confirmed_edit_tools") or [],
+        "artifacts": artifacts,
+        "run_dir": str(run),
+    }
+
+
 def snapshot(root: Path, repo: Path, commands: Path, mcp: Path):
     run, local_agent = local_agent_run(latest_run(root))
     llama = llama_state()
@@ -417,6 +486,7 @@ def snapshot(root: Path, repo: Path, commands: Path, mcp: Path):
         "actors": actors,
         "spans": spans,
         "local_agent": local_agent,
+        "run_inspection": None,
     }
 
     timeline = parse_commands(commands)
@@ -436,6 +506,7 @@ def snapshot(root: Path, repo: Path, commands: Path, mcp: Path):
 
     if run:
         report = load_json(run / "report.json")
+        data["run_inspection"] = run_inspection(run, report, local_agent)
         oc_events, oc_last, oc_count = parse_opencode(run / "events.log")
         timeline += oc_events
         data["oc_count"] = oc_count
@@ -444,7 +515,8 @@ def snapshot(root: Path, repo: Path, commands: Path, mcp: Path):
             status = report.get("status", "unknown")
             data["run_opencode"] = report.get("opencode_version") or "legacy/unknown"
             data["state"] = "DONE" if status == "artifact_ready_for_review" else "FAILED"
-            data["detail"] = f"{status} exit={report.get('exit')} elapsed={report.get('seconds')}s edits={report.get('confirmed_edit_tools', [])}"
+            reason = (data["run_inspection"] or {}).get("reason") or status
+            data["detail"] = f"{reason} process_exit={report.get('exit')} elapsed={report.get('seconds')}s edits={report.get('confirmed_edit_tools', [])}"
         else:
             silence = time.time() - oc_last if oc_last else None
             if silence is not None and silence > 45:
@@ -823,6 +895,7 @@ def print_json(root, repo, commands, mcp):
         "active_source": active,
         "actor_activity": d.get("actor_activity", {}),
         "actors": d.get("actors", BUILTIN_ACTORS),
+        "run_inspection": d.get("run_inspection"),
         "spans": d.get("spans", [])[-40:],
         "timeline": merged,
     }

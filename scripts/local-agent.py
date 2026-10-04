@@ -111,6 +111,7 @@ def main():
     output.mkdir(parents=True)
     stop = root / 'STOP'
     before = fingerprint(expected)
+    before_writes = {str(path): fingerprint(path) for path in writes}
     try:
         opencode_version = subprocess.run([str(opencode), '--version'], text=True,
             capture_output=True, timeout=5).stdout.strip()
@@ -119,7 +120,8 @@ def main():
     report = {'status': 'failed', 'model': 'llamacpp/qwen3.8-27b',
         'opencode': str(opencode), 'opencode_version': opencode_version,
         'expected': str(expected), 'before_sha256': before, 'stop_file': str(stop),
-        'deadline_seconds': args.seconds, 'steps': args.steps, 'tokens_per_turn': args.tokens}
+        'deadline_seconds': args.seconds, 'steps': args.steps, 'tokens_per_turn': args.tokens,
+        'reads': args.read, 'writes': args.write, 'expected_relative': args.expect}
     child = None
     master = None
     started = time.monotonic()
@@ -157,7 +159,9 @@ def main():
                     break
                 time.sleep(0.25)
         edits = []
+        touched = []
         fatal = False
+        max_steps = False
         for line in (output / 'events.log').read_text().splitlines():
             try:
                 event = json.loads(line)
@@ -165,15 +169,45 @@ def main():
                 continue
             part = event.get('part', {})
             fatal |= event.get('type') == 'error'
+            if event.get('type') == 'text' and 'MAXIMUM STEPS REACHED' in str(part.get('text') or ''):
+                max_steps = True
             state = part.get('state', {})
             if event.get('type') == 'tool_use' and part.get('tool') in ('edit', 'write') and state.get('status') == 'completed':
                 filename = state.get('input', {}).get('filePath')
-                if filename and scoped_path(repo, filename) == expected:
-                    edits.append(part['tool'])
+                if filename:
+                    try:
+                        path = scoped_path(repo, filename)
+                    except ValueError:
+                        continue
+                    touched.append(str(path.relative_to(repo)))
+                    if path == expected:
+                        edits.append(part['tool'])
         after = fingerprint(expected)
+        changed = [
+            str(path.relative_to(repo)) for path in writes
+            if fingerprint(path) != before_writes.get(str(path))
+        ]
         accepted = child.returncode == 0 and not fatal and not report.get('termination') and edits and after != before and expected.is_file() and expected.stat().st_size > 0
+        if accepted:
+            reason = 'acceptance_passed'
+        elif report.get('termination'):
+            reason = report['termination']
+        elif max_steps:
+            reason = 'max_steps_reached'
+        elif fatal:
+            reason = 'opencode_error_event'
+        elif child.returncode != 0:
+            reason = f'process_exit_{child.returncode}'
+        elif after == before:
+            reason = 'expected_artifact_unchanged'
+        elif not edits:
+            reason = 'expected_edit_not_confirmed'
+        else:
+            reason = 'acceptance_failed'
         report.update(status='artifact_ready_for_review' if accepted else 'failed',
-            exit=child.returncode, after_sha256=after, confirmed_edit_tools=edits)
+            outcome_reason=reason, exit=child.returncode, after_sha256=after,
+            confirmed_edit_tools=edits, touched_files=sorted(set(touched)),
+            changed_files=changed)
     except (OSError, ValueError, RuntimeError) as error:
         report.update(error_type=type(error).__name__, error=str(error))
     except KeyboardInterrupt:
@@ -185,7 +219,7 @@ def main():
             os.close(master)
         report['seconds'] = round(time.monotonic() - started, 2)
         (output / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
-        publish_state(status=report['status'], run_dir=str(output), repo=str(repo), model=report['model'], opencode_version=opencode_version, updated_at=time.time(), exit=report.get('exit'), termination=report.get('termination'))
+        publish_state(status=report['status'], run_dir=str(output), repo=str(repo), model=report['model'], opencode_version=opencode_version, updated_at=time.time(), exit=report.get('exit'), termination=report.get('termination'), outcome_reason=report.get('outcome_reason'))
         print('REPORT:', output / 'report.json', flush=True)
         print(json.dumps(report), flush=True)
     return 0 if report['status'] == 'artifact_ready_for_review' else 1
