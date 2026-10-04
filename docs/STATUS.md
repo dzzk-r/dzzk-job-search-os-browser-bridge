@@ -59,8 +59,9 @@ ChatGPT turn state.
   semantic compact view with raw evidence only on drill-down, and a compact local
   checkpoint for ChatGPT so routine runs do not require shipping full logs into
   the architect context.
-- Help UI has real defects: missing help-toggle wiring, duplicate runtime-grid
-  id, and layout/nowrap debt.
+- The confirmed Help wiring defects are now repaired in the worktree: one
+  `help-toggle`, distinct runtime/help grids, and a focused duplicate-ID/wiring
+  regression test. Chrome Reload/live visual acceptance and layout/nowrap remain.
 - Run files exist, but UI artifact-content inspection is incomplete and the
   exact OpenCode-to-model serialized request is not captured.
 - Failure UI needs structured stage/actor/code/message/cause instead of only
@@ -69,21 +70,23 @@ ChatGPT turn state.
   exhausted, so budget design needs revision.
 - OpenCode reaches Harness OAuth after DCR compatibility repair, but latest
   status still reports needs authentication.
-- The current `chore/local-execution` checkpoint passes npm test 35/35; this does not imply review or integration into `main`.
+- The current `chore/local-execution` checkpoint passes npm test 36/36; this does not imply review or integration into `main`.
 - Qwen/OpenCode/llama.cpp is one owner profile, not a universal user stack.
 - Local planning now has a first executable slice: `scripts/local-planner.mjs`
   accepts goal/evidence plus Harness-owned boundaries, calls local Qwen once, and
   emits a schema-valid bounded `task.json`. A live Help-planning run completed as
   `task_ready` in about 53 seconds. Model-authored acceptance is declarative
   evidence only; Harness owns executable verification. A first
-  `run-task-envelope.mjs` worker adapter now exists but has not yet live-run the
-  Help task; verification/escalation is still incomplete.
-- Current automated suite is 35/35 passing after lifecycle + planner-contract tests.
+  `run-task-envelope.mjs` worker adapter has now live-run the bounded Help task.
+  The worker made useful edits but reached `max_steps`; lifecycle correctly ended
+  as `ERROR/WORKER_FAILED` with `safe_to_interrupt=yes` and a durable worker
+  report. Harness-owned verification/escalation is still incomplete.
+- Current automated suite is 36/36 passing after lifecycle, planner-contract and focused Chrome Help regression tests.
 
-Next-cycle order: planner -> validated-envelope worker adapter -> Harness-owned
-verification/escalation -> execute the bounded Help/layout task through that path
--> artifact/prompt provenance -> component failure locus -> causal
-correlation/navigation -> direct Harness local-tool path -> portable profiles.
+Next-cycle order: Chrome Reload/live acceptance of Help + Current task ->
+Harness-owned verification/escalation for validated worker runs -> replace coarse
+fixed-step budgeting -> artifact/prompt provenance -> component failure locus ->
+causal correlation/navigation -> direct Harness local-tool path -> portable profiles.
 
 ## Source-of-truth warning
 

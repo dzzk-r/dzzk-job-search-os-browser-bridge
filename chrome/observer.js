@@ -30,16 +30,22 @@ function recentSpans(state) {
   return [...open,...terminal].filter(s=>!seen.has(s.id)&&seen.add(s.id)).sort((a,b)=>(b.started||0)-(a.started||0));
 }
 function derivedStatus(state) {
+  const task=state.task_lifecycle||{};
+  const taskStatus=String(task.status||'').toUpperCase();
+  if(taskStatus==='RUNNING') {
+    const waiting=Boolean(task.waiting_reason)||String(task.phase||'').toUpperCase().includes('WAIT');
+    return {label:waiting?'WAITING':'BUSY',cls:waiting?'waiting':'busy',age:null};
+  }
+  if(taskStatus==='WAITING') return {label:'WAITING',cls:'waiting',age:null};
   const open=openSpans(state);
   const stalled=String(state.state||'').startsWith('STALLED');
-  if(stalled) return {label:'STALLED',cls:'stalled',age:state.last_activity_seconds??0};
+  if(stalled) return {label:'STALLED',cls:'stalled',age:null};
   if(open.length) {
     const running=open.find(s=>s.status==='RUNNING')||open[0];
     const cls=running.status==='WAITING'?'waiting':'busy';
     return {label:running.status==='WAITING'?'WAITING':'BUSY',cls,age:running.age_seconds||0};
   }
-  if(state.state==='FAILED') return {label:'ERROR',cls:'error',age:state.last_activity_seconds??0};
-  return {label:'IDLE',cls:'idle',age:state.last_activity_seconds??0};
+  return {label:'IDLE',cls:'idle',age:null};
 }
 function activeChain(state) {
   const open=openSpans(state);
@@ -134,8 +140,17 @@ function appendKeyValues(parent, rows) {
 function renderTaskLifecycle(state) {
   const task=state.task_lifecycle;
   const section=$('task-lifecycle-section');
-  if(!task) { section.hidden=true; return; }
   section.hidden=false;
+  if(!task) {
+    $('task-safety').textContent='safe to interrupt: unknown';
+    appendKeyValues($('task-lifecycle-summary'),[
+      ['Task','No lifecycle task received'],
+      ['Status','NO DATA'],
+      ['Phase','-']
+    ]);
+    $('task-lifecycle-work').replaceChildren();
+    return;
+  }
   $('task-safety').textContent='safe to interrupt: '+String(task.safe_to_interrupt||'?');
   appendKeyValues($('task-lifecycle-summary'),[
     ['Task',task.task_id||'-'],
@@ -192,7 +207,7 @@ function renderRunInspection(state) {
 function renderHeader(state) {
   const status=derivedStatus(state);
   $('state-label').textContent=status.label;
-  $('state-age').textContent=seconds(status.age);
+  $('state-age').textContent=status.age==null?'':seconds(status.age);
   $('active-chain').textContent=activeChain(state);
   $('state-dot').className='state-dot '+status.cls;
 
@@ -212,6 +227,7 @@ function renderHeader(state) {
     ['Turn truth','MCP gateway not implemented; current ChatGPT dispatch can be invisible']
   ];
   appendKeyValues($('runtime-grid'),rows);
+  appendKeyValues($('help-runtime-grid'),rows);
   renderRunInspection(state);
 }
 function renderSpans(state) {

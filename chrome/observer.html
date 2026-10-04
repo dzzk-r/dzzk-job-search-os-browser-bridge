@@ -13,8 +13,9 @@
       <strong id="state-label">LOADING</strong>
       <span id="state-age" class="state-age">--:--</span>
       <span id="active-chain" class="active-chain">observer</span>
+      <span id="observer-build" class="muted" title="Observer UI build">lifecycle-ui2</span>
       <button id="settings-toggle" class="icon-button" aria-label="Bridge settings" title="Bridge settings">⚙</button>
-      <details id="runtime-details" class="runtime-details">
+      <details id="help-toggle" class="help-toggle">
         <summary aria-label="Runtime details" title="Runtime details">?</summary>
         <div id="runtime-grid" class="runtime-grid"></div>
       </details>
@@ -36,7 +37,7 @@
     </section>
     <section class="help-section">
       <h2>Runtime diagnostics</h2>
-      <div id="runtime-grid" class="runtime-grid"></div>
+      <div id="help-runtime-grid" class="runtime-grid"></div>
     </section>
   </aside>
   <aside id="settings-panel" class="settings-panel" hidden>
@@ -51,7 +52,7 @@
     <p id="settings-error" role="alert"></p>
   </aside>
   <main>
-    <section id="task-lifecycle-section" hidden>
+    <section id="task-lifecycle-section">
       <div class="section-head">
         <h2>Current task</h2>
         <span id="task-safety" class="muted"></span>

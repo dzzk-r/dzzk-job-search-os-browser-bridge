@@ -236,6 +236,20 @@ test('failed pause/resume retains the local prohibition and persists it across e
   assert.equal(restarted.writes.at(-1).localPaused,false);
 });
 
+test('Chrome observer Help wiring uses one toggle ID and no duplicate element IDs', async () => {
+  const html = await readFile(new URL('../chrome/observer.html', import.meta.url), 'utf8');
+  const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
+  const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
+  const duplicates = [...new Set(ids.filter((id,index) => ids.indexOf(id)!==index))];
+  assert.deepEqual(duplicates,[]);
+  assert.match(html,/id="help-toggle"/);
+  assert.match(js,/\$\('help-toggle'\)\.addEventListener/);
+  assert.match(html,/id="runtime-grid"/);
+  assert.match(html,/id="help-runtime-grid"/);
+  assert.equal(ids.filter(id=>id==='runtime-grid').length,1);
+  assert.equal(ids.filter(id=>id==='help-runtime-grid').length,1);
+});
+
 test('a new pause takes precedence over an earlier pending resume', async () => {
   const h = await harness(); h.connect();
   await h.send({type:'set-policy',paused:true});
