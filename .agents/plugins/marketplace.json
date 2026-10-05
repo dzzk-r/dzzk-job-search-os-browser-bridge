@@ -1,0 +1,32 @@
+{
+  "name": "execution-delivery-harness-local",
+  "interface": {
+    "displayName": "Execution Delivery Harness (local)"
+  },
+  "plugins": [
+    {
+      "name": "execution-delivery-harness",
+      "source": {
+        "source": "local",
+        "path": "./plugins/execution-delivery-harness"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "local-shared-browser-pages",
+      "source": {
+        "source": "local",
+        "path": "./plugins/local-shared-browser-pages"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

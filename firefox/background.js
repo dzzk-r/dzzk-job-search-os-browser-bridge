@@ -1,10 +1,13 @@
 /* Fixed read operations, explicit per-page grants and loopback companion. */
 const grants = new DzzkGrants();
+let conversations = new DzzkConversationBindings();
 let config = { enabled:false, endpoint:'http://127.0.0.1:43119', token:'' };
 let loopRunning = false, generation = 0, status = 'Disconnected', consents = [], clients = [], activeController;
 let localPaused = false, serverPaused = false, actions = [];
+let publishedConversationSignature = null, publishedConversationAt = 0;
 let policyWrites = Promise.resolve(), pauseIntent = 0;
 const isPaused = () => localPaused || serverPaused;
+async function persistConversationBindings() { const api=globalThis.chrome || globalThis.browser; await api.storage.local.set({conversationBindings:conversations.serialize()}); }
 function writePolicy(body) {
   policyWrites = policyWrites.catch(()=>{}).then(()=>companion('/bridge/policy',body));
   return policyWrites;
@@ -20,6 +23,8 @@ function validateConfig(value) {
   return { enabled:Boolean(value.enabled), endpoint:url.origin, token:value.token };
 }
 async function companion(path, body, cfg = config) {
+  const adapter = 'firefox';
+  if (path.startsWith('/bridge/')) path += '?adapter=' + adapter;
   const controller = new AbortController(); activeController = controller;
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
@@ -31,6 +36,42 @@ async function companion(path, body, cfg = config) {
     if (!response.ok) throw new Error('Companion refused the request. Check pairing and server status.');
     return await response.json();
   } finally { clearTimeout(timer); }
+}
+async function currentConversationBinding() {
+  const api=globalThis.chrome || globalThis.browser;
+  const tabs=await api.tabs.query({active:true,lastFocusedWindow:true});
+  const raw=(tabs||[]).find(t=>t && typeof t.id==='number')||null;
+  if(!raw) return null;
+  const tab=typeof raw.url==='string'&&raw.url ? raw : await hydratedTab(raw.id);
+  const existing=conversations.getByTab(tab);
+  if(existing) return existing;
+  try {
+    const binding=conversations.bind(tab);
+    await persistConversationBindings();
+    return binding;
+  } catch {
+    return null;
+  }
+}
+async function publishActiveConversation() {
+  const binding=await currentConversationBinding();
+  const value=binding ? {
+    conversation_id:binding.conversation_id,
+    url:binding.url,
+    title:binding.title||'',
+    source_quality:'browser_observed',
+    observed_at:new Date().toISOString()
+  } : null;
+  const signature=value ? value.conversation_id+'|'+value.url : 'null';
+  const now=Date.now();
+  if(signature===publishedConversationSignature && (signature==='null' || now-publishedConversationAt<5000)) return;
+  await companion('/bridge/conversation-active',{binding:value});
+  publishedConversationSignature=signature;
+  publishedConversationAt=now;
+}
+async function conversationTab(tabId) {
+  const api=globalThis.chrome || globalThis.browser;
+  return api.tabs.get(tabId);
 }
 async function readShared(handle, maxChars = 30000) {
   const g = grants.get(handle); grants.check(handle, await browser.tabs.get(g.tabId));
@@ -65,6 +106,7 @@ async function poll() {
   try {
     while (config.enabled && epoch === generation) {
       try {
+        await publishActiveConversation();
         const batch = await companion('/bridge/next');
         if (!config.enabled || epoch !== generation) break;
         consents = batch.consents || []; clients = batch.clients || []; actions = batch.actions || [];
@@ -85,15 +127,37 @@ async function poll() {
   } finally { loopRunning = false; if (config.enabled) void poll(); }
 }
 browser.tabs.onUpdated.addListener((id,change) => {
-  if (change.status === 'loading' || change.url) {grants.revoke(id); void browser.action.setBadgeText({tabId:id,text:''});}
+  if (change.status === 'loading' || change.url) {
+    grants.revoke(id);
+    if (conversations.revoke(id)) void persistConversationBindings();
+    publishedConversationSignature=null; publishedConversationAt=0;
+    void browser.action.setBadgeText({tabId:id,text:''});
+  }
 });
-browser.tabs.onRemoved.addListener(id => grants.revoke(id));
+browser.tabs.onRemoved.addListener(id => {
+  grants.revoke(id);
+  if (conversations.revoke(id)) void persistConversationBindings();
+});
 browser.alarms.onAlarm.addListener(() => {grants.list(); void poll();});
 browser.runtime.onMessage.addListener(async (m,sender) => {
   const ui = [browser.runtime.getURL('popup.html'), browser.runtime.getURL('options.html'), browser.runtime.getURL('observer.html')];
   if (sender.id !== browser.runtime.id || !ui.includes(sender.url)) throw new Error('Only extension UI can change access.');
   switch (m.type) {
     case 'state': return {status,enabled:config.enabled,paused:isPaused(),grants:grants.list(),consents,clients,actions};
+    case 'conversation-state': return {bindings:conversations.list()};
+    case 'conversation-current': return {binding:await currentConversationBinding()};
+    case 'conversation-bind': {
+      const tab=await conversationTab(m.tabId);
+      if (!tab.active || tab.status === 'loading') throw new Error('Select a fully loaded ChatGPT tab before binding.');
+      const binding=conversations.bind(tab);
+      await persistConversationBindings();
+      return {binding};
+    }
+    case 'conversation-unbind': {
+      const changed=conversations.revoke(m.tabId);
+      if (changed) await persistConversationBindings();
+      return {ok:true};
+    }
     case 'observer-state': {
       if (!config.enabled) throw new Error('Connect the companion before opening the observer.');
       return companion('/bridge/observer');
@@ -147,7 +211,8 @@ browser.runtime.onMessage.addListener(async (m,sender) => {
 });
 browser.runtime.onInstalled.addListener(() => {void browser.runtime.openOptionsPage();});
 void (async () => {
-  const saved = await browser.storage.local.get(['config','localPaused']); localPaused = saved.localPaused === true;
+  const saved = await browser.storage.local.get(['config','localPaused','conversationBindings']); localPaused = saved.localPaused === true;
+  conversations = new DzzkConversationBindings(saved.conversationBindings || []);
   if (saved.config) {try {config = validateConfig(saved.config);} catch {}}
   await browser.alarms.create('connection',{periodInMinutes:0.5}); void poll();
 })();

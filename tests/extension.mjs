@@ -14,7 +14,11 @@ async function harness(saved = {}) {
   const tabs = new Map([[page.id, { ...page }]]), writes = [], badges = [], requests = [];
   const browser = {
     runtime: { id: 'bridge@dzzk.test', getURL: path => `moz-extension://bridge/${path}`, onMessage: event(), onInstalled: event(), openOptionsPage: async () => {} },
-    tabs: { get: async id => { if (!tabs.has(id)) throw new Error('No tab'); return { ...tabs.get(id) }; }, onUpdated: event(), onRemoved: event() },
+    tabs: {
+      get: async id => { if (!tabs.has(id)) throw new Error('No tab'); return { ...tabs.get(id) }; },
+      query: async query => [...tabs.values()].filter(tab => query?.active ? tab.active===true : true).map(tab=>({...tab})),
+      onUpdated: event(), onRemoved: event()
+    },
     scripting: { executeScript: async () => [{ result: { url: page.url, title: page.title, text: 'A recruiter requested a GCP assignment. GCP evidence.' } }] },
     action: { setBadgeText: async value => badges.push(value), setBadgeBackgroundColor: async () => {} },
     storage: { local: { get: async () => saved, set: async value => writes.push(JSON.parse(JSON.stringify(value))) } },
@@ -243,11 +247,28 @@ test('Chrome observer Help wiring uses one toggle ID and no duplicate element ID
   const duplicates = [...new Set(ids.filter((id,index) => ids.indexOf(id)!==index))];
   assert.deepEqual(duplicates,[]);
   assert.match(html,/id="help-toggle"/);
-  assert.match(js,/\$\('help-toggle'\)\.addEventListener/);
+  assert.match(js,/(?:\$|must)\('help-toggle'\)\.addEventListener/);
   assert.match(html,/id="runtime-grid"/);
   assert.match(html,/id="help-runtime-grid"/);
   assert.equal(ids.filter(id=>id==='runtime-grid').length,1);
   assert.equal(ids.filter(id=>id==='help-runtime-grid').length,1);
+});
+
+test('Chrome Observer exposes timeline correlation and source quality', async () => {
+  const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
+  assert.match(js,/source_quality=/);
+  assert.match(js,/conversation=/);
+  assert.match(js,/turn=/);
+  assert.match(js,/span=/);
+});
+
+test('Chrome Observer surfaces MCP connection consent in the main side panel', async () => {
+  const html = await readFile(new URL('../chrome/observer.html', import.meta.url), 'utf8');
+  const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
+  assert.match(html,/id="connection-requests"/);
+  assert.match(js,/Connection request:/);
+  assert.match(js,/type:'consent'/);
+  assert.match(js,/refreshConnectionRequests\(\)/);
 });
 
 test('a new pause takes precedence over an earlier pending resume', async () => {
@@ -291,4 +312,283 @@ test('permission policy and per-action approval are restricted to the extension 
     {path:'/bridge/action-consent',body:{id:'action-1',allow:true}},
     {path:'/bridge/action-consent',body:{id:'action-2',allow:false}}
   ]);
+});
+
+test('Observer labels terminal lifecycle as Last task and does not treat WAITING process spans as active', async () => {
+  const html = await readFile(new URL('../chrome/observer.html', import.meta.url), 'utf8');
+  const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
+  assert.match(html,/id="task-lifecycle-title"/);
+  assert.match(js,/terminal\?'Last task':'Current task'/);
+  assert.match(js,/function activeSpans/);
+  assert.match(js,/s=>s\.status==='RUNNING'/);
+});
+
+test('Observer hides stale waiting TERM sessions from recent execution spans', async () => {
+  const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
+  assert.match(js,/s\.actor==='TERM' && age>30/);
+  assert.match(js,/hour12:false/);
+  assert.match(js,/c\.correlation_id/);
+});
+
+
+test('Observer renders a correlation-focused trace above the raw timeline', async () => {
+  const html = await readFile(new URL('../chrome/observer.html', import.meta.url), 'utf8');
+  const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
+  assert.match(html,/id="trace-section"/);
+  assert.match(html,/id="trace-meta"/);
+  assert.match(html,/id="trace"/);
+  assert.match(js,/function renderTrace\(state\)/);
+  assert.match(js,/renderTrace\(state\)/);
+  assert.match(js,/chooseTraceCorrelation/);
+  assert.match(js,/correlationShort/);
+  assert.match(js,/c\.correlation_id\?'\['\+correlationShort/);
+});
+
+
+test('Observer surfaces Remote Desktop activity and background processes', async () => {
+  const html = await readFile(new URL('../chrome/observer.html', import.meta.url), 'utf8');
+  const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
+  assert.match(html,/id="rdc-section"/);
+  assert.match(html,/id="rdc-meta"/);
+  assert.match(html,/id="rdc-activity"/);
+  assert.match(html,/trace-ui12/);
+  assert.match(js,/function renderRdc\(state\)/);
+  assert.match(js,/background open · gateway not authoritative/);
+  assert.match(js,/state\.rdc\?\.last_activity_seconds/);
+  assert.match(js,/state\.rdc\?\.open_count/);
+});
+
+
+test('Observer distinguishes degraded snapshot failure from companion offline', async () => {
+  const bg = await readFile(new URL('../chrome/background.js', import.meta.url), 'utf8');
+  const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
+  assert.match(bg,/observer_unavailable: Observer snapshot is unavailable/);
+  assert.match(bg,/invalid_pairing: Companion rejected the extension pairing token/);
+  assert.match(js,/degraded\?'DEGRADED':'OFFLINE'/);
+  assert.match(js,/Observer snapshot unavailable/);
+  assert.match(js,/Companion unavailable/);
+});
+
+
+test('Observer distinguishes current unscoped external activity from recent correlated trace', async () => {
+  const html = await readFile(new URL('../chrome/observer.html', import.meta.url), 'utf8');
+  const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
+  assert.match(html,/id="trace-title"/);
+  assert.match(html,/trace-ui12/);
+  assert.match(js,/function currentExternalActivity\(state\)/);
+  assert.match(js,/Current external activity — unscoped/);
+  assert.match(js,/Recent correlated trace /);
+  assert.match(js,/awaiting authoritative gateway/);
+});
+
+
+test('Observer surfaces detached Harness ownership and heartbeat without log activity', async () => {
+  const html = await readFile(new URL('../chrome/observer.html', import.meta.url), 'utf8');
+  const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
+  assert.match(html,/id="detached-run-section"/);
+  assert.match(html,/Harness-owned run/);
+  assert.match(html,/trace-ui12/);
+  assert.match(js,/function detachedRunHealth\(state\)/);
+  assert.match(js,/HARNESS .*detached/);
+  assert.match(js,/heartbeat_age_seconds>8/);
+});
+
+
+test('Observer gateway warning has an explicit next-action CTA', async () => {
+  const html = await readFile(new URL('../chrome/observer.html', import.meta.url), 'utf8');
+  const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
+  assert.match(html,/id="gateway-next"/);
+  assert.match(html,/Gap: ChatGPT turn → Harness gateway/);
+  assert.match(html,/id="gateway-next-action"/);
+  assert.match(js,/gateway-next.*addEventListener/s);
+});
+
+
+test('terminal detached runs show finished age instead of stale heartbeat', async () => {
+  const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
+  assert.match(js,/finished .* ago/);
+  assert.match(js,/heartbeat unknown/);
+});
+
+
+test('Observer exposes a real prepared dispatch control separate from gateway help', async () => {
+  const html = await readFile(new URL('../chrome/observer.html', import.meta.url), 'utf8');
+  const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
+  const bg = await readFile(new URL('../chrome/background.js', import.meta.url), 'utf8');
+  assert.match(html,/id="prepared-dispatch"/);
+  assert.match(html,/Dispatch prepared task/);
+  assert.match(js,/refreshPreparedDispatch/);
+  assert.match(js,/type:'dispatch-prepared'/);
+  assert.match(bg,/case 'dispatch-state'/);
+  assert.match(bg,/case 'dispatch-prepared'/);
+});
+
+
+test('Project readiness and prepared dispatch result are first-class observer sections', async () => {
+  const html = await readFile(new URL('../chrome/observer.html', import.meta.url), 'utf8');
+  const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
+  assert.match(html,/id=\"prepared-result-section\"/);
+  assert.match(html,/id=\"project-status-section\"/);
+  assert.match(js,/function renderPreparedResult\(state\)/);
+  assert.match(js,/function renderProjectStatus\(state\)/);
+  assert.match(js,/label:'OBSERVED'/);
+});
+
+test('Raw timeline no longer uses opaque xN repeat compaction', async () => {
+  const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
+  assert.match(js,/Raw timeline must stay literal/);
+  assert.doesNotMatch(js,/rep\.textContent='×'/);
+});
+
+
+test('GW-01 correlation acceptance control is explicit and separate from gateway explanation', async () => {
+  const html = await readFile(new URL('../chrome/observer.html', import.meta.url), 'utf8');
+  const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
+  const bg = await readFile(new URL('../chrome/background.js', import.meta.url), 'utf8');
+  assert.match(html,/Run GW-01 correlation acceptance/);
+  assert.match(html,/id="gw01-acceptance-status"/);
+  assert.match(js,/type:'gw01-acceptance'/);
+  assert.match(js,/action→MCP/);
+  assert.match(bg,/case 'gw01-acceptance'/);
+});
+
+test('GW-01 extension binds two ChatGPT tabs to distinct conversation ids and survives reload', async () => {
+  const h=await harness();
+  const chatA={id:8,url:'https://chatgpt.com/c/chat-A',title:'Chat A',status:'complete',active:true,incognito:false};
+  const chatB={id:9,url:'https://chatgpt.com/c/chat-B',title:'Chat B',status:'complete',active:true,incognito:false};
+  h.tabs.set(8,chatA); h.tabs.set(9,chatB);
+  const a=await h.send({type:'conversation-bind',tabId:8});
+  const b=await h.send({type:'conversation-bind',tabId:9});
+  assert.equal(a.binding.conversation_id,'chat-A');
+  assert.equal(b.binding.conversation_id,'chat-B');
+  assert.equal(a.binding.source_quality,'browser_observed');
+  assert.equal(b.binding.source_quality,'browser_observed');
+  assert.notEqual(a.binding.conversation_id,b.binding.conversation_id);
+
+  const state=await h.send({type:'conversation-state'});
+  assert.equal(state.bindings.length,2);
+  const persisted=h.writes.filter(x=>Array.isArray(x.conversationBindings)).at(-1);
+  assert.ok(persisted);
+
+  const reloaded=await harness({conversationBindings:persisted.conversationBindings});
+  const after=await reloaded.send({type:'conversation-state'});
+  const afterPairs=after.bindings.map(x=>[x.tabId,x.conversation_id]).sort((x,y)=>x[0]-y[0]);
+  const statePairs=state.bindings.map(x=>[x.tabId,x.conversation_id]).sort((x,y)=>x[0]-y[0]);
+  assert.equal(JSON.stringify(afterPairs),JSON.stringify(statePairs));
+});
+
+test('GW-01 extension refuses non-ChatGPT binding and revokes binding on navigation', async () => {
+  const h=await harness();
+  await assert.rejects(h.send({type:'conversation-bind',tabId:7}),/Only normal ChatGPT HTTPS tabs/);
+  const chat={id:8,url:'https://chatgpt.com/c/chat-A',title:'Chat A',status:'complete',active:true,incognito:false};
+  h.tabs.set(8,chat);
+  await h.send({type:'conversation-bind',tabId:8});
+  assert.equal((await h.send({type:'conversation-state'})).bindings.length,1);
+  await h.browser.tabs.onUpdated.emit(8,{url:'https://chatgpt.com/c/chat-B'});
+  assert.equal((await h.send({type:'conversation-state'})).bindings.length,0);
+});
+
+test('GW-01 extension auto-admits the active saved ChatGPT conversation from its real URL identity', async () => {
+  const h=await harness();
+  const chat={id:8,url:'https://chatgpt.com/c/chat-A',title:'Chat A',status:'complete',active:true,incognito:false};
+  h.tabs.set(7,{...page,active:false});
+  h.tabs.set(8,chat);
+  const current=await h.send({type:'conversation-current'});
+  assert.equal(current.binding.conversation_id,'chat-A');
+  assert.equal(current.binding.source_quality,'browser_observed');
+  const state=await h.send({type:'conversation-state'});
+  assert.equal(state.bindings.length,1);
+  h.tabs.set(8,{...chat,active:false});
+  h.tabs.set(7,{...page,active:true});
+  assert.equal((await h.send({type:'conversation-current'})).binding,null);
+});
+
+test('GW-01 Observer exposes chat-scoped timeline projections without changing the global ledger', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
+  assert.match(html,/id="timeline-scope"/);
+  assert.match(html,/All activity/);
+  assert.match(html,/Unscoped/);
+  assert.doesNotMatch(html,/Current chat/);
+  assert.doesNotMatch(html,/Other chats/);
+  assert.match(html,/id="current-conversation"/);
+  assert.match(js,/function timelineEventsForScope\(events,scope,binding\)/);
+  assert.match(js,/scope==='unscoped'/);
+  assert.doesNotMatch(html,/id="chat-selector"/);
+  assert.match(html,/All activity/);
+  assert.match(js,/type:'conversation-state'/);
+  assert.match(js,/knownConversationBindings/);
+  assert.match(js,/scope\.startsWith\('chat:'\)/);
+  assert.match(js,/LIVE .*allEvents\.length/);
+  assert.match(bg,/case 'chat-context-observed'/);
+  assert.match(bg,/case 'conversation-state'/);
+  assert.match(bg,/\/bridge\/conversation-active/);
+});
+
+
+test('ChatGPT content script derives conversation identity from each tab URL independently of browser focus', async () => {
+  const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
+  const script=await readFile(new URL('../chrome/chat-context.js',import.meta.url),'utf8');
+  assert.ok(manifest.host_permissions.includes('https://chatgpt.com/*'));
+  assert.ok((manifest.content_scripts||[]).some(x=>(x.matches||[]).includes('https://chatgpt.com/*')&&(x.js||[]).includes('chat-context.js')));
+  assert.match(script,/pathname\.split/);
+  assert.match(script,/type:'chat-context-observed'/);
+  assert.doesNotMatch(script,/tabs\.query\(\{active:true/);
+});
+
+
+test('ChatGPT turn detector uses composer lifecycle without reading message text', async () => {
+  const script=await readFile(new URL('../chrome/chat-context.js',import.meta.url),'utf8');
+  assert.ok(script.includes("addEventListener('submit'"));
+  assert.match(script,/composer-submit/);
+  assert.match(script,/generating-control-present/);
+  assert.match(script,/type:'chat-turn-observed'/);
+  assert.match(script,/detector_version:'turn-v3'/);
+  assert.doesNotMatch(script,/.innerText/);
+  assert.doesNotMatch(script,/.textContent/);
+});
+
+
+test('Chrome Observer exposes explicit semver reload only when disk and loaded versions differ', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
+  const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
+  assert.equal(manifest.version,'0.1.3');
+  assert.match(html,/id="extension-version"/);
+  assert.match(html,/id="reload-version"/);
+  assert.match(js,/Reload '\+loaded\+' → '\+disk/);
+  assert.match(js,/type:'reload-extension'/);
+  assert.match(bg,/case 'reload-extension'/);
+  assert.doesNotMatch(bg,/reloadRevision>seenReloadRevision\)[\s\S]{0,160}chrome\.runtime\.reload/);
+});
+
+
+test('CHR-02 versioned reload is explicit and semver surfaces are synchronized', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
+  const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
+  const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
+  const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
+  assert.equal(pkg.version,'0.1.3');
+  assert.equal(chromeManifest.version,pkg.version);
+  assert.equal(firefoxManifest.version,pkg.version);
+  assert.match(html,/id="extension-version"/);
+  assert.match(html,/id="reload-version"/);
+  assert.match(js,/Reload '\+loaded\+' → '\+disk/);
+  assert.match(js,/type:'reload-extension'/);
+  assert.match(bg,/pendingReloadRevision=reloadRevision/);
+  assert.match(bg,/case 'reload-extension'/);
+  const poll=bg.slice(bg.indexOf('async function poll()'),bg.indexOf('chrome.tabs.onUpdated'));
+  assert.doesNotMatch(poll,/chrome\.runtime\.reload\(\)/);
+});
+
+
+test('chat-scope change invalidates timeline render cache even when filtered result is empty', async () => {
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(js,/let renderedKeys=null/);
+  assert.match(js,/Array\.isArray\(renderedKeys\)/);
+  assert.match(js,/timelineScope=event\.target\.value;[\s\S]*renderedKeys=null;[\s\S]*renderTimeline\(lastState\)/);
 });

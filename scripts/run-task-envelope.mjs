@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { validatePlanningDocument } from './planning-contract.mjs';
 import { startLifecycle, updateLifecycle } from './run-lifecycle.mjs';
+import { appendObserverEvent, newCorrelationId } from './observer-events.mjs';
 
 function taskText(task) {
   const acceptance=task.acceptance.map(a=>'- '+a.id+': '+a.description+' Evidence: '+a.evidence_required).join('\n');
@@ -24,6 +25,15 @@ function taskText(task) {
   ].join('\n').slice(0,3000);
 }
 
+export function resolveCorrelationContext(env=process.env) {
+  return {
+    correlationId:env.EDH_CORRELATION_ID||newCorrelationId(),
+    upstreamParentSpan:env.EDH_PARENT_SPAN_ID||null,
+    upstreamRunId:env.EDH_MCP_RUN_ID||null,
+    upstreamTool:env.EDH_MCP_TOOL||null
+  };
+}
+
 function runProcess(command,args,{cwd}) {
   return new Promise((resolvePromise,reject)=>{
     const child=spawn(command,args,{cwd,stdio:['ignore','pipe','pipe']});
@@ -35,7 +45,7 @@ function runProcess(command,args,{cwd}) {
   });
 }
 
-export async function runTaskEnvelope(taskPath,{repo=process.cwd(),opencode='/opt/homebrew/bin/opencode',runRoot}={}) {
+export async function runTaskEnvelope(taskPath,{repo=process.cwd(),opencode='/opt/homebrew/bin/opencode',runRoot,traceContext=null,sourceOverride=null}={}) {
   repo=resolve(repo);
   const task=JSON.parse(await readFile(resolve(taskPath),'utf8'));
   await validatePlanningDocument('task',task);
@@ -47,11 +57,15 @@ export async function runTaskEnvelope(taskPath,{repo=process.cwd(),opencode='/op
   await writeFile(workerTask,taskText(task)+'\n');
 
   const runId='worker:'+task.task_id;
+  const resolvedTrace=traceContext||resolveCorrelationContext();
+  const {correlationId,upstreamParentSpan}=resolvedTrace;
+  const executionSource=sourceOverride||task.source||{};
+  const termSpan=runId+':term';
   await startLifecycle(runDir,{
     run_id:runId,plan_id:task.plan_id,task_id:task.task_id,goal:task.goal,
     phase:'WORKER_STARTING',completed:['task_validated'],current:'Start bounded worker',
     pending:['Apply bounded edit','Collect worker report','Verify acceptance evidence'],
-    budget:task.budget,safe_to_interrupt:'after_checkpoint',source:task.source,
+    budget:task.budget,safe_to_interrupt:'after_checkpoint',source:executionSource,
     execution_profile:task.execution_profile,message:'bounded worker starting'
   });
   await updateLifecycle(runDir,{
@@ -65,13 +79,24 @@ export async function runTaskEnvelope(taskPath,{repo=process.cwd(),opencode='/op
     '--seconds',String(task.budget.deadline_seconds||300),
     '--steps',String(task.budget.max_agent_steps||6),
     '--tokens',String(task.budget.max_output_tokens||1800),
-    '--opencode',opencode,'--run-root',resolve(runDir,'agent-runs')];
+    '--opencode',opencode,'--run-root',resolve(runDir,'agent-runs'),
+    '--run-id',runId,'--plan-id',task.plan_id,'--task-id',task.task_id,
+    '--correlation-id',correlationId,'--parent-span-id',termSpan,
+    '--source-json',JSON.stringify(executionSource)];
   for(const p of task.scope.reads||[]) args.push('--read',p);
   for(const p of task.scope.writes||[]) args.push('--write',p);
 
+  await appendObserverEvent({
+    actor:'TERM',event:'START',correlation_id:correlationId,run_id:runId,plan_id:task.plan_id,task_id:task.task_id,
+    span_id:termSpan,parent_span_id:upstreamParentSpan,message:'local worker process started',source:executionSource
+  });
   const result=await runProcess('python3',args,{cwd:repo});
+  await appendObserverEvent({
+    actor:'TERM',event:result.code===0?'DONE':'ERROR',correlation_id:correlationId,run_id:runId,plan_id:task.plan_id,task_id:task.task_id,
+    span_id:termSpan,parent_span_id:upstreamParentSpan,message:'local worker process exited '+result.code,source:executionSource
+  });
   const workerReport={
-    schema_version:'1.0',plan_id:task.plan_id,task_id:task.task_id,
+    schema_version:'1.0',correlation_id:correlationId,plan_id:task.plan_id,task_id:task.task_id,
     exit:result.code,status:result.code===0?'worker_ready_for_verification':'worker_failed',
     stdout_tail:result.stdout.slice(-4000),stderr_tail:result.stderr.slice(-2000)
   };

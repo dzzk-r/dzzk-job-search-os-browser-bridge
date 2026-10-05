@@ -1,10 +1,14 @@
 /* Fixed read operations, explicit per-page grants and loopback companion. */
 const grants = new DzzkGrants();
+let conversations = new DzzkConversationBindings();
 let config = { enabled:false, endpoint:'http://127.0.0.1:43119', token:'' };
 let loopRunning = false, generation = 0, status = 'Disconnected', consents = [], clients = [], activeController;
 let localPaused = false, serverPaused = false, actions = [];
+let seenReloadRevision = 0, pendingReloadRevision = 0;
+let publishedConversationSignature = null, publishedConversationAt = 0;
 let policyWrites = Promise.resolve(), pauseIntent = 0;
 const isPaused = () => localPaused || serverPaused;
+async function persistConversationBindings() { const api=globalThis.chrome || globalThis.browser; await api.storage.local.set({conversationBindings:conversations.serialize()}); }
 function writePolicy(body) {
   policyWrites = policyWrites.catch(()=>{}).then(()=>companion('/bridge/policy',body));
   return policyWrites;
@@ -20,6 +24,8 @@ function validateConfig(value) {
   return { enabled:Boolean(value.enabled), endpoint:url.origin, token:value.token };
 }
 async function companion(path, body, cfg = config) {
+  const adapter = 'chrome';
+  if (path.startsWith('/bridge/')) path += '?adapter=' + adapter;
   const controller = new AbortController(); activeController = controller;
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
@@ -28,7 +34,16 @@ async function companion(path, body, cfg = config) {
       headers:{ Authorization:`Bearer ${cfg.token}`, ...(body === undefined ? {} : {'Content-Type':'application/json'}) },
       ...(body === undefined ? {} : {body:JSON.stringify(body)}), signal:controller.signal
     });
-    if (!response.ok) throw new Error('Companion refused the request. Check pairing and server status.');
+    if (!response.ok) {
+      let detail='';
+      try {
+        const payload=await response.json();
+        detail=payload?.error_description||payload?.error||'';
+      } catch {}
+      if (response.status===503 && detail==='observer_unavailable') throw new Error('observer_unavailable: Observer snapshot is unavailable.');
+      if (response.status===401) throw new Error('invalid_pairing: Companion rejected the extension pairing token.');
+      throw new Error('companion_http_'+response.status+(detail?': '+detail:''));
+    }
     return await response.json();
   } finally { clearTimeout(timer); }
 }
@@ -44,6 +59,42 @@ async function hydratedTab(tabId) {
     if (page?.url) return {...tab,url:page.url,title:page.title || tab.title || ''};
   } catch {}
   return tab;
+}
+async function currentConversationBinding() {
+  const api=globalThis.chrome || globalThis.browser;
+  const tabs=await api.tabs.query({active:true,lastFocusedWindow:true});
+  const raw=(tabs||[]).find(t=>t && typeof t.id==='number')||null;
+  if(!raw) return null;
+  const tab=typeof raw.url==='string'&&raw.url ? raw : await hydratedTab(raw.id);
+  const existing=conversations.getByTab(tab);
+  if(existing) return existing;
+  try {
+    const binding=conversations.bind(tab);
+    await persistConversationBindings();
+    return binding;
+  } catch {
+    return null;
+  }
+}
+async function publishActiveConversation() {
+  const binding=await currentConversationBinding();
+  const value=binding ? {
+    conversation_id:binding.conversation_id,
+    url:binding.url,
+    title:binding.title||'',
+    source_quality:'browser_observed',
+    observed_at:new Date().toISOString()
+  } : null;
+  const signature=value ? value.conversation_id+'|'+value.url : 'null';
+  const now=Date.now();
+  if(signature===publishedConversationSignature && (signature==='null' || now-publishedConversationAt<5000)) return;
+  await companion('/bridge/conversation-active',{binding:value});
+  publishedConversationSignature=signature;
+  publishedConversationAt=now;
+}
+async function conversationTab(tabId) {
+  const api=globalThis.chrome || globalThis.browser;
+  return api.tabs.get(tabId);
 }
 async function readShared(handle, maxChars = 30000) {
   const g = grants.get(handle); grants.check(handle, await hydratedTab(g.tabId));
@@ -72,14 +123,54 @@ async function runCommand(command) {
     default: throw new Error('Unsupported operation. This version only reads shared pages.');
   }
 }
+
+
+let lastChatInventoryAt = 0;
+async function publishChatTabInventory(force=false) {
+  const now=Date.now();
+  if(!force && now-lastChatInventoryAt<30000) return;
+  lastChatInventoryAt=now;
+  const tabs=await chrome.tabs.query({url:['https://chatgpt.com/*','https://*.chatgpt.com/*']});
+  const inventory=(tabs||[]).filter(t=>Number.isInteger(t?.id)).map(t=>({
+    tab_id:t.id,
+    url:t.url||'',
+    title:t.title||'',
+    status:t.status||null,
+    discarded:t.discarded===true,
+    active:t.active===true,
+    window_id:Number.isInteger(t.windowId)?t.windowId:null
+  }));
+  try { await companion('/bridge/chat-tab-inventory',{tabs:inventory,observed_at:new Date().toISOString()}); } catch {}
+}
+async function ensureChatContext(tabId) {
+  if(!Number.isInteger(tabId)) return false;
+  let tab;
+  try { tab=await chrome.tabs.get(tabId); } catch { return false; }
+  if(!tab || tab.discarded===true || tab.status==='loading') return false;
+  let url;
+  try { url=new URL(tab.url||''); } catch { return false; }
+  if(url.protocol!=='https:' || !(url.hostname==='chatgpt.com'||url.hostname.endsWith('.chatgpt.com'))) return false;
+  try {
+    await chrome.scripting.executeScript({target:{tabId},files:['chat-context.js']});
+    return true;
+  } catch { return false; }
+}
+async function discoverExistingChatTabs() {
+  const tabs=await chrome.tabs.query({active:true});
+  for(const tab of tabs||[]) await ensureChatContext(tab?.id);
+}
 async function poll() {
   if (loopRunning || !config.enabled) return;
   loopRunning = true; const epoch = generation;
   try {
     while (config.enabled && epoch === generation) {
       try {
+        await publishActiveConversation();
+        await publishChatTabInventory();
         const batch = await companion('/bridge/next');
         if (!config.enabled || epoch !== generation) break;
+        const reloadRevision=Number(batch.reload_revision)||0;
+        if(reloadRevision>seenReloadRevision) pendingReloadRevision=reloadRevision;
         consents = batch.consents || []; clients = batch.clients || []; actions = batch.actions || [];
         serverPaused = batch.policy?.paused === true;
         if (isPaused()) await clearAccess();
@@ -98,18 +189,130 @@ async function poll() {
   } finally { loopRunning = false; if (config.enabled) void poll(); }
 }
 chrome.tabs.onUpdated.addListener((id,change) => {
-  if (change.status === 'loading' || change.url) {grants.revoke(id); void chrome.action.setBadgeText({tabId:id,text:''});}
+  if (change.status === 'loading' || change.url) {
+    grants.revoke(id);
+    if (conversations.revoke(id)) void persistConversationBindings();
+    publishedConversationSignature=null; publishedConversationAt=0;
+    void chrome.action.setBadgeText({tabId:id,text:''});
+  }
+  if(change.status==='complete' || change.url) void ensureChatContext(id);
 });
-chrome.tabs.onRemoved.addListener(id => grants.revoke(id));
+chrome.tabs.onRemoved.addListener(id => {
+  grants.revoke(id);
+  if (conversations.revoke(id)) void persistConversationBindings();
+  publishedConversationSignature=null; publishedConversationAt=0;
+});
+chrome.tabs.onActivated.addListener(({tabId}) => {
+  publishedConversationSignature=null; publishedConversationAt=0;
+  void ensureChatContext(tabId);
+  void publishChatTabInventory(true);
+});
 chrome.alarms.onAlarm.addListener(() => {grants.list(); void poll();});
 chrome.runtime.onMessage.addListener(async (m,sender) => {
   const ui = [chrome.runtime.getURL('popup.html'), chrome.runtime.getURL('options.html'), chrome.runtime.getURL('observer.html')];
-  if (sender.id !== chrome.runtime.id || !ui.includes(sender.url)) throw new Error('Only extension UI can change access.');
+  const isChatObservation = ['chat-context-observed','chat-turn-observed','chat-detector-status'].includes(m?.type) && sender.id===chrome.runtime.id && sender.tab;
+  if (!isChatObservation && (sender.id !== chrome.runtime.id || !ui.includes(sender.url))) throw new Error('Only extension UI can change access.');
   switch (m.type) {
-    case 'state': return {status,enabled:config.enabled,paused:isPaused(),grants:grants.list(),consents,clients,actions};
+    case 'state': return {status,enabled:config.enabled,paused:isPaused(),grants:grants.list(),consents,clients,actions,pendingReloadRevision,loadedVersion:chrome.runtime.getManifest().version};
+    case 'chat-context-observed': {
+      const tab=sender.tab;
+      if(!tab || !Number.isInteger(tab.id)) throw new Error('Chat context observation requires a browser tab.');
+      if(m.conversation_id===null) {
+        const changed=conversations.revoke(tab.id);
+        if(changed) await persistConversationBindings();
+        return {ok:true,binding:null};
+      }
+      const observedTab={...tab,url:m.url||tab.url,title:m.title||tab.title||'',status:'complete'};
+      const previous=conversations.getByTab(observedTab);
+      const binding=conversations.bind(observedTab);
+      await persistConversationBindings();
+      if(!previous || previous.conversation_id!==binding.conversation_id || previous.url!==binding.url || previous.title!==binding.title) {
+        try {
+          await companion('/bridge/chat-observed',{
+            conversation_id:binding.conversation_id,
+            url:binding.url,
+            title:binding.title||'',
+            tab_id:binding.tabId,
+            observed_at:m.observed_at||new Date().toISOString()
+          });
+        } catch {}
+      }
+      return {ok:true,binding};
+    }
+    case 'chat-detector-status': {
+      if(m.detector_version!=='turn-v3') return {ok:true,ignored:true};
+      const tab=sender.tab;
+      if(!tab || !Number.isInteger(tab.id)) throw new Error('Chat detector status requires a browser tab.');
+      return companion('/bridge/chat-detector-status',{
+        detector_version:m.detector_version,
+        conversation_id:m.conversation_id,
+        url:m.url||tab.url,
+        title:m.title||tab.title||'',
+        observed_at:m.observed_at,
+        user_count:m.user_count,
+        assistant_count:m.assistant_count,
+        generating:m.generating===true,
+        active_turn_id:m.active_turn_id||null,
+        structural_counts:m.structural_counts&&typeof m.structural_counts==='object'?m.structural_counts:null,
+        tab_id:tab.id
+      });
+    }
+    case 'chat-turn-observed': {
+      if(m.detector_version!=='turn-v3') return {ok:true,ignored:true};
+      const tab=sender.tab;
+      if(!tab || !Number.isInteger(tab.id)) throw new Error('Chat turn observation requires a browser tab.');
+      const binding=conversations.getByTab({...tab,url:m.url||tab.url,title:m.title||tab.title||''});
+      if(!binding || binding.conversation_id!==m.conversation_id) throw new Error('Chat turn does not match the tab conversation binding.');
+      return companion('/bridge/turn-observed',{
+        phase:m.phase,
+        conversation_id:m.conversation_id,
+        turn_id:m.turn_id,
+        url:m.url||binding.url,
+        title:m.title||binding.title||'',
+        observed_at:m.observed_at,
+        reason:m.reason||null,
+        user_count:Number.isInteger(m.user_count)?m.user_count:null,
+        assistant_count:Number.isInteger(m.assistant_count)?m.assistant_count:null
+      });
+    }
+    case 'conversation-state': return {bindings:conversations.list()};
+
+    case 'conversation-current': return {binding:await currentConversationBinding()};
+    case 'conversation-bind': {
+      const tab=await conversationTab(m.tabId);
+      if (!tab.active || tab.status === 'loading') throw new Error('Select a fully loaded ChatGPT tab before binding.');
+      const binding=conversations.bind(tab);
+      await persistConversationBindings();
+      return {binding};
+    }
+    case 'conversation-unbind': {
+      const changed=conversations.revoke(m.tabId);
+      if (changed) await persistConversationBindings();
+      return {ok:true};
+    }
+    case 'reload-extension': {
+      const revision=pendingReloadRevision||seenReloadRevision;
+      seenReloadRevision=Math.max(seenReloadRevision,revision);
+      pendingReloadRevision=0;
+      await chrome.storage.local.set({seenReloadRevision});
+      setTimeout(()=>chrome.runtime.reload(),50);
+      return {ok:true,version:chrome.runtime.getManifest().version};
+    }
     case 'observer-state': {
       if (!config.enabled) throw new Error('Connect the companion before opening the observer.');
       return companion('/bridge/observer');
+    }
+    case 'dispatch-state': {
+      if (!config.enabled) throw new Error('Connect the companion before checking prepared dispatch.');
+      return companion('/bridge/dispatch-state');
+    }
+    case 'dispatch-prepared': {
+      if (!config.enabled) throw new Error('Connect the companion before dispatching prepared work.');
+      return companion('/bridge/dispatch-prepared',{});
+    }
+    case 'gw01-acceptance': {
+      if (!config.enabled) throw new Error('Connect the companion before running GW-01 acceptance.');
+      return companion('/bridge/gw01-acceptance',{});
     }
     case 'configure': {
       const next = validateConfig(m.config);
@@ -160,7 +363,12 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
 });
 chrome.runtime.onInstalled.addListener(() => {void chrome.runtime.openOptionsPage();});
 void (async () => {
-  const saved = await chrome.storage.local.get(['config','localPaused']); localPaused = saved.localPaused === true;
+  const saved = await chrome.storage.local.get(['config','localPaused','conversationBindings','seenReloadRevision']); localPaused = saved.localPaused === true;
+  seenReloadRevision = Number(saved.seenReloadRevision)||0;
+  conversations = new DzzkConversationBindings(saved.conversationBindings || []);
   if (saved.config) {try {config = validateConfig(saved.config);} catch {}}
-  await chrome.alarms.create('connection',{periodInMinutes:0.5}); void poll();
+  await chrome.alarms.create('connection',{periodInMinutes:0.5});
+  await discoverExistingChatTabs();
+  await publishChatTabInventory(true);
+  void poll();
 })();

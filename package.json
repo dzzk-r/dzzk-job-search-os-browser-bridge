@@ -1,13 +1,16 @@
 {
   "name": "execution-delivery-harness",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "description": "Controlled delivery of agent actions into user-owned browser and local execution environments.",
   "scripts": {
     "start": "node server/index.mjs",
     "test": "node --test tests/*.mjs",
     "lint": "web-ext lint --source-dir firefox --warnings-as-errors",
     "build": "web-ext build --source-dir firefox --artifacts-dir dist --overwrite-dest",
-    "test:firefox": "node scripts/firefox-smoke.mjs"
+    "test:firefox": "node scripts/firefox-smoke.mjs",
+    "knowledge:query": "node scripts/knowledge.mjs query",
+    "knowledge:context": "node scripts/knowledge.mjs context",
+    "project:readiness": "node scripts/project-context.mjs"
   },
   "repository": {
     "type": "git",

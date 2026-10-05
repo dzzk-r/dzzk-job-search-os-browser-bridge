@@ -13,21 +13,26 @@
       <strong id="state-label">LOADING</strong>
       <span id="state-age" class="state-age">--:--</span>
       <span id="active-chain" class="active-chain">observer</span>
-      <span id="observer-build" class="muted" title="Observer UI build">lifecycle-ui2</span>
+      <span id="observer-build" class="muted" title="Observer UI build">trace-ui12</span>
+      <span id="extension-version" class="muted" title="Loaded extension version"></span>
+      <button id="reload-version" class="version-reload" hidden></button>
       <button id="settings-toggle" class="icon-button" aria-label="Bridge settings" title="Bridge settings">⚙</button>
       <details id="help-toggle" class="help-toggle">
         <summary aria-label="Runtime details" title="Runtime details">?</summary>
         <div id="runtime-grid" class="runtime-grid"></div>
       </details>
     </div>
-    <div id="truth-note" class="truth-note">Current ChatGPT/MCP dispatch is not authoritative until the gateway exists.</div>
+    <div id="truth-note" class="truth-note"><span>Current ChatGPT/MCP dispatch is not authoritative until the gateway exists.</span> <button id="gateway-next" class="link-button">Gap: ChatGPT turn → Harness gateway</button></div>
+    <div id="prepared-dispatch" class="truth-note" hidden><strong>Prepared Harness task:</strong> <span id="prepared-dispatch-label"></span> <button id="dispatch-prepared" class="primary">Dispatch prepared task</button> <span id="prepared-dispatch-status" class="muted"></span></div>
     <div id="actor-strip" class="actor-strip" aria-label="Observed actors"></div>
   </header>
+  <section id="connection-requests" class="connection-requests" aria-live="polite" hidden></section>
   <aside id="help-panel" class="overlay-panel" hidden>
     <div class="overlay-head"><strong>Observer help</strong><button id="help-close" class="icon-button" aria-label="Close help">×</button></div>
     <p><strong>Actors.</strong> MCP, TERM, OC, QWEN, LLAMA and GIT are known actors. Gray means known/idle; a blinking dot means confirmed current activity. LLAMA BUSY is live slot state. GIT Δn is working-tree state, not Git activity.</p>
-    <p><strong>Execution spans.</strong> Show managed process lifecycle such as RUNNING, WAITING and terminal states. <strong>Unified timeline</strong> shows observed events; click a row to expand the full event.</p>
+    <p><strong>Execution spans.</strong> Show managed process lifecycle such as RUNNING, WAITING and terminal states. <strong>Current / recent trace</strong> groups the latest correlated causal chain by span parentage. <strong>Unified timeline</strong> remains the raw observed event stream; click a row to expand full provenance.</p>
     <p><strong>Turn truth.</strong> "Current ChatGPT/MCP dispatch is not authoritative until the gateway exists" means GW-01 has not yet made the current ChatGPT dispatch correlatable end-to-end. It does not invalidate Browser Bridge reads.</p>
+    <p id="gateway-next-action"><strong>Next engineering gap.</strong> Manual prepared dispatch is now live-accepted. The remaining GW-01/GW-02 boundary is automatic ChatGPT turn → prepared Harness handoff: the platform turn must allocate/propagate authoritative turn/action identity before any external RDC/MCP or detached local execution begins. Until then direct Web ChatGPT tool calls remain external/unscoped.</p><p><button id="gw01-acceptance" class="primary">Run GW-01 correlation acceptance</button> <span id="gw01-acceptance-status" class="muted"></span></p>
     <p><strong>Bridge controls.</strong> The gear opens explicit page-sharing controls. Only pages you share are readable.</p>
     <section class="help-section">
       <h2>Current run</h2>
@@ -52,9 +57,30 @@
     <p id="settings-error" role="alert"></p>
   </aside>
   <main>
+    <section id="prepared-result-section" hidden>
+      <div class="section-head">
+        <h2>Last prepared dispatch</h2>
+        <span id="prepared-result-meta" class="muted"></span>
+      </div>
+      <div id="prepared-result-summary" class="run-summary"></div>
+    </section>
+    <section id="project-status-section">
+      <div class="section-head">
+        <h2>Project readiness</h2>
+        <span id="project-status-meta" class="muted"></span>
+      </div>
+      <div id="project-status-summary" class="run-summary"></div>
+    </section>
+    <section id="detached-run-section" hidden>
+      <div class="section-head">
+        <h2>Harness-owned run</h2>
+        <span id="detached-heartbeat" class="muted"></span>
+      </div>
+      <div id="detached-run-summary" class="run-summary"></div>
+    </section>
     <section id="task-lifecycle-section">
       <div class="section-head">
-        <h2>Current task</h2>
+        <h2 id="task-lifecycle-title">Current task</h2>
         <span id="task-safety" class="muted"></span>
       </div>
       <div id="task-lifecycle-summary" class="run-summary"></div>
@@ -67,9 +93,28 @@
       </div>
       <div id="spans" class="spans"></div>
     </section>
+    <section id="rdc-section">
+      <div class="section-head">
+        <h2>Remote Desktop / background</h2>
+        <span id="rdc-meta" class="muted"></span>
+      </div>
+      <div id="rdc-activity" class="artifact-list"></div>
+    </section>
+    <section id="trace-section">
+      <div class="section-head">
+        <h2 id="trace-title">Current / recent trace</h2>
+        <span id="trace-meta" class="muted"></span>
+      </div>
+      <div id="trace" class="trace"></div>
+    </section>
     <section>
       <div class="section-head">
         <h2>Unified timeline</h2>
+        <select id="timeline-scope" aria-label="Timeline scope">
+          <option value="all">All activity</option>
+          <option value="unscoped">Unscoped</option>
+        </select>
+        <span id="current-conversation" class="muted"></span>
         <span id="position" class="muted"></span>
       </div>
       <div id="timeline" class="timeline" role="log" aria-live="polite"></div>

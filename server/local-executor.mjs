@@ -103,20 +103,25 @@ export async function createLocalExecutor(options = {}) {
     } finally { await fs.rm(tmp,{force:true}).catch(()=>{}); }
     return {path:target,bytes:bytes.length,sha256:sha256(bytes),created:current===null};
   }
-  async function execStart({cwd, command}) {
+  async function execStart({cwd, command}, trace = null) {
     if (typeof command !== 'string' || !command.trim() || command.length > 4000) throw new Error('command must contain 1-4000 characters.');
     if (runningCount() >= MAX_PROCS) throw new Error('Too many local processes.');
     const realCwd = await existing(cwd, 'cwd');
     const st = await fs.stat(realCwd); if (!st.isDirectory()) throw new Error('cwd is not a directory.');
     const id = randomUUID(), logPath = join(stateDir,id+'.log');
     const fd = await fs.open(logPath,'wx',0o600);
-    const child = spawn('/bin/zsh',['-lc',command],{cwd:realCwd,detached:true,stdio:['ignore',fd.fd,fd.fd],env:{...process.env}});
-    const item = {id,pid:child.pid,cwd:realCwd,command,logPath,child,exitCode:null,signal:null,stopping:false,startedAt:new Date().toISOString()};
+    const env={...process.env};
+    if (trace?.correlation_id) env.EDH_CORRELATION_ID=trace.correlation_id;
+    if (trace?.span_id) env.EDH_PARENT_SPAN_ID=trace.span_id;
+    if (trace?.run_id) env.EDH_MCP_RUN_ID=trace.run_id;
+    if (trace?.tool) env.EDH_MCP_TOOL=trace.tool;
+    const child = spawn('/bin/zsh',['-lc',command],{cwd:realCwd,detached:true,stdio:['ignore',fd.fd,fd.fd],env});
+    const item = {id,pid:child.pid,cwd:realCwd,command,logPath,child,exitCode:null,signal:null,stopping:false,startedAt:new Date().toISOString(),trace:trace?{correlation_id:trace.correlation_id,span_id:trace.span_id,run_id:trace.run_id,tool:trace.tool}:null};
     processes.set(id,item);
     child.once('exit',(code,signal)=>{item.exitCode=code;item.signal=signal;void fd.close().catch(()=>{});});
     child.once('error',()=>{void fd.close().catch(()=>{});});
     child.unref();
-    return {processId:id,pid:child.pid,cwd:realCwd,startedAt:item.startedAt};
+    return {processId:id,pid:child.pid,cwd:realCwd,startedAt:item.startedAt,correlationId:item.trace?.correlation_id??null,parentSpanId:item.trace?.span_id??null};
   }
   async function processOutput({processId, offset = 0, maxBytes = 30000}) {
     const item = proc(processId);

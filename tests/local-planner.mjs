@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assembleTaskEnvelope } from '../scripts/local-planner.mjs';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import { assembleTaskEnvelope, planOneTask } from '../scripts/local-planner.mjs';
 import { validatePlanningDocument } from '../scripts/planning-contract.mjs';
 
 const request={
@@ -40,4 +43,33 @@ test('planner cannot widen the envelope with model-supplied fields',()=>{
 test('planner cannot emit an invalid task contract',async()=>{
   const envelope=assembleTaskEnvelope(request,{...proposal,acceptance:[]});
   await assert.rejects(validatePlanningDocument('task',envelope),/too few items/);
+});
+
+
+test('planner keeps current task context separate from retrieved knowledge',async()=>{
+  const originalFetch=globalThis.fetch;
+  let sent;
+  globalThis.fetch=async (_url,options)=>{
+    sent=JSON.parse(options.body);
+    return {
+      ok:true,
+      json:async()=>({choices:[{message:{content:JSON.stringify(proposal)}}]})
+    };
+  };
+  const root=await mkdtemp(join(tmpdir(),'edh-planner-events-'));
+  try{
+    await planOneTask(request,{
+      currentTaskContext:{task:{task_id:'task-1'},repo:{head:'abc'}},
+      knowledgeContext:{records:[{id:'lesson-1'}]},
+      timeoutMs:1000,
+      observerEventPath:join(root,'observer-events.jsonl')
+    });
+    const payload=JSON.parse(sent.messages[1].content);
+    assert.equal(payload.current_task_context.task.task_id,'task-1');
+    assert.equal(payload.retrieved_knowledge.records[0].id,'lesson-1');
+    assert.deepEqual(payload.scope,request.scope);
+  }finally{
+    globalThis.fetch=originalFetch;
+    await rm(root,{recursive:true,force:true});
+  }
 });

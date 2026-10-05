@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "local-shared-browser-pages": {
+      "cwd": ".",
+      "command": "node",
+      "args": ["./server.mjs"]
+    }
+  }
+}

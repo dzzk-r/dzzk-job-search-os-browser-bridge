@@ -66,3 +66,17 @@ test('stop only addresses an owned process id', async () => {
     assert.equal(out.running,false);
   } finally { await f.close(); }
 });
+
+
+test('execStart propagates Harness correlation metadata through environment', async () => {
+  const f=await fixture();
+  try {
+    const trace={correlation_id:'corr:test-root',span_id:'mcp:corr:test-root:tool:local_exec_start',run_id:'mcp:corr:test-root',tool:'local_exec_start'};
+    const p=await f.exec.execStart({cwd:f.root,command:`printf '%s|%s|%s|%s' "$EDH_CORRELATION_ID" "$EDH_PARENT_SPAN_ID" "$EDH_MCP_RUN_ID" "$EDH_MCP_TOOL"`},trace);
+    let out={running:true};
+    for(let i=0;i<40 && out.running;i++){ await new Promise(r=>setTimeout(r,25)); out=await f.exec.processOutput({processId:p.processId,offset:0}); }
+    assert.equal(out.output,'corr:test-root|mcp:corr:test-root:tool:local_exec_start|mcp:corr:test-root|local_exec_start');
+    assert.equal(p.correlationId,'corr:test-root');
+    assert.equal(p.parentSpanId,'mcp:corr:test-root:tool:local_exec_start');
+  } finally { await f.close(); }
+});

@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0",
+  "project": "execution-delivery-harness",
+  "milestones": [
+    {
+      "id": "owner-local-v0",
+      "title": "Owner-local usable loop",
+      "status": "pending",
+      "definition": "A real client completes a routine user-owned operation through Harness browser/local policy without Remote Desktop Commander on the critical path.",
+      "gate": "green",
+      "supporting_tasks": ["BRW-01", "LOC-01", "LOC-02", "SEC-01"],
+      "evidence": []
+    },
+    {
+      "id": "portable-private-v0",
+      "title": "Private client-portable beta",
+      "status": "pending",
+      "definition": "The same transport-neutral contract passes acceptance from the intended private clients without forking Browser Bridge or Local Executor semantics.",
+      "gate": "yellow",
+      "depends_on": ["owner-local-v0"],
+      "supporting_tasks": ["CT-01", "CT-02", "CT-03", "CT-04", "CT-05", "CT-06"],
+      "evidence": []
+    },
+    {
+      "id": "public-distribution-v1",
+      "title": "Public distribution ready",
+      "status": "pending",
+      "definition": "Signed/public browser packages and public ChatGPT/plugin distribution satisfy their independent release and review requirements.",
+      "gate": "red",
+      "depends_on": ["portable-private-v0"],
+      "supporting_tasks": ["REL-02", "REL-03"],
+      "evidence": []
+    }
+  ]
+}

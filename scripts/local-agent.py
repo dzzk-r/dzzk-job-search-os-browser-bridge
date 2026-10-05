@@ -14,6 +14,7 @@ import time
 import urllib.request
 
 STATE_FILE = Path.home() / '.local/state/execution-delivery-harness/local-agent.json'
+OBSERVER_EVENTS = Path.home() / '.local/state/execution-delivery-harness/observer-events.jsonl'
 
 def publish_state(**values):
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -26,6 +27,46 @@ def publish_state(**values):
     tmp = STATE_FILE.with_suffix('.tmp')
     tmp.write_text(json.dumps(current, indent=2) + '\n')
     tmp.replace(STATE_FILE)
+
+
+def append_observer_event(actor, event, *, correlation_id=None, run_id=None, plan_id=None, task_id=None,
+                          span_id=None, parent_span_id=None, message='', source=None, meta=None):
+    OBSERVER_EVENTS.parent.mkdir(parents=True, exist_ok=True)
+    src = source if isinstance(source, dict) else {}
+    value = {
+        'schema_version':'1.0',
+        'ts':datetime.now(timezone.utc).isoformat().replace('+00:00','Z'),
+        'actor':actor,
+        'event':event,
+        'correlation_id':correlation_id,
+        'run_id':run_id,
+        'plan_id':plan_id,
+        'task_id':task_id,
+        'span_id':span_id or ':'.join(x for x in [run_id,actor,event] if x),
+        'parent_span_id':parent_span_id,
+        'message':message,
+        'source':{
+            'client':src.get('client'),
+            'conversation_id':src.get('conversation_id'),
+            'turn_id':src.get('turn_id'),
+            'message_id':src.get('message_id'),
+            'action_id':src.get('action_id'),
+            'action_label':src.get('action_label'),
+            'locator':src.get('locator'),
+            'source_quality':src.get('source_quality') or 'declared'
+        },
+        'meta':meta or {}
+    }
+    with OBSERVER_EVENTS.open('a', encoding='utf-8') as f:
+        f.write(json.dumps(value, ensure_ascii=False) + '\n')
+    return value
+
+
+def llama_busy():
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with opener.open('http://127.0.0.1:8080/slots', timeout=0.8) as response:
+        slots = json.load(response)
+    return bool(isinstance(slots, list) and any(s.get('is_processing') for s in slots))
 
 
 def scoped_path(repo, name):
@@ -86,11 +127,24 @@ def main():
         help='OpenCode binary to run; system Homebrew binary remains the default')
     parser.add_argument('--run-root', type=Path, required=True,
         help='External directory for task logs and STOP; must be outside the repository')
+    parser.add_argument('--run-id')
+    parser.add_argument('--plan-id')
+    parser.add_argument('--task-id')
+    parser.add_argument('--correlation-id')
+    parser.add_argument('--parent-span-id')
+    parser.add_argument('--source-json', default='{}')
     args = parser.parse_args()
+    try:
+        source = json.loads(args.source_json)
+        if not isinstance(source, dict):
+            raise ValueError('source must be an object')
+    except ValueError as error:
+        parser.error('--source-json: '+str(error))
     repo = Path.cwd().resolve()
     try:
         task = scoped_path(repo, args.task).read_text(encoding='utf-8')
-        if not task.strip() or len(task) > 3000:
+        task = task.strip()
+        if not task or len(task) > 3000:
             raise ValueError('Task must contain 1–3000 characters')
         expected = scoped_path(repo, args.expect)
         writes = [scoped_path(repo, name) for name in args.write]
@@ -121,10 +175,17 @@ def main():
         'opencode': str(opencode), 'opencode_version': opencode_version,
         'expected': str(expected), 'before_sha256': before, 'stop_file': str(stop),
         'deadline_seconds': args.seconds, 'steps': args.steps, 'tokens_per_turn': args.tokens,
-        'reads': args.read, 'writes': args.write, 'expected_relative': args.expect}
+        'reads': args.read, 'writes': args.write, 'expected_relative': args.expect,
+        'correlation_id': args.correlation_id, 'run_id': args.run_id, 'plan_id': args.plan_id,
+        'task_id': args.task_id, 'source': source}
     child = None
     master = None
     started = time.monotonic()
+    oc_span=(args.run_id or ('worker:'+str(args.task_id or output.name)))+':oc'
+    model_cycle=0
+    qwen_span=None
+    llama_span=None
+    model_busy=False
     try:
         if stop.exists():
             raise RuntimeError('STOP file exists; no task was started')
@@ -135,6 +196,17 @@ def main():
             raise RuntimeError('Local model is busy or slot state is unknown')
         (output / 'task.txt').write_text(task)
         (output / 'config.json').write_text(json.dumps(config, indent=2))
+        event_context = {
+            'schema_version':'1.0',
+            'correlation_id':args.correlation_id,
+            'run_id':args.run_id,
+            'plan_id':args.plan_id,
+            'task_id':args.task_id,
+            'oc_span_id':oc_span,
+            'parent_span_id':args.parent_span_id,
+            'source':source
+        }
+        (output / 'event-context.json').write_text(json.dumps(event_context, indent=2) + '\n')
         env = os.environ.copy()
         env['OPENCODE_CONFIG_CONTENT'] = json.dumps(config)
         for kind in ['DATA', 'STATE', 'CACHE', 'CONFIG']:
@@ -143,6 +215,9 @@ def main():
             '--agent', 'scoped-task', '--model', report['model'], '--format', 'json', task]
         (output / 'command.json').write_text(json.dumps({'cwd': str(repo), 'argv': command}, indent=2))
         publish_state(status='running', run_dir=str(output), repo=str(repo), model=report['model'], opencode_version=opencode_version, started_at=time.time(), updated_at=time.time())
+        append_observer_event('OC','START',correlation_id=args.correlation_id,run_id=args.run_id,plan_id=args.plan_id,task_id=args.task_id,
+            span_id=oc_span,parent_span_id=args.parent_span_id,message='OpenCode bounded worker started',source=source,
+            meta={'opencode_version':opencode_version,'model':report['model']})
         print('RUN_COMMAND', shlex.join(command), flush=True)
         print('AGENT_LOG:', output / 'events.log', 'STOP:', stop, flush=True)
         with (output / 'events.log').open('w') as log:
@@ -153,6 +228,26 @@ def main():
             finally:
                 os.close(slave)
             while child.poll() is None:
+                try:
+                    busy=llama_busy()
+                except Exception:
+                    busy=model_busy
+                if busy and not model_busy:
+                    model_cycle += 1
+                    qwen_span=f"{oc_span}:qwen:{model_cycle}"
+                    llama_span=f"{oc_span}:llama:{model_cycle}"
+                    append_observer_event('QWEN','START',correlation_id=args.correlation_id,run_id=args.run_id,plan_id=args.plan_id,task_id=args.task_id,
+                        span_id=qwen_span,parent_span_id=oc_span,message='Qwen worker model active',source=source)
+                    append_observer_event('LLAMA','REQUEST_START',correlation_id=args.correlation_id,run_id=args.run_id,plan_id=args.plan_id,task_id=args.task_id,
+                        span_id=llama_span,parent_span_id=qwen_span,message='llama.cpp inference active',source=source,
+                        meta={'model':report['model']})
+                elif model_busy and not busy:
+                    append_observer_event('LLAMA','REQUEST_DONE',correlation_id=args.correlation_id,run_id=args.run_id,plan_id=args.plan_id,task_id=args.task_id,
+                        span_id=llama_span,parent_span_id=qwen_span,message='llama.cpp inference idle',source=source)
+                    append_observer_event('QWEN','DONE',correlation_id=args.correlation_id,run_id=args.run_id,plan_id=args.plan_id,task_id=args.task_id,
+                        span_id=qwen_span,parent_span_id=oc_span,message='Qwen worker model cycle completed',source=source)
+                    qwen_span=llama_span=None
+                model_busy=busy
                 if stop.exists() or time.monotonic() - started >= args.seconds:
                     report['termination'] = 'STOP' if stop.exists() else 'deadline'
                     stop_child(child)
@@ -217,6 +312,18 @@ def main():
             stop_child(child)
         if master is not None:
             os.close(master)
+        if model_busy:
+            append_observer_event('LLAMA','REQUEST_ERROR' if report.get('status')=='failed' else 'REQUEST_DONE',
+                correlation_id=args.correlation_id,run_id=args.run_id,plan_id=args.plan_id,task_id=args.task_id,span_id=llama_span,parent_span_id=qwen_span,
+                message='llama.cpp inference closed with worker',source=source)
+            append_observer_event('QWEN','ERROR' if report.get('status')=='failed' else 'DONE',
+                correlation_id=args.correlation_id,run_id=args.run_id,plan_id=args.plan_id,task_id=args.task_id,span_id=qwen_span,parent_span_id=oc_span,
+                message='Qwen worker model closed with worker',source=source)
+        append_observer_event('OC','ERROR' if report.get('status')=='failed' else 'DONE',
+            correlation_id=args.correlation_id,run_id=args.run_id,plan_id=args.plan_id,task_id=args.task_id,span_id=oc_span,
+            parent_span_id=args.parent_span_id,
+            message='OpenCode bounded worker '+str(report.get('status')),source=source,
+            meta={'outcome_reason':report.get('outcome_reason'),'exit':report.get('exit')})
         report['seconds'] = round(time.monotonic() - started, 2)
         (output / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
         publish_state(status=report['status'], run_dir=str(output), repo=str(repo), model=report['model'], opencode_version=opencode_version, updated_at=time.time(), exit=report.get('exit'), termination=report.get('termination'), outcome_reason=report.get('outcome_reason'))

@@ -14,7 +14,7 @@ async function setup(t) {
     const response=await fetch(bridge.issuer+path,{method:data?'POST':'GET',headers:{...(data?{'Content-Type':'application/json'}:{}),...(token?{Authorization:'Bearer '+token}:{})},...(data?{body:JSON.stringify(data)}:{})});
     const raw=await response.text();let value;try{value=JSON.parse(raw);}catch{value=raw;}return {status:response.status,value};
   };
-  const extension=(path,data)=>call('/bridge/'+path,data,bridge.pairingToken);
+  const extension=(path,data,adapter='chrome')=>call('/bridge/'+path+'?adapter='+adapter,data,bridge.pairingToken);
   const authorize=async client=>{
     const verifier='v'.repeat(43), q=new URLSearchParams({client_id:client.client_id,redirect_uri:client.redirect_uris[0],response_type:'code',code_challenge_method:'S256',code_challenge:createHash('sha256').update(verifier).digest('base64url'),resource:bridge.resource,scope:'browser.read'});
     const page=await call('/authorize?'+q);assert.equal(page.status,200);

@@ -5,6 +5,7 @@ body.observer { max-width:none; padding:0; background:Canvas; color:CanvasText; 
 .state-dot { width:8px; height:8px; border-radius:50%; background:#888; display:inline-block; }
 .state-dot.busy { background:#16a34a; animation:observer-blink 1s steps(2,start) infinite; }
 .state-dot.waiting { background:#ca8a04; }
+.state-dot.observed { background:#2563eb; }
 .state-dot.stalled,.state-dot.error { background:#dc2626; }
 @keyframes observer-blink { 50% { opacity:.18; } }
 .state-age { opacity:.72; }
@@ -29,6 +30,8 @@ body.observer { max-width:none; padding:0; background:Canvas; color:CanvasText; 
 .event:focus-visible { outline:2px solid Highlight; outline-offset:-2px; }
 .event .src { font-weight:700; }
 .event .msg { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.event .msg::before { content:'▸ '; opacity:.55; }
+.event.expanded .msg::before { content:'▾ '; }
 .event-full { display:none; grid-column:1 / -1; padding:5px 0 3px 68px; white-space:pre-wrap; overflow-wrap:anywhere; opacity:.82; }
 .event.expanded .msg { white-space:normal; overflow-wrap:anywhere; }
 .event.expanded .event-full { display:block; }
@@ -65,3 +68,66 @@ body.observer { max-width:none; padding:0; background:Canvas; color:CanvasText; 
 .artifact-list { margin-top:7px; display:grid; gap:6px; font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace; }
 .artifact-row { overflow-wrap:anywhere; }
 .failure-reason { font-weight:800; }
+
+.connection-requests { margin:8px 10px 0; }
+.connection-request-card { border:2px solid currentColor; padding:10px; }
+.connection-request-card strong { display:block; margin-bottom:4px; }
+.connection-request-card p { margin:4px 0 8px; }
+.connection-request-card button + button { margin-left:6px; }
+
+
+.trace { display:grid; gap:2px; margin-bottom:12px; border:1px solid #8885; border-radius:6px; padding:5px 6px; background:color-mix(in srgb, Canvas 97%, CanvasText 3%); }
+.trace-row { display:grid; grid-template-columns:18px 48px minmax(0,1fr); gap:5px; padding:2px 4px 2px calc(4px + var(--depth,0) * 12px); font:10.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace; }
+.trace-row + .trace-row { border-top:1px solid #8882; }
+.trace-branch { opacity:.55; text-align:center; }
+.trace-actor { font-weight:800; }
+.trace-msg { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+
+/* Side-panel containment: no child may widen the Chrome panel. */
+html, body.observer { width:100%; max-width:100%; overflow-x:hidden; box-sizing:border-box; }
+.observer header, .observer main, .observer main > section { min-width:0; max-width:100%; box-sizing:border-box; }
+.status-line { grid-template-columns:auto auto auto minmax(0,1fr) auto auto auto; min-width:0; }
+.status-line > * { min-width:0; }
+.section-head { min-width:0; max-width:100%; flex-wrap:wrap; justify-content:flex-start; }
+.section-head h2 { flex:0 0 auto; }
+#timeline-scope { flex:1 1 220px; min-width:0; max-width:100%; width:auto; }
+#current-conversation { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#position { margin-left:auto; flex:0 0 auto; }
+.timeline { width:100%; max-width:100%; min-width:0; box-sizing:border-box; overflow-x:hidden; overflow-y:auto; }
+.event { width:100%; min-width:0; max-width:100%; box-sizing:border-box; }
+.event > * { min-width:0; }
+.event-full { max-width:100%; min-width:0; box-sizing:border-box; overflow-wrap:anywhere; word-break:break-word; }
+
+
+.version-reload { padding:3px 7px; margin:0; border:1px solid #ca8a04; border-radius:5px; background:Canvas; color:CanvasText; font:10px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:nowrap; }
+.version-reload:hover { background:color-mix(in srgb, Canvas 88%, #ca8a04 12%); }
+
+
+/* Unified timeline header: title gets its own row; controls cannot squeeze/widen it. */
+#timeline-section .section-head {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:6px 8px;
+}
+#timeline-section .section-head h2 {
+  grid-column:1 / -1;
+  margin:0;
+}
+#timeline-scope {
+  grid-column:1;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+}
+#current-conversation {
+  grid-column:2;
+  justify-self:end;
+  max-width:16ch;
+}
+#position {
+  grid-column:2;
+  justify-self:end;
+  margin-left:0;
+}

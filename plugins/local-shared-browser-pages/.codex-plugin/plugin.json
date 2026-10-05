@@ -1,0 +1,31 @@
+{
+  "name": "local-shared-browser-pages",
+  "version": "0.1.2",
+  "description": "Read only Chrome pages that the user explicitly shared from this computer through a local Desktop MCP process.",
+  "author": {
+    "name": "Local"
+  },
+  "license": "UNLICENSED",
+  "keywords": [
+    "browser",
+    "shared pages",
+    "local",
+    "read-only"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Local Shared Browser Pages",
+    "shortDescription": "Read pages you explicitly shared from this computer",
+    "longDescription": "Provides four read-only tools for explicitly shared local browser pages: list_tabs, read_page, find_in_page, and bridge_status.",
+    "developerName": "Local",
+    "category": "Productivity",
+    "capabilities": [
+      "Read"
+    ],
+    "defaultPrompt": [
+      "List the browser pages I explicitly shared",
+      "Read an explicitly shared browser page"
+    ],
+    "screenshots": []
+  }
+}

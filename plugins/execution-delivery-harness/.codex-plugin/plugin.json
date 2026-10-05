@@ -1,0 +1,35 @@
+{
+  "name": "execution-delivery-harness",
+  "version": "0.1.1",
+  "description": "Read explicitly shared browser pages through the local Execution Delivery Harness companion.",
+  "author": {
+    "name": "Daniel Chechik"
+  },
+  "homepage": "https://github.com/dzzk-r/execution-delivery-harness",
+  "repository": "https://github.com/dzzk-r/execution-delivery-harness",
+  "license": "MIT",
+  "keywords": [
+    "browser",
+    "mcp",
+    "shared tabs",
+    "local"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Execution Delivery Harness",
+    "shortDescription": "Read explicitly shared local browser tabs",
+    "longDescription": "Expose only explicitly shared browser pages from the local Execution Delivery Harness companion to ChatGPT Desktop through four read-only MCP tools: list_tabs, read_page, find_in_page, and bridge_status.",
+    "developerName": "Daniel Chechik",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read"
+    ],
+    "websiteURL": "https://github.com/dzzk-r/execution-delivery-harness",
+    "privacyPolicyURL": "https://github.com/dzzk-r/execution-delivery-harness/blob/main/docs/PRIVACY.md",
+    "defaultPrompt": [
+      "List the browser tabs I explicitly shared",
+      "Read the explicitly shared browser pages"
+    ],
+    "screenshots": []
+  }
+}

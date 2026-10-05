@@ -2,11 +2,14 @@ const $=id=>document.getElementById(id);
 const must=id=>{const element=$(id);if(!element) throw new Error('Missing required Observer element #'+id);return element;};
 const send=m=>chrome.runtime.sendMessage(m);
 let follow=true;
-let renderedKeys=[];
+let renderedKeys=null;
 let lastState=null;
+let timelineScope='all';
+let currentConversationBinding=null;
+let knownConversationBindings=[];
 const expandedKeys=new Set();
 
-function eventKey(event) { return String(event.ts||0)+'|'+String(event.source||'')+'|'+String(event.message||''); }
+function eventKey(event) { const c=event.correlation||{}; return [event.ts||0,event.source||'',event.message||'',c.correlation_id||'',c.span_id||''].join('|'); }
 function compactMessage(message) {
   return String(message||'')
     .replaceAll('/Users/dzzk/WORK/_bridge-local-execution/','…/harness/')
@@ -24,13 +27,35 @@ function seconds(n) {
 function openSpans(state) {
   return (state.spans||[]).filter(s=>!['DONE','ERROR','CANCELED','EXITED'].includes(s.status));
 }
+function activeSpans(state) {
+  return (state.spans||[]).filter(s=>s.status==='RUNNING');
+}
 function recentSpans(state) {
-  const all=state.spans||[], open=openSpans(state);
+  const all=state.spans||[];
+  const now=Date.now()/1000;
+  const open=openSpans(state).filter(s=>{
+    if(s.status!=='WAITING') return true;
+    const age=now-(s.updated||s.started||now);
+    return !(s.actor==='TERM' && age>30);
+  });
   const terminal=all.filter(s=>['DONE','ERROR','CANCELED','EXITED'].includes(s.status)).slice(-5);
   const seen=new Set();
   return [...open,...terminal].filter(s=>!seen.has(s.id)&&seen.add(s.id)).sort((a,b)=>(b.started||0)-(a.started||0));
 }
+function detachedRunHealth(state) {
+  const run=state.detached_run;
+  if(!run) return null;
+  const heartbeat=Date.parse(run.heartbeat_at||run.started_at||'')/1000;
+  const age=Number.isFinite(heartbeat)?Math.max(0,Date.now()/1000-heartbeat):null;
+  return {...run,heartbeat_age_seconds:age};
+}
 function derivedStatus(state) {
+  const detached=detachedRunHealth(state);
+  const detachedStatus=String(detached?.status||'').toUpperCase();
+  if(['STARTING','RUNNING'].includes(detachedStatus)) {
+    if(detached.heartbeat_age_seconds!=null && detached.heartbeat_age_seconds>8) return {label:'STALLED',cls:'stalled',age:detached.heartbeat_age_seconds};
+    return {label:'BUSY',cls:'busy',age:detached.heartbeat_age_seconds};
+  }
   const task=state.task_lifecycle||{};
   const taskStatus=String(task.status||'').toUpperCase();
   if(taskStatus==='RUNNING') {
@@ -38,30 +63,41 @@ function derivedStatus(state) {
     return {label:waiting?'WAITING':'BUSY',cls:waiting?'waiting':'busy',age:null};
   }
   if(taskStatus==='WAITING') return {label:'WAITING',cls:'waiting',age:null};
-  const open=openSpans(state);
+  const active=activeSpans(state);
   const stalled=String(state.state||'').startsWith('STALLED');
   if(stalled) return {label:'STALLED',cls:'stalled',age:null};
-  if(open.length) {
-    const running=open.find(s=>s.status==='RUNNING')||open[0];
-    const cls=running.status==='WAITING'?'waiting':'busy';
-    return {label:running.status==='WAITING'?'WAITING':'BUSY',cls,age:running.age_seconds||0};
+  if(active.length) {
+    const running=active[0];
+    return {label:'BUSY',cls:'busy',age:running.age_seconds||0};
   }
+  const external=currentExternalActivity(state);
+  const externalAge=external?.ts ? Math.max(0,Date.now()/1000-Number(external.ts)) : null;
+  if(external && externalAge!=null && externalAge<=10) return {label:'OBSERVED',cls:'observed',age:externalAge};
+  if(state.rdc?.last_activity_seconds!=null && state.rdc.last_activity_seconds<=10) return {label:'OBSERVED',cls:'observed',age:state.rdc.last_activity_seconds};
   return {label:'IDLE',cls:'idle',age:null};
 }
 function activeChain(state) {
-  const open=openSpans(state);
-  if(open.length) {
-    return open.slice(-3).map(s=>(s.actor||'?')+(s.pid?' #'+s.pid:'')).join(' › ');
+  const detached=detachedRunHealth(state);
+  if(detached && ['STARTING','RUNNING'].includes(String(detached.status||'').toUpperCase())) {
+    return 'HARNESS '+String(detached.phase||detached.status||'RUNNING')+' · detached';
+  }
+  const active=activeSpans(state);
+  if(active.length) {
+    return active.slice(-3).map(s=>(s.actor||'?')+(s.pid?' #'+s.pid:'')).join(' › ');
   }
   if(state.active_source) return state.active_source;
-  return 'safe locally · gateway not authoritative';
+  const external=currentExternalActivity(state);
+  const externalAge=external?.ts ? Math.max(0,Date.now()/1000-Number(external.ts)) : null;
+  if(external && externalAge!=null && externalAge<=10) return 'external MCP/RDC activity · unscoped';
+  const open=state.rdc?.open_count||0;
+  return open ? (open+' background open · gateway not authoritative') : 'safe locally · gateway not authoritative';
 }
 
 function renderActors(state) {
   const activity=state.actor_activity||{};
   const defs=[
-    ['MCP',''],
-    ['TERM',''],
+    ['MCP',state.rdc?.last_activity_seconds!=null?'RDC '+seconds(state.rdc.last_activity_seconds):''],
+    ['TERM',(state.rdc?.open_count||0)?String(state.rdc.open_count)+' open':''],
     ['OC',''],
     ['QWEN',''],
     ['LLAMA',String(state.llama||'').replace(/^slot\d+:/,'')],
@@ -114,6 +150,56 @@ function settingsCard(parent,text,buttons) {
   for(const [label,fn] of buttons){const b=document.createElement('button');b.textContent=label;b.addEventListener('click',fn);div.append(b);}
   parent.append(div);
 }
+async function refreshPreparedDispatch() {
+  const box=$('prepared-dispatch');
+  const button=$('dispatch-prepared');
+  const label=$('prepared-dispatch-label');
+  const status=$('prepared-dispatch-status');
+  try {
+    const s=await send({type:'dispatch-state'});
+    if(!s?.ready) { box.hidden=true; status.textContent=''; button.disabled=false; return; }
+    box.hidden=false;
+    label.textContent=(s.label||s.task_id||'Prepared task')+(s.goal?' — '+s.goal:'');
+    status.textContent='READY';
+    button.disabled=false;
+  } catch(e) {
+    box.hidden=true;
+  }
+}
+
+async function refreshConnectionRequests() {
+  const box=$('connection-requests');
+  try {
+    const s=await send({type:'state'});
+    box.replaceChildren();
+    const requests=s.consents||[];
+    box.hidden=requests.length===0;
+    for(const c of requests) {
+      const card=document.createElement('div'); card.className='card connection-request-card';
+      const title=document.createElement('strong'); title.textContent='Connection request: '+(c.name||'MCP client');
+      const detail=document.createElement('p');
+      detail.textContent='Callback: '+(c.redirectOrigin||'?')+'. Read explicitly shared Chrome pages only.';
+      const allow=document.createElement('button'); allow.className='primary'; allow.textContent='Allow';
+      const deny=document.createElement('button'); deny.textContent='Deny';
+      const decide=async allowValue=>{
+        allow.disabled=true; deny.disabled=true;
+        try {
+          await send({type:'consent',id:c.id,allow:allowValue});
+          await refreshConnectionRequests();
+        } catch(e) {
+          allow.disabled=false; deny.disabled=false;
+          $('error').textContent=e.message;
+        }
+      };
+      allow.addEventListener('click',()=>void decide(true));
+      deny.addEventListener('click',()=>void decide(false));
+      card.append(title,detail,allow,deny); box.append(card);
+    }
+  } catch(e) {
+    box.hidden=true;
+  }
+}
+
 async function refreshSettings() {
   try {
     const s=await send({type:'state'});
@@ -129,6 +215,19 @@ async function refreshSettings() {
   } catch(e){$('settings-error').textContent=e.message;}
 }
 
+function renderExtensionVersion(state) {
+  const loaded=chrome.runtime.getManifest().version;
+  const disk=state?.extension_version?.disk||null;
+  const label=$('extension-version');
+  const button=$('reload-version');
+  label.textContent='v'+loaded;
+  label.title='Loaded extension version '+loaded+(disk?' · disk '+disk:'');
+  const mismatch=Boolean(disk&&disk!==loaded);
+  button.hidden=!mismatch;
+  button.disabled=false;
+  button.textContent=mismatch ? ('Reload '+loaded+' → '+disk) : '';
+  button.dataset.targetVersion=mismatch?disk:'';
+}
 function appendKeyValues(parent, rows) {
   const frag=document.createDocumentFragment();
   for(const [key,value,cls] of rows) {
@@ -138,6 +237,73 @@ function appendKeyValues(parent, rows) {
   }
   parent.replaceChildren(frag);
 }
+function renderPreparedResult(state) {
+  const p=state.prepared_dispatch;
+  const section=$('prepared-result-section');
+  if(!p){section.hidden=true; $('prepared-result-summary').replaceChildren(); $('prepared-result-meta').textContent=''; return;}
+  section.hidden=false;
+  const corr=p.correlation_id?correlationShort(p.correlation_id):'-';
+  const files=Array.isArray(p.changed_files)?p.changed_files:[];
+  const rows=[
+    ['Result',p.result||p.run_status||p.status||'?'],
+    ['Task',p.task_id||'-'],
+    ['Correlation',corr],
+    ['Runtime',p.seconds!=null?seconds(p.seconds):'-'],
+    ['Executor',p.opencode_version?'OpenCode '+p.opencode_version:'-'],
+    ['Model',p.model||'-'],
+    ['Artifacts',files.length?files.join(', '):'-'],
+    ['Outcome',p.outcome_reason||p.worker_status||'-']
+  ];
+  appendKeyValues($('prepared-result-summary'),rows);
+  $('prepared-result-meta').textContent=(p.result||p.run_status||p.status||'?')+(p.seconds!=null?' · '+seconds(p.seconds):'');
+}
+function hoursRange(low,high) {
+  const lo=Number(low)||0, hi=Number(high)||0;
+  if(!hi) return '0 h';
+  return (lo===hi?String(lo):String(lo)+'–'+String(hi))+' h';
+}
+function renderProjectStatus(state) {
+  const p=state.project_status;
+  const section=$('project-status-section');
+  if(!p){section.hidden=true; return;}
+  section.hidden=false;
+  const critical=(p.critical_path||[]).map(t=>t.id+' '+t.percent+'%').join(' · ')||'-';
+  const milestone=p.next_milestone;
+  const rows=[
+    ['Overall',String(p.average_percent??0)+'% average across '+String(p.task_count??0)+' tracked tasks'],
+    ['Completed',String(p.complete_count??0)+' / '+String(p.task_count??0)],
+    ['Critical path',critical],
+    ['Next milestone',milestone?(milestone.id+' · '+milestone.title):'all configured milestones ready'],
+    ['Remaining ETA',hoursRange(p.remaining_eta_low_hours,p.remaining_eta_high_hours)+' backlog sum; not calendar time'],
+    ['Observed today',seconds(p.observed_today_active_seconds||0)+' active heuristic · '+seconds(p.observed_today_window_seconds||0)+' first→last event window']
+  ];
+  appendKeyValues($('project-status-summary'),rows);
+  $('project-status-meta').textContent=String(p.average_percent??0)+'% · '+String(p.complete_count??0)+'/'+String(p.task_count??0)+' done';
+}
+
+function renderDetachedRun(state) {
+  const section=$('detached-run-section');
+  const run=detachedRunHealth(state);
+  if(!run) { section.hidden=true; return; }
+  section.hidden=false;
+  const terminal=['DONE','ERROR','CANCELED'].includes(String(run.status||'').toUpperCase());
+  const ended=Date.parse(run.ended_at||'')/1000;
+  const finishedAge=Number.isFinite(ended)?Math.max(0,Date.now()/1000-ended):null;
+  $('detached-heartbeat').textContent=terminal
+    ? (finishedAge==null?'finished':'finished '+seconds(finishedAge)+' ago')
+    : (run.heartbeat_age_seconds==null?'heartbeat unknown':'heartbeat '+seconds(run.heartbeat_age_seconds)+' ago');
+  appendKeyValues($('detached-run-summary'),[
+    ['Controller',run.controller_id||'-'],
+    ['Status',run.status||'-'],
+    ['Phase',run.phase||'-'],
+    ['PID',run.pid==null?'-':String(run.pid)],
+    ['Ownership',run.owner||'-'],
+    ['Mode',run.mode||'-'],
+    ['Safe to interrupt',run.safe_to_interrupt||'-'],
+    ['Run dir',run.run_dir||'-']
+  ]);
+}
+
 function renderTaskLifecycle(state) {
   const task=state.task_lifecycle;
   const section=$('task-lifecycle-section');
@@ -152,6 +318,8 @@ function renderTaskLifecycle(state) {
     $('task-lifecycle-work').replaceChildren();
     return;
   }
+  const terminal=['DONE','ERROR','CANCELED'].includes(String(task.status||'').toUpperCase());
+  $('task-lifecycle-title').textContent=terminal?'Last task':'Current task';
   $('task-safety').textContent='safe to interrupt: '+String(task.safe_to_interrupt||'?');
   appendKeyValues($('task-lifecycle-summary'),[
     ['Task',task.task_id||'-'],
@@ -233,7 +401,7 @@ function renderHeader(state) {
 }
 function renderSpans(state) {
   const spans=recentSpans(state);
-  const openCount=openSpans(state).length;
+  const openCount=spans.filter(s=>!['DONE','ERROR','CANCELED','EXITED'].includes(s.status)).length;
   const frag=document.createDocumentFragment();
   for(const span of spans) {
     const row=document.createElement('div');
@@ -253,23 +421,173 @@ function renderSpans(state) {
   $('span-count').textContent=openCount+' open · '+Math.max(0,spans.length-openCount)+' recent';
   $('spans-section').hidden=spans.length===0;
 }
+function renderRdc(state) {
+  const rdc=state.rdc||{};
+  const box=$('rdc-activity'), meta=$('rdc-meta');
+  const rows=[];
+  if(rdc.last_tool) {
+    rows.push(['Last RDC',String(rdc.last_summary||rdc.last_tool)]);
+    rows.push(['Age',seconds(rdc.last_activity_seconds??0)+' ago']);
+  }
+  for(const proc of (rdc.open_processes||[])) {
+    rows.push(['PID '+String(proc.pid||'?')+' '+String(proc.status||'?'),compactMessage(proc.label||'process')]);
+  }
+  if(!rows.length) {
+    $('rdc-section').hidden=true; box.replaceChildren(); meta.textContent=''; return;
+  }
+  const frag=document.createDocumentFragment();
+  for(const [name,value] of rows) {
+    const row=document.createElement('div'); row.className='artifact-row';
+    const strong=document.createElement('strong'); strong.textContent=name+': ';
+    const span=document.createElement('span'); span.textContent=value;
+    row.append(strong,span); frag.append(row);
+  }
+  box.replaceChildren(frag);
+  meta.textContent=String(rdc.open_count||0)+' open';
+  $('rdc-section').hidden=false;
+}
+
+function correlationShort(value) {
+  return String(value||'').replace(/^corr:/,'').split('-')[0]||'?';
+}
+function latestTimelineEvent(state) {
+  const events=state.timeline||[];
+  return events.length?events.at(-1):null;
+}
+function latestCorrelatedEvent(state) {
+  const events=state.timeline||[];
+  for(let i=events.length-1;i>=0;i--) {
+    if(events[i].correlation?.correlation_id) return events[i];
+  }
+  return null;
+}
+function currentExternalActivity(state) {
+  const latest=latestTimelineEvent(state);
+  const correlated=latestCorrelatedEvent(state);
+  if(!latest || latest.correlation?.correlation_id) return null;
+  if(correlated && Number(latest.ts||0)<=Number(correlated.ts||0)) return null;
+  return latest;
+}
+
+function chooseTraceCorrelation(state) {
+  const events=state.timeline||[];
+  const active=(state.spans||[]).filter(s=>s.status==='RUNNING' && s.correlation?.correlation_id);
+  if(active.length) return active.at(-1).correlation.correlation_id;
+  for(let i=events.length-1;i>=0;i--) {
+    const corr=events[i].correlation?.correlation_id;
+    if(corr) return corr;
+  }
+  return null;
+}
+function traceDepth(spanId,parents) {
+  let depth=0, current=spanId, seen=new Set();
+  while(current && parents.get(current) && !seen.has(current) && depth<8) {
+    seen.add(current); current=parents.get(current); depth++;
+  }
+  return depth;
+}
+function renderTrace(state) {
+  const corr=chooseTraceCorrelation(state);
+  const external=currentExternalActivity(state);
+  const box=$('trace'), meta=$('trace-meta');
+  const title=$('trace-title');
+  if(external) {
+    title.textContent='Current external activity — unscoped';
+  } else {
+    title.textContent='Current / recent trace';
+  }
+  if(!corr) {
+    box.replaceChildren();
+    meta.textContent=external?'awaiting authoritative gateway':'no correlated trace';
+    $('trace-section').hidden=!external;
+    return;
+  }
+  const events=(state.timeline||[]).filter(e=>e.correlation?.correlation_id===corr);
+  const parents=new Map();
+  for(const event of events) {
+    const c=event.correlation||{};
+    if(c.span_id && c.parent_span_id) parents.set(c.span_id,c.parent_span_id);
+  }
+  const frag=document.createDocumentFragment();
+  for(const event of events.slice(-40)) {
+    const c=event.correlation||{};
+    const row=document.createElement('div'); row.className='trace-row';
+    const depth=traceDepth(c.span_id,parents); row.style.setProperty('--depth',String(depth));
+    const actor=document.createElement('span'); actor.className='trace-actor'; actor.textContent=event.source||'?';
+    const branch=document.createElement('span'); branch.className='trace-branch'; branch.textContent=depth?'↳':'•';
+    const msg=document.createElement('span'); msg.className='trace-msg'; msg.textContent=compactMessage(event.message||'');
+    row.title=[
+      'correlation='+corr,
+      c.run_id?'run='+c.run_id:null,
+      c.task_id?'task='+c.task_id:null,
+      c.span_id?'span='+c.span_id:null,
+      c.parent_span_id?'parent='+c.parent_span_id:null,
+      'source_quality='+(c.source_quality||'unknown')
+    ].filter(Boolean).join('\n');
+    row.append(branch,actor,msg); frag.append(row);
+  }
+  box.replaceChildren(frag);
+  const sourceQuality=events.map(e=>e.correlation?.source_quality).find(Boolean)||'unknown';
+  meta.textContent=(external?'Recent correlated trace ':'')+'['+correlationShort(corr)+'] · '+events.length+' events · '+sourceQuality;
+  meta.title=corr;
+  $('trace-section').hidden=false;
+}
+
+function compactPollingEvents(events) {
+  // Raw timeline must stay literal until semantic grouping can explain itself.
+  // Opaque ×N compaction made operator state harder, not easier, to understand.
+  return events.map(event=>({...event,repeat_count:1}));
+}
+function timelineConversationId(event) {
+  const c=event?.correlation||{};
+  return c.conversation_id||null;
+}
+function timelineEventsForScope(events,scope,binding) {
+  if(scope==='all') return [...events];
+  if(scope==='unscoped') return events.filter(event=>!timelineConversationId(event));
+  if(scope.startsWith('chat:')) {
+    const id=scope.slice(5);
+    return events.filter(event=>timelineConversationId(event)===id);
+  }
+  return [...events];
+}
 function renderTimeline(state) {
   const box=$('timeline');
-  const events=state.timeline||[];
+  const allEvents=state.timeline||[];
+  const events=timelineEventsForScope(allEvents,timelineScope,currentConversationBinding);
+  const compacted=compactPollingEvents(events);
   const keys=events.map(eventKey);
-  const unchanged=keys.length===renderedKeys.length && keys.every((key,i)=>key===renderedKeys[i]);
+  const unchanged=Array.isArray(renderedKeys) && keys.length===renderedKeys.length && keys.every((key,i)=>key===renderedKeys[i]);
   if(!unchanged) {
     for(const row of box.querySelectorAll('.event.expanded')) expandedKeys.add(row.dataset.key);
     const nearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<24;
     const frag=document.createDocumentFragment();
-    for(let i=0;i<events.length;i++) {
-      const event=events[i], key=keys[i];
+    for(let i=0;i<compacted.length;i++) {
+      const event=compacted[i], key=keys[i]||eventKey(event);
       const row=document.createElement('div'); row.className='event'; row.dataset.key=key; row.tabIndex=0;
       if(expandedKeys.has(key)) row.classList.add('expanded');
-      const time=document.createElement('span'); time.textContent=new Date((event.ts||0)*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      const time=document.createElement('span'); time.textContent=new Date((event.ts||0)*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
       const src=document.createElement('span'); src.className='src'; src.textContent=event.source;
-      const msg=document.createElement('span'); msg.className='msg'; msg.textContent=compactMessage(event.message||''); msg.title=event.message||'';
-      const full=document.createElement('div'); full.className='event-full'; full.textContent=event.message||'';
+      const c=event.correlation||{};
+      const prefix=c.correlation_id?'['+correlationShort(c.correlation_id)+'] '+(c.parent_span_id?'↳ ':''):'';
+      const msg=document.createElement('span'); msg.className='msg'; msg.textContent=prefix+compactMessage(event.message||''); msg.title=event.message||'';
+      const full=document.createElement('div'); full.className='event-full';
+      const provenance=[
+        event.message||'',
+        c.correlation_id ? 'correlation='+c.correlation_id : 'correlation=unknown',
+        c.run_id ? 'run='+c.run_id : null,
+        c.task_id ? 'task='+c.task_id : null,
+        c.plan_id ? 'plan='+c.plan_id : null,
+        c.span_id ? 'span='+c.span_id : null,
+        c.client ? 'client='+c.client : null,
+        c.conversation_id ? 'conversation='+c.conversation_id : null,
+        c.turn_id ? 'turn='+c.turn_id : null,
+        c.message_id ? 'message='+c.message_id : null,
+        c.action_id ? 'action='+c.action_id : null,
+        c.action_label ? 'action_label='+c.action_label : null,
+        'source_quality='+(c.source_quality||'unknown')
+      ].filter(Boolean);
+      full.textContent=provenance.join('\n');
       const toggle=()=>{ row.classList.toggle('expanded'); if(row.classList.contains('expanded')) expandedKeys.add(key); else expandedKeys.delete(key); };
       row.addEventListener('click',toggle);
       row.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); }});
@@ -279,28 +597,102 @@ function renderTimeline(state) {
     renderedKeys=keys;
     if(follow || nearBottom) { box.scrollTop=box.scrollHeight; follow=true; }
   }
-  $('position').textContent='LIVE '+events.length;
+  const current=currentConversationBinding?.conversation_id;
+  $('current-conversation').textContent=current ? 'chat '+String(current).slice(-8) : (timelineScope==='unscoped'?'without chat identity':'');
+  $('position').textContent='LIVE '+events.length+'/'+allEvents.length;
 }
 async function refresh() {
   try {
     const state=await send({type:'observer-state'});
+    try {
+      const conversationState=await send({type:'conversation-state'});
+      const cachedBindings=conversationState?.bindings||[];
+      const ledgerBindings=[];
+      for(const event of (state.timeline||[])) {
+        const id=timelineConversationId(event);
+        if(!id) continue;
+        const c=event.correlation||{};
+        ledgerBindings.push({
+          conversation_id:id,
+          title:event.meta?.title||'',
+          url:c.locator||event.meta?.url||'',
+          source_quality:c.source_quality||'unknown',
+          observedAt:event.ts||0
+        });
+      }
+      const byMergedId=new Map();
+      for(const binding of [...cachedBindings,...ledgerBindings]) {
+        if(!binding?.conversation_id) continue;
+        const prior=byMergedId.get(binding.conversation_id)||{};
+        byMergedId.set(binding.conversation_id,{...prior,...binding});
+      }
+      knownConversationBindings=[...byMergedId.values()];
+      const selector=$('timeline-scope');
+      if(selector) {
+        const previous=timelineScope;
+        const selectedId=previous.startsWith('chat:') ? previous.slice(5) : null;
+        selector.replaceChildren();
+        const all=document.createElement('option'); all.value='all'; all.textContent='All activity'; selector.append(all);
+        const unscoped=document.createElement('option'); unscoped.value='unscoped'; unscoped.textContent='Unscoped'; selector.append(unscoped);
+        const byId=new Map();
+        for(const binding of knownConversationBindings) if(binding?.conversation_id && !byId.has(binding.conversation_id)) byId.set(binding.conversation_id,binding);
+        for(const [id,binding] of byId) {
+          const opt=document.createElement('option');
+          opt.value='chat:'+id;
+          const title=String(binding.title||'').trim().replace(/\s+/g,' ');
+          opt.textContent=(title||'ChatGPT chat')+' · '+String(id).slice(-8);
+          selector.append(opt);
+        }
+        const wanted=selectedId && byId.has(selectedId) ? previous : (['all','unscoped'].includes(previous)?previous:'all');
+        selector.value=wanted;
+        timelineScope=wanted;
+        currentConversationBinding=timelineScope.startsWith('chat:') ? byId.get(timelineScope.slice(5))||null : null;
+      }
+    } catch {
+      knownConversationBindings=[];
+      currentConversationBinding=null;
+    }
     $('error').textContent='';
     lastState=state;
     renderHeader(state);
+    renderExtensionVersion(state);
     renderActors(state);
+    renderPreparedResult(state);
+    renderProjectStatus(state);
+    renderDetachedRun(state);
     renderTaskLifecycle(state);
     renderSpans(state);
+    renderRdc(state);
+    renderTrace(state);
     renderTimeline(state);
+    await refreshConnectionRequests();
+    await refreshPreparedDispatch();
   } catch(e) {
-    $('error').textContent=e.message;
-    $('state-label').textContent='OFFLINE';
+    const message=String(e?.message||e);
+    const degraded=message.includes('observer_unavailable')||message.includes('Observer snapshot is unavailable');
+    $('error').textContent=message;
+    $('state-label').textContent=degraded?'DEGRADED':'OFFLINE';
     $('state-dot').className='state-dot error';
-    $('active-chain').textContent='Observer unavailable';
+    $('active-chain').textContent=degraded?'Observer snapshot unavailable':'Companion unavailable';
   }
 }
+must('reload-version').addEventListener('click',async()=>{
+  const button=must('reload-version');
+  button.disabled=true;
+  try { await send({type:'reload-extension'}); }
+  catch { /* runtime reload can invalidate the message channel after acceptance */ }
+});
 must('timeline').addEventListener('scroll',()=>{
   const box=must('timeline');
   follow=box.scrollHeight-box.scrollTop-box.clientHeight<24;
+});
+must('timeline-scope').addEventListener('change',event=>{
+  timelineScope=event.target.value;
+  currentConversationBinding=timelineScope.startsWith('chat:')
+    ? knownConversationBindings.find(x=>x.conversation_id===timelineScope.slice(5))||null
+    : null;
+  renderedKeys=null;
+  if(lastState) renderTimeline(lastState);
 });
 void refresh();
 setInterval(()=>void refresh(),1500);
@@ -322,3 +714,39 @@ must('pause-actions').addEventListener('click',async()=>{
   catch(e){$('settings-error').textContent=e.message;}
 });
 must('open-options').addEventListener('click',()=>chrome.runtime.openOptionsPage());
+
+
+must('gateway-next').addEventListener('click',()=>{
+  $('help-panel').hidden=false;
+  $('gateway-next-action')?.scrollIntoView({block:'center'});
+  if(lastState){renderRunInspection(lastState);renderHeader(lastState);}
+});
+must('gw01-acceptance').addEventListener('click',async()=>{
+  const button=$('gw01-acceptance');
+  const status=$('gw01-acceptance-status');
+  button.disabled=true; status.textContent='Running…';
+  try {
+    const result=await send({type:'gw01-acceptance'});
+    const corr=String(result?.correlation_id||'').replace(/^corr:/,'').slice(0,8);
+    status.textContent=(result?.result||'DONE')+' · action→MCP '+String(result?.action_before_mcp_ms??'?')+' ms · ['+corr+']';
+    await refresh();
+  } catch(e) {
+    status.textContent=String(e?.message||e);
+  } finally {
+    button.disabled=false;
+  }
+});
+must('dispatch-prepared').addEventListener('click',async()=>{
+  const button=$('dispatch-prepared');
+  const status=$('prepared-dispatch-status');
+  button.disabled=true; status.textContent='Dispatching…';
+  try {
+    const result=await send({type:'dispatch-prepared'});
+    status.textContent='DISPATCHED'+(result?.pid?' · pid '+result.pid:'');
+    await refreshPreparedDispatch();
+    await refresh();
+  } catch(e) {
+    status.textContent=String(e?.message||e);
+    button.disabled=false;
+  }
+});

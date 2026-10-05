@@ -21,6 +21,10 @@ DEFAULT_MCP = Path.home() / ".claude-server-commander/tool-history.jsonl"
 DEFAULT_ACTORS = Path.home() / ".config/dzzk-jso-bridge/observer-actors.json"
 LOCAL_AGENT_STATE = Path.home() / ".local/state/execution-delivery-harness/local-agent.json"
 CURRENT_RUN_STATE = Path.home() / ".local/state/execution-delivery-harness/current-run.json"
+DETACHED_RUN_STATE = Path.home() / ".local/state/execution-delivery-harness/detached-run.json"
+PREPARED_DISPATCH_STATE = Path.home() / ".local/state/execution-delivery-harness/prepared-dispatch.json"
+HARNESS_OBSERVER_EVENTS = Path.home() / ".local/state/execution-delivery-harness/observer-events.jsonl"
+BROWSER_TURN_STATE = Path.home() / ".local/state/execution-delivery-harness/browser-turn-state.json"
 
 BUILTIN_ACTORS = [
     {"id":"MCP","label":"MCP","enabled":True},
@@ -68,6 +72,72 @@ def load_json(path: Path):
         return json.loads(path.read_text())
     except (OSError, ValueError):
         return None
+
+
+
+
+def parse_eta_hours(value):
+    text=str(value or '').strip().lower()
+    if text in ('','0 h','0h'): return (0.0,0.0)
+    unit=8.0 if 'd' in text else 1.0
+    nums=[float(x) for x in re.findall(r'\d+(?:\.\d+)?',text)]
+    if not nums: return (0.0,0.0)
+    if text.startswith('<'): return (0.0,nums[0]*unit)
+    if len(nums)==1: return (nums[0]*unit,nums[0]*unit)
+    return (nums[0]*unit,nums[1]*unit)
+
+
+def project_status(repo: Path, timeline):
+    tasks=[]
+    try:
+        for line in (repo/'TODO.md').read_text(errors='replace').splitlines():
+            m=re.match(r'^\|\s*([A-Z]+-\d+(?:\.\d+)?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(\d+)%\s*\|\s*([^|]+?)\s*\|',line)
+            if not m: continue
+            lo,hi=parse_eta_hours(m.group(6))
+            tasks.append({'id':m.group(1),'title':m.group(2).strip(),'signal':m.group(3).strip(),'size':m.group(4).strip(),'percent':int(m.group(5)),'eta':m.group(6).strip(),'eta_low_hours':lo,'eta_high_hours':hi})
+    except OSError:
+        pass
+    complete=sum(1 for t in tasks if t['percent']>=100)
+    average=round(sum(t['percent'] for t in tasks)/len(tasks)) if tasks else 0
+    remaining=[t for t in tasks if t['percent']<100]
+    eta_low=sum(t['eta_low_hours'] for t in remaining)
+    eta_high=sum(t['eta_high_hours'] for t in remaining)
+    critical=[next((t for t in tasks if t['id']==tid),None) for tid in ('GW-01','GW-02')]
+    critical=[t for t in critical if t]
+    readiness=load_json(repo/'project/readiness.json') or {}
+    next_milestone=None
+    for m in readiness.get('milestones',[]):
+        support=[next((t for t in tasks if t['id']==tid),None) for tid in m.get('supporting_tasks',[])]
+        if any(t is None or t['percent']<100 for t in support):
+            next_milestone={'id':m.get('id'),'title':m.get('title'),'supporting_incomplete':[t['id'] if t else '?' for t in support if t is None or t['percent']<100]}
+            break
+    now=time.time(); local_day=datetime.now().astimezone().date()
+    todays=sorted(x.get('ts') for x in timeline if x.get('ts') and datetime.fromtimestamp(x['ts']).astimezone().date()==local_day)
+    window=(todays[-1]-todays[0]) if len(todays)>1 else 0
+    active=0.0
+    for a,b in zip(todays,todays[1:]):
+        gap=max(0,b-a)
+        active+=min(gap,120.0)
+    return {'task_count':len(tasks),'complete_count':complete,'average_percent':average,'remaining_eta_low_hours':round(eta_low,1),'remaining_eta_high_hours':round(eta_high,1),'critical_path':critical,'next_milestone':next_milestone,'observed_today_window_seconds':round(window),'observed_today_active_seconds':round(active),'observed_event_count_today':len(todays),'time_semantics':'active is heuristic: event gaps capped at 120s; window is first-to-last observed event today'}
+
+
+def prepared_dispatch_summary():
+    state=load_json(PREPARED_DISPATCH_STATE)
+    if not isinstance(state,dict): return None
+    result={'status':state.get('status'),'label':state.get('label'),'goal':state.get('goal'),'task_id':state.get('task_id'),'controller_id':state.get('controller_id'),'run_dir':state.get('run_dir')}
+    run_dir=Path(state['run_dir']) if state.get('run_dir') else None
+    if not run_dir: return result
+    detached=load_json(run_dir/'detached-state.json') or {}
+    worker=load_json(run_dir/'worker-report.json') or {}
+    latest_report=None
+    reports=sorted((run_dir/'agent-runs').glob('*/report.json')) if (run_dir/'agent-runs').exists() else []
+    if reports: latest_report=load_json(reports[-1]) or {}
+    report=latest_report or worker
+    result.update({'run_status':detached.get('status'),'phase':detached.get('phase'),'worker_status':worker.get('status'),'correlation_id':worker.get('correlation_id') or report.get('correlation_id'),'seconds':report.get('seconds'),'model':report.get('model'),'opencode_version':report.get('opencode_version'),'changed_files':report.get('changed_files') or report.get('touched_files') or [],'outcome_reason':report.get('outcome_reason')})
+    if detached.get('status')=='DONE' and report.get('outcome_reason')=='acceptance_passed': result['result']='PASS'
+    elif detached.get('status') in ('ERROR','FAILED') or report.get('outcome_reason') in ('acceptance_failed','worker_failed'): result['result']='FAIL'
+    else: result['result']='RUNNING' if detached.get('status') in ('STARTING','RUNNING') else 'PENDING'
+    return result
 
 
 def actor_registry(path: Path = DEFAULT_ACTORS):
@@ -161,14 +231,218 @@ def tool_versions():
     return data
 
 
-def ev(ts, source, message):
-    return {"ts": ts or 0.0, "source": source, "message": " ".join(str(message).split())}
+def ev(ts, source, message, **extra):
+    value = {"ts": ts or 0.0, "source": source, "message": " ".join(str(message).split())}
+    value.update({k:v for k,v in extra.items() if v is not None})
+    return value
+
+
+def parse_harness_observer_events(path: Path = HARNESS_OBSERVER_EVENTS, limit=800):
+    timeline, spans = [], {}
+    if not path.exists():
+        return timeline, spans, set()
+    try:
+        text = path.read_text(errors="replace")
+        # Legacy observer writers emitted literal "\\n" between JSON objects.
+        # Normalize only object-boundary separators so old evidence remains parseable.
+        text = text.replace('}\\n{','}\n{')
+        lines = text.splitlines()[-limit:]
+    except OSError:
+        return timeline, spans, set()
+    terminal = {"DONE","ERROR","CANCELED","REQUEST_DONE","REQUEST_ERROR"}
+    starts = {"START","REQUEST_START"}
+    for raw in lines:
+        try:
+            item = json.loads(raw)
+        except ValueError:
+            continue
+        if not isinstance(item, dict):
+            continue
+        actor = str(item.get("actor") or "").upper()
+        event = str(item.get("event") or "")
+        if not actor:
+            continue
+        ts = to_epoch(item.get("ts"))
+        source = item.get("source") if isinstance(item.get("source"), dict) else {}
+        correlation = {
+            "correlation_id": item.get("correlation_id"),
+            "run_id": item.get("run_id"),
+            "plan_id": item.get("plan_id"),
+            "task_id": item.get("task_id"),
+            "span_id": item.get("span_id"),
+            "parent_span_id": item.get("parent_span_id"),
+            "client": source.get("client"),
+            "conversation_id": source.get("conversation_id"),
+            "turn_id": source.get("turn_id"),
+            "message_id": source.get("message_id"),
+            "action_id": source.get("action_id"),
+            "action_label": source.get("action_label"),
+            "source_quality": source.get("source_quality") or "unknown",
+        }
+        detail = item.get("message") or event
+        timeline.append(ev(ts, actor, f"{event} {detail}", correlation=correlation))
+        span_id = item.get("span_id")
+        if span_id:
+            if event in starts:
+                spans[span_id] = {
+                    "id": span_id, "actor": actor, "status": "RUNNING",
+                    "started": ts or 0.0, "updated": ts or 0.0, "ended": None,
+                    "label": detail, "detail": event,
+                    "correlation": correlation
+                }
+            elif event in terminal and span_id in spans:
+                spans[span_id].update(
+                    status="DONE" if event in ("DONE","REQUEST_DONE") else "ERROR",
+                    updated=ts or spans[span_id]["updated"],
+                    ended=ts or spans[span_id]["updated"],
+                    detail=event
+                )
+    active={span["actor"] for span in spans.values() if span.get("ended") is None}
+    return timeline, spans, active
+
+
+def browser_turn_windows(events_path: Path = HARNESS_OBSERVER_EVENTS, state_path: Path = BROWSER_TURN_STATE, limit=4000):
+    windows = {}
+    now = time.time()
+    if events_path.exists():
+        try:
+            text = events_path.read_text(errors="replace").replace('}\n{','}\n{')
+            lines = text.splitlines()[-limit:]
+        except OSError:
+            lines = []
+        for raw in lines:
+            try:
+                item = json.loads(raw)
+            except ValueError:
+                continue
+            if not isinstance(item, dict) or str(item.get("actor") or "").upper() != "CHAT":
+                continue
+            event = str(item.get("event") or "").upper()
+            if event not in {"TURN_START","TURN_ACTIVE","TURN_DONE"}:
+                continue
+            source = item.get("source") if isinstance(item.get("source"), dict) else {}
+            if source.get("source_quality") != "browser_observed":
+                continue
+            cid, tid = source.get("conversation_id"), source.get("turn_id")
+            ts = to_epoch(item.get("ts"))
+            if not cid or not tid or not ts:
+                continue
+            w = windows.setdefault(tid, {
+                "conversation_id": cid, "turn_id": tid, "start": ts,
+                "last_seen": ts, "end": None, "source_quality": "browser_observed"
+            })
+            w["conversation_id"] = cid
+            w["start"] = min(w.get("start") or ts, ts)
+            w["last_seen"] = max(w.get("last_seen") or ts, ts)
+            if event == "TURN_DONE":
+                w["end"] = ts
+
+    state = load_json(state_path) or {}
+    for active in state.get("active") or []:
+        if not isinstance(active, dict):
+            continue
+        cid, tid = active.get("conversation_id"), active.get("turn_id")
+        start = to_epoch(active.get("started_at"))
+        seen = to_epoch(active.get("last_seen_at"))
+        lease = to_epoch(active.get("lease_until"))
+        if not cid or not tid or not start or not lease or lease < now:
+            continue
+        w = windows.setdefault(tid, {
+            "conversation_id": cid, "turn_id": tid, "start": start,
+            "last_seen": seen or start, "end": lease, "source_quality": "browser_observed"
+        })
+        w.update(
+            conversation_id=cid,
+            start=min(w.get("start") or start, start),
+            last_seen=max(w.get("last_seen") or start, seen or start),
+            end=max(w.get("end") or 0, lease),
+            source_quality="browser_observed"
+        )
+
+    out = []
+    for w in windows.values():
+        end = w.get("end")
+        if end is None:
+            end = min(now, (w.get("last_seen") or w["start"]) + 15)
+        if end >= w["start"]:
+            out.append({**w, "end": end})
+    return out
+
+
+def infer_browser_turn_scope(events, windows):
+    for item in events:
+        if item.get("source") not in {"MCP","TERM"}:
+            continue
+        ts = item.get("ts") or 0
+        if not ts:
+            continue
+        correlation = item.get("correlation") if isinstance(item.get("correlation"), dict) else {}
+        if correlation.get("conversation_id"):
+            continue
+        matches = [w for w in windows if w["start"] <= ts <= w["end"]]
+        if len(matches) != 1:
+            continue
+        w = matches[0]
+        item["correlation"] = {
+            **correlation,
+            "conversation_id": w["conversation_id"],
+            "turn_id": w["turn_id"],
+            "source_quality": "browser_inferred",
+        }
+        item["attribution"] = "single_active_browser_turn"
+    return events
+
+
+def propagate_process_scope(events):
+    scoped = {}
+    for item in sorted(events, key=lambda x: x.get("ts") or 0):
+        key = item.get("process_key")
+        correlation = item.get("correlation") if isinstance(item.get("correlation"), dict) else {}
+        if key and correlation.get("conversation_id") and key not in scoped:
+            scoped[key] = {
+                "conversation_id": correlation.get("conversation_id"),
+                "turn_id": correlation.get("turn_id"),
+                "source_quality": correlation.get("source_quality") or "unknown",
+            }
+    for item in events:
+        key = item.get("process_key")
+        if not key or key not in scoped:
+            continue
+        correlation = item.get("correlation") if isinstance(item.get("correlation"), dict) else {}
+        if correlation.get("conversation_id"):
+            continue
+        root = scoped[key]
+        item["correlation"] = {
+            **correlation,
+            "conversation_id": root["conversation_id"],
+            "turn_id": root.get("turn_id"),
+            "source_quality": root.get("source_quality") or "browser_inferred",
+        }
+        item["attribution"] = "process_inherited_from_pid"
+    return events
 
 
 def parse_opencode(path: Path):
     out, last_ts, count = [], None, 0
     if not path.exists():
         return out, last_ts, count
+    context = load_json(path.parent / "event-context.json") or {}
+    source = context.get("source") if isinstance(context.get("source"), dict) else {}
+    base_correlation = {
+        "correlation_id": context.get("correlation_id"),
+        "run_id": context.get("run_id"),
+        "plan_id": context.get("plan_id"),
+        "task_id": context.get("task_id"),
+        "span_id": context.get("oc_span_id"),
+        "parent_span_id": context.get("parent_span_id"),
+        "client": source.get("client"),
+        "conversation_id": source.get("conversation_id"),
+        "turn_id": source.get("turn_id"),
+        "message_id": source.get("message_id"),
+        "action_id": source.get("action_id"),
+        "action_label": source.get("action_label"),
+        "source_quality": source.get("source_quality") or ("declared" if source else "unknown"),
+    }
     try:
         for raw in path.read_text(errors="replace").splitlines():
             if not raw.startswith("{"):
@@ -185,15 +459,28 @@ def parse_opencode(path: Path):
             if typ == "tool_use":
                 state = part.get("state") or {}
                 inp = state.get("input") or {}
+                if not isinstance(inp, dict):
+                    inp = {}
                 target = inp.get("filePath") or inp.get("path") or ""
-                out.append(ev(ts, "OC", f"{part.get('tool','?')} {state.get('status','?')} {target}"))
+                tool = str(part.get("tool") or "?")
+                status = str(state.get("status") or "?")
+                corr = dict(base_correlation)
+                corr["span_id"] = f"{context.get('oc_span_id') or 'oc'}:tool:{tool}"
+                corr["parent_span_id"] = context.get("oc_span_id")
+                out.append(ev(ts, "OC", f"{tool} {status} {target}", correlation=corr))
             elif typ == "step_finish":
                 tok = (part.get("tokens") or {}).get("output")
-                out.append(ev(ts, "OC", f"step finish={part.get('reason','?')} out={tok}"))
+                corr = dict(base_correlation)
+                corr["span_id"] = f"{context.get('oc_span_id') or 'oc'}:step"
+                corr["parent_span_id"] = context.get("oc_span_id")
+                out.append(ev(ts, "OC", f"step finish={part.get('reason','?')} out={tok}", correlation=corr))
             elif typ == "text":
                 txt = (part.get("text") or "").strip()
                 if txt:
-                    out.append(ev(ts, "QWEN", txt[:180]))
+                    corr = dict(base_correlation)
+                    corr["span_id"] = f"{context.get('oc_span_id') or 'oc'}:model-detail"
+                    corr["parent_span_id"] = context.get("oc_span_id")
+                    out.append(ev(ts, "QWEN", txt[:180], correlation=corr))
     except OSError:
         pass
     return out, last_ts, count
@@ -230,6 +517,7 @@ def summarize_mcp(rec):
 
 def parse_mcp_history(path: Path, limit=300):
     out, last_ts = [], None
+    latest_process = {}
     if not path.exists():
         return out, last_ts
     try:
@@ -242,7 +530,23 @@ def parse_mcp_history(path: Path, limit=300):
             ts = to_epoch(rec.get("timestamp"))
             if ts:
                 last_ts = max(last_ts or ts, ts)
-            out.append(ev(ts, "MCP", summarize_mcp(rec)))
+            tool = rec.get("toolName")
+            args = rec.get("arguments") or {}
+            pid = None
+            process_key = None
+            if tool == "start_process":
+                match = re.search(r"Process started with PID (\d+)", _history_text(rec))
+                if match and ts:
+                    pid = int(match.group(1))
+                    process_key = f"pid:{pid}@{int(ts * 1000)}"
+                    latest_process[pid] = process_key
+            elif tool in ("read_process_output","interact_with_process","kill_process","force_terminate"):
+                value = args.get("pid")
+                if isinstance(value, int):
+                    pid = value
+                    process_key = latest_process.get(pid)
+            out.append(ev(ts, "MCP", summarize_mcp(rec),
+                          tool=tool, process_id=pid, process_key=process_key))
     except OSError:
         pass
     return out, last_ts
@@ -255,6 +559,30 @@ def _history_text(rec):
     except Exception:
         return ""
 
+
+
+def mcp_activity(path: Path, limit=80):
+    if not path.exists():
+        return None
+    try:
+        lines = path.read_text(errors="replace").splitlines()[-limit:]
+    except OSError:
+        return None
+    for raw in reversed(lines):
+        try:
+            rec = json.loads(raw)
+        except ValueError:
+            continue
+        if not isinstance(rec, dict) or not rec.get("toolName"):
+            continue
+        ts = to_epoch(rec.get("timestamp"))
+        return {
+            "tool": str(rec.get("toolName")),
+            "summary": summarize_mcp(rec),
+            "timestamp": ts,
+            "duration_ms": rec.get("duration"),
+        }
+    return None
 
 def process_spans(path: Path, limit=800):
     spans = {}
@@ -279,9 +607,11 @@ def process_spans(path: Path, limit=800):
             if not match:
                 continue
             pid = int(match.group(1))
+            process_key = f"pid:{pid}@{int(ts * 1000)}"
             spans[pid] = {
                 "id": f"pid:{pid}",
                 "pid": pid,
+                "process_key": process_key,
                 "actor": "TERM",
                 "label": command_label(args.get("command","")),
                 "status": "RUNNING",
@@ -482,6 +812,7 @@ def snapshot(root: Path, repo: Path, commands: Path, mcp: Path):
     git, git_total = git_status(repo)
     actors = actor_registry()
     spans = process_spans(mcp)
+    activity = mcp_activity(mcp)
     data = {
         "now": datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %z"),
         "run": run.name if run else None,
@@ -501,10 +832,14 @@ def snapshot(root: Path, repo: Path, commands: Path, mcp: Path):
         "local_agent": local_agent,
         "run_inspection": None,
         "task_lifecycle": current_task_lifecycle(),
+        "detached_run": load_json(DETACHED_RUN_STATE),
+        "rdc": None,
     }
 
     timeline = parse_commands(commands)
     timeline += parse_custom_actor_events(actors)
+    harness_events, harness_spans, harness_active = parse_harness_observer_events()
+    timeline += harness_events
     mcp_events, mcp_last = parse_mcp_history(mcp)
     timeline += mcp_events
 
@@ -513,10 +848,12 @@ def snapshot(root: Path, repo: Path, commands: Path, mcp: Path):
     # operator has no TERM evidence below.
     for span in spans:
         timeline.append(ev(span.get("started"), "TERM",
-            f"START pid={span.get('pid')} {span.get('label','')}"))
+            f"START pid={span.get('pid')} {span.get('label','')}",
+            process_id=span.get("pid"), process_key=span.get("process_key")))
         if span.get("ended"):
             timeline.append(ev(span.get("ended"), "TERM",
-                f"{span.get('status')} pid={span.get('pid')} {span.get('detail','')}"))
+                f"{span.get('status')} pid={span.get('pid')} {span.get('detail','')}",
+                process_id=span.get("pid"), process_key=span.get("process_key")))
 
     if run:
         report = load_json(run / "report.json")
@@ -554,6 +891,10 @@ def snapshot(root: Path, repo: Path, commands: Path, mcp: Path):
         if local_agent.get("status") == "running" and "BUSY" in llama:
             timeline.append(ev(updated, "LLAMA", llama))
 
+    turn_windows = browser_turn_windows()
+    timeline = infer_browser_turn_scope(timeline, turn_windows)
+    timeline = propagate_process_scope(timeline)
+    data["browser_turn_windows"] = turn_windows
     data["timeline"] = sorted(timeline, key=lambda x: x["ts"])
     now = time.time()
     open_term = any(
@@ -566,14 +907,41 @@ def snapshot(root: Path, repo: Path, commands: Path, mcp: Path):
     for item in data["timeline"]:
         if item.get("ts"):
             recent[item.get("source")] = item["ts"]
+    # Actor truth is correlation-driven. Runtime BUSY is diagnostic state only;
+    # it does not prove that the work belongs to this Harness run.
+    open_background = [
+        {
+            "pid": s.get("pid"),
+            "status": s.get("status"),
+            "label": s.get("label"),
+            "started": s.get("started"),
+            "updated": s.get("updated"),
+            "age_seconds": s.get("age_seconds"),
+            "detail": s.get("detail"),
+        }
+        for s in spans
+        if s.get("ended") is None and s.get("status") in ("RUNNING","WAITING")
+    ]
+    activity_age = None
+    if activity and activity.get("timestamp"):
+        activity_age = max(0, int(now - activity["timestamp"]))
+    data["rdc"] = {
+        "last_tool": activity.get("tool") if activity else None,
+        "last_summary": activity.get("summary") if activity else None,
+        "last_activity_seconds": activity_age,
+        "last_duration_ms": activity.get("duration_ms") if activity else None,
+        "open_processes": open_background,
+        "open_count": len(open_background),
+    }
     data["actor_activity"] = {
-        "MCP": bool(recent.get("MCP") and now - recent["MCP"] <= 4),
+        "MCP": bool(activity_age is not None and activity_age <= 4),
         "TERM": open_term,
-        "OC": local_running or process_actor() == "OC",
-        "QWEN": local_running and "BUSY" in llama,
-        "LLAMA": "BUSY" in llama,
+        "OC": "OC" in harness_active or local_running or process_actor() == "OC",
+        "QWEN": "QWEN" in harness_active,
+        "LLAMA": "LLAMA" in harness_active,
         "GIT": bool(recent.get("GIT") and now - recent["GIT"] <= 4),
     }
+    data["harness_spans"] = sorted(harness_spans.values(), key=lambda x:x.get("started") or 0)
     return data
 
 
@@ -893,6 +1261,8 @@ def print_json(root, repo, commands, mcp):
     d = snapshot(root, repo, commands, mcp)
     merged = d["timeline"][-300:]
     active = active_source(d, merged)
+    status = project_status(repo, d["timeline"])
+    prepared = prepared_dispatch_summary()
     payload = {
         "now": d["now"],
         "run": d["run"],
@@ -911,7 +1281,11 @@ def print_json(root, repo, commands, mcp):
         "actors": d.get("actors", BUILTIN_ACTORS),
         "run_inspection": d.get("run_inspection"),
         "task_lifecycle": d.get("task_lifecycle"),
-        "spans": d.get("spans", [])[-40:],
+        "detached_run": d.get("detached_run"),
+        "rdc": d.get("rdc"),
+        "prepared_dispatch": prepared,
+        "project_status": status,
+        "spans": (d.get("spans", []) + d.get("harness_spans", []))[-60:],
         "timeline": merged,
     }
     print(json.dumps(payload, separators=(",", ":")))
