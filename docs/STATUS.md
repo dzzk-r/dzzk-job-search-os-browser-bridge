@@ -15,12 +15,12 @@ The local owner workflow is substantially implemented, but the repository is not
 
 - Package / Chrome / Firefox version: **0.1.3**
 - Active worktree: `chore/local-execution`
-- Git HEAD: `f9a5091`
+- Checkpoint base: `f9a5091`; stabilized checkpoint commits follow on `chore/local-execution`
 - Automated suite: **90/90 passing** on 2026-10-06
-- TODO aggregate: **58% average, 4/35 tasks at 100%**
+- TODO aggregate: **59% average, 4/35 tasks at 100%**
 - Milestone gate `owner-local-v0`: still blocked by unfinished Local Executor critical-path replacement / execution isolation work.
 
-The worktree is intentionally dirty pending stabilization and commit slicing. Do not treat HEAD alone as the current implementation state.
+The live-acceptance worktree has been classified and stabilized into separate implementation, evidence/knowledge, and documentation checkpoint commits. Bulk runtime run directories remain local-only; compact acceptance evidence is committed under `evidence/`.
 
 ## Verified locally
 
@@ -73,15 +73,16 @@ The browser lifecycle detector is only a bridge for the first causal edge. Once 
 
 If zero or multiple browser turns plausibly own an otherwise-unscoped event, the event remains Unscoped rather than being guessed from focus or timestamp alone.
 
-## Repository debt before further feature work
+## Repository checkpoint state
 
-Current live work accumulated multiple logical changes in one dirty worktree: Browser/GW/Observer, Local Executor/planner, knowledge/project context, prepared detached dispatch, docs/evidence and runtime-generated files. Before substantial new feature work:
+The 2026-10-06 live-acceptance pile has been stabilized:
 
-1. classify canonical source vs generated/disposable artifacts;
-2. remove disposable state such as Python bytecode;
-3. slice the worktree into reviewed logical commits;
-4. run tests per slice;
-5. push checkpoints on `chore/local-execution`;
-6. only then plan integration to `main`.
+1. executable code/tests and installable manifests are one implementation checkpoint;
+2. curated acceptance evidence and knowledge records are a separate checkpoint;
+3. project status/documentation are a separate checkpoint;
+4. Python bytecode and bulk runtime `runs/` are excluded from Git;
+5. full automated suite passes 91/91.
+
+Remaining repository work is to keep the checkpoint branch pushed and review integration into `main`; further feature work should not recreate a mixed uncommitted pile.
 
 See `TODO.md` for authoritative task state and `project/readiness.json` for milestone definitions.

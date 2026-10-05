@@ -62,10 +62,10 @@ See [Current status](docs/STATUS.md),
 [cross-cutting TODO](TODO.md).
 
 > **Repository state:** as of 2026-10-06 the active local worktree is
-> `chore/local-execution` at pushed HEAD `f9a5091`, but substantial live-acceptance
-> work is still uncommitted. `TODO.md` is the authoritative task catalog; the
-> dirty worktree must be stabilized and split into reviewed commits before merge
-> planning for `main`.
+> `chore/local-execution`. The live-acceptance delta after `f9a5091` has been
+> stabilized into separate implementation, evidence/knowledge, and documentation
+> checkpoint commits. `TODO.md` is the authoritative task catalog; integration
+> into `main` remains a separate reviewed step.
 
 ## Version 0.1.3 development baseline
 
@@ -217,7 +217,7 @@ Readiness is milestone-based, not an average of task percentages. The authoritat
 npm run project:readiness
 ```
 
-Current task-catalog aggregate on 2026-10-06: **58% average, 4/35 tasks at 100%**. This aggregate is informative only; milestone readiness remains gate-based.
+Current task-catalog aggregate on 2026-10-06: **59% average, 4/35 tasks at 100%**. This aggregate is informative only; milestone readiness remains gate-based.
 
 The current milestones are:
 

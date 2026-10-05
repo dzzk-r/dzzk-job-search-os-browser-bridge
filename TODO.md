@@ -47,13 +47,13 @@ Example: `CT-03` means the third tracked task in the **Clients / transports**
 workstream. The number does not imply that `CT-01` must finish before
 `CT-03` unless a dependency is stated in the task itself.
 
-Snapshot: 2026-10-06, branch `chore/local-execution`. Current worktree is intentionally dirty pending stabilization/commit slicing; percentages below reflect implementation truth, not commit hygiene.
+Snapshot: 2026-10-06, branch `chore/local-execution`. The live-acceptance worktree has been stabilized into separate implementation, evidence/knowledge, and documentation checkpoint commits; bulk runtime runs remain local-only.
 
 ## Cross-cutting plan
 
 | ID | Task | G/Y/R | Size | % | ETA | Current evidence / next sufficiency condition |
 | --- | --- | :---: | :---: | ---: | ---: | --- |
-| REP-01 | Canonical repo/worktree provenance and branch hygiene | 🟨 **Y** | S | 60% | 2-4 h | Canonical repo/worktree identity is known and branch `chore/local-execution` still points at pushed HEAD `f9a5091`, but the live-acceptance cycle accumulated a large uncommitted mixed diff (27 tracked dirty files plus untracked source/evidence/runtime artifacts). Remaining: classify generated vs canonical files, remove disposable state, slice the worktree into reviewed logical commits, push checkpoints, then integrate into `main` without overwriting newer canonical changes. |
+| REP-01 | Canonical repo/worktree provenance and branch hygiene | 🟩 **G** | S | 90% | 1-2 h | The mixed live-acceptance worktree was classified and stabilized: executable code/tests, curated evidence/knowledge, and project documentation are separate checkpoint commits; Python cache and bulk runtime `runs/` are excluded from Git while local provenance is preserved. Full suite is 91/91. Remaining: keep the checkpoint branch pushed and perform reviewed integration into `main` without overwriting newer canonical changes. |
 | BRW-01 | Explicit page-grant Browser Bridge baseline | 🟩 **G** | S | 90% | 1-2 h | Opaque 30-minute grants, navigation/reload/close/revoke invalidation and URL checks are tested. Remaining: live Facebook/other signed-in page end-to-end read through the final MCP client path. |
 | CHR-01 | Chrome Side Panel Observer + safe share controls | 🟨 **Y** | S | 95% | <1 h | Help now uses one `#help-toggle`, duplicate `runtime-grid` IDs are removed, runtime/help grids are distinct, and a focused regression test covers the wiring. The terminal child-run error no longer controls the whole Observer header. Remaining: Chrome Reload + visual acceptance of Help, `Current task`, and layout/nowrap. |
 | CHR-02 | Versioned extension reload UX | 🟩 **G** | XS | 100% | 0 h | 0.1.3 establishes a visible loaded-vs-disk version contract in the Chrome Side Panel. When versions differ the panel shows Reload <loaded> → <disk> and reload occurs only on explicit user click; gateway restart no longer implies extension reload. Chrome/Firefox/package versions are synchronized. |
