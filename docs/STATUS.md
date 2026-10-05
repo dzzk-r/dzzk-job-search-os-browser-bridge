@@ -1,111 +1,87 @@
-# Browser Bridge status
+# Execution Delivery Harness status
 
 ## Current stage
 
-This repository currently has two layers:
+Execution Delivery Harness currently has four working layers:
 
-1. **Read-only Browser Bridge** — the original page-sharing/MCP bridge.
-2. **Browser Bridge Observer** — the operator/observability layer developed on top
-   of the same local companion.
+1. **Read-only Browser Bridge** — explicit page-sharing and browser-read MCP contract.
+2. **Local Executor** — bounded filesystem/terminal/process operations behind explicit policy.
+3. **Browser Bridge Observer** — one global event ledger plus causal/run projections in TUI and Chrome Side Panel.
+4. **Gateway / orchestration substrate** — pre-dispatch correlation, prepared detached dispatch, durable lifecycle, knowledge/context injection and browser-observed ChatGPT conversation/turn evidence.
 
-The read-only bridge is the stable baseline. The observer is usable locally but
-is still under active development and is not yet an authoritative source of
-ChatGPT turn state.
+The local owner workflow is substantially implemented, but the repository is not yet release-clean and ChatGPT Web tool dispatch is still not authoritative end-to-end.
+
+## Current version and test baseline
+
+- Package / Chrome / Firefox version: **0.1.3**
+- Active worktree: `chore/local-execution`
+- Git HEAD: `f9a5091`
+- Automated suite: **90/90 passing** on 2026-10-06
+- TODO aggregate: **58% average, 4/35 tasks at 100%**
+- Milestone gate `owner-local-v0`: still blocked by unfinished Local Executor critical-path replacement / execution isolation work.
+
+The worktree is intentionally dirty pending stabilization and commit slicing. Do not treat HEAD alone as the current implementation state.
 
 ## Verified locally
 
-- Firefox read-only bridge synthetic smoke
-- Chrome unpacked extension with Side Panel
-- Firefox observer page
-- loopback companion pairing for Firefox and Chrome
-- Observer timeline from MCP history, terminal markers, OpenCode/Qwen, llama.cpp
-  and Git
-- process lifecycle reconstruction for tracked child PIDs
-- local OpenCode 1.14.48 and 1.18.34 compatibility smoke
-- active-actor UI and Open / Waiting view
+- Chrome unpacked extension with live Side Panel Observer.
+- Firefox read-only bridge synthetic smoke and observer surface.
+- Explicit page grants and browser read tools.
+- Local Executor filesystem/process primitives with deny-by-default client policy.
+- Observer timeline from MCP history, terminal lifecycle, OpenCode/Qwen, llama.cpp and Git.
+- Controlled CHAT→ACTION→TERM→OC→QWEN→LLAMA correlation for Harness-owned work.
+- Durable task lifecycle and detached prepared-dispatch path.
+- Real ChatGPT Web conversation identity derived from `/c/<conversation_id>`.
+- Named conversation scopes in Unified timeline; selecting a known conversation filters its scoped evidence.
+- Browser-observed ChatGPT TURN START/ACTIVE/DONE lifecycle and conservative single-active-turn attribution substrate.
+- PID/process descendants can inherit an already-scoped launch after the browser turn lease ends.
+- Versioned extension reload UX: loaded-vs-disk semver mismatch is shown in Side Panel; reload is explicit user action.
+- Gateway restart no longer implies extension reload.
+- Knowledge plane and project/task context injection for local planning.
 
-## Known limitations
+## Important current limitations
 
-- The observer cannot yet see an MCP call before Desktop Commander returns it to
-  history. Therefore it cannot authoritatively answer whether the current
-  ChatGPT turn is still executing.
-- ChatGPT's composer may appear ready while a background MCP/local execution
-  chain is still running.
-- A new user message may interrupt an unfinished tool turn.
-- PAUSE / BREAK / STOP ALL for the observer execution plane are designed but not
-  yet implemented.
-- Firefox Sidebar and Opera observer adapters are not yet verified.
-- Live LinkedIn DOM and live ChatGPT OAuth linking remain outside the currently
-  verified scope.
-- AMO signing/publication is not complete.
+- Platform-managed ChatGPT Web → RDC/MCP calls can still arrive without an authoritative conversation/turn marker. Such events remain **Unscoped** unless a trustworthy causal edge exists.
+- Browser-observed attribution is explicitly labeled `browser_observed` / `browser_inferred`; it is not transport authority.
+- Generic MCP operations such as `read_file`, `list_tabs` and `bridge_status` have no PID. PID propagation only helps after a process-producing call such as `start_process` has already been scoped.
+- Unified timeline is still noisy. Raw evidence is literal; semantic compaction of polling/diagnostic repetition remains unfinished.
+- Chrome Side Panel visual containment was repaired again during live acceptance and still needs final visual acceptance on the loaded 0.1.3 build.
+- PAUSE / BREAK / STOP ALL semantics are not complete.
+- Harness-owned semantic verifier/repair/escalation remains incomplete.
+- This ChatGPT Web session still uses Remote Desktop Commander for repository work; LOC-02 therefore remains open.
+- Firefox/Opera parity, AMO publication and public distribution are separate unfinished tracks.
 
-## Current debt / next cycle
+## Current architectural truth for chat attribution
 
-- Target flow is ChatGPT supervision plus Harness -> OpenCode -> local
-  model/runtime for routine bounded work; RDC is only fallback. This ChatGPT
-  Web chat still has no direct Harness MCP path.
-- Timeline is flat diagnostic history, not causal execution trace; no
-  grouping/navigation by source client/conversation/session/tab/specific
-  turn/message/step/run. Generic `MCP` history cannot currently be attributed to
-  Remote Desktop Commander or another host without extra source evidence.
-- A first durable task lifecycle now exists: JSON snapshot (`checkpoint.json`) +
-  append-only `lifecycle.jsonl` transitions, with plan/task IDs, phase,
-  completed/current/pending work, budget, waiting reason, durable checkpoint and
-  `safe_to_interrupt`. Observer payload and Chrome Side Panel have a first
-  Current task projection, pending Chrome Reload/live acceptance. Long worker
-  execution is still not fully detached from the originating chat turn.
-- Polling and observer self-noise (`read_process_output`, sleep/grep probes,
-  duplicated MCP/TERM events) dominate the default timeline. The target is a
-  semantic compact view with raw evidence only on drill-down, and a compact local
-  checkpoint for ChatGPT so routine runs do not require shipping full logs into
-  the architect context.
-- The confirmed Help wiring defects are now repaired in the worktree: one
-  `help-toggle`, distinct runtime/help grids, and a focused duplicate-ID/wiring
-  regression test. Chrome Reload/live visual acceptance and layout/nowrap remain.
-- Run files exist, but UI artifact-content inspection is incomplete and the
-  exact OpenCode-to-model serialized request is not captured.
-- Failure UI needs structured stage/actor/code/message/cause instead of only
-  overall FAILED.
-- 4-step default is wrapper policy, not model limit; a 6-step run also
-  exhausted, so budget design needs revision.
-- OpenCode reaches Harness OAuth after DCR compatibility repair, but latest
-  status still reports needs authentication.
-- The current `chore/local-execution` checkpoint passes npm test 36/36; this does not imply review or integration into `main`.
-- Qwen/OpenCode/llama.cpp is one owner profile, not a universal user stack.
-- Local planning now has a first executable slice: `scripts/local-planner.mjs`
-  accepts goal/evidence plus Harness-owned boundaries, calls local Qwen once, and
-  emits a schema-valid bounded `task.json`. A live Help-planning run completed as
-  `task_ready` in about 53 seconds. Model-authored acceptance is declarative
-  evidence only; Harness owns executable verification. A first
-  `run-task-envelope.mjs` worker adapter has now live-run the bounded Help task.
-  The worker made useful edits but reached `max_steps`; lifecycle correctly ended
-  as `ERROR/WORKER_FAILED` with `safe_to_interrupt=yes` and a durable worker
-  report. Harness-owned verification/escalation is still incomplete.
-- Current automated suite is 36/36 passing after lifecycle, planner-contract and focused Chrome Help regression tests.
+```text
+ChatGPT URL /c/<conversation_id>
+        |
+        v
+browser-observed turn / short ownership lease
+        |
+        v
+first scoped MCP/tool span
+        |
+        +--> non-process tool span identity
+        |
+        +--> start_process -> PID + start timestamp
+                          -> TERM lifecycle
+                          -> process_output / stop descendants
+```
 
-Next-cycle order: Chrome Reload/live acceptance of Help + Current task ->
-Harness-owned verification/escalation for validated worker runs -> replace coarse
-fixed-step budgeting -> artifact/prompt provenance -> component failure locus ->
-causal correlation/navigation -> direct Harness local-tool path -> portable profiles.
+The browser lifecycle detector is only a bridge for the first causal edge. Once a tool/span or process instance has trustworthy ancestry, normal span/PID propagation should carry the scope.
 
-## Source-of-truth warning
+If zero or multiple browser turns plausibly own an otherwise-unscoped event, the event remains Unscoped rather than being guessed from focus or timestamp alone.
 
-Local development may be ahead of GitHub. Before relying on the repository state,
-compare the current worktree with `origin/main` and check for uncommitted files.
+## Repository debt before further feature work
 
-As of 2026-10-04, `chore/local-execution` is the execution/checkpoint branch and
-may be ahead of `main`. Always inspect its HEAD and worktree status separately;
-no checkpoint on this branch implies approval to merge into `main`.
+Current live work accumulated multiple logical changes in one dirty worktree: Browser/GW/Observer, Local Executor/planner, knowledge/project context, prepared detached dispatch, docs/evidence and runtime-generated files. Before substantial new feature work:
 
-## Important paths
+1. classify canonical source vs generated/disposable artifacts;
+2. remove disposable state such as Python bytecode;
+3. slice the worktree into reviewed logical commits;
+4. run tests per slice;
+5. push checkpoints on `chore/local-execution`;
+6. only then plan integration to `main`.
 
-- Companion: `server/index.mjs`
-- Firefox extension: `firefox/`
-- Chrome extension: `chrome/`
-- Observer engine/TUI: `scripts/run-observer.py`
-- Local bounded agent: `scripts/local-agent.py`
-- Local planner: `scripts/local-planner.mjs`
-- Planning contract: `docs/LOCAL-PLANNING.md`
-- Planning schemas: `schemas/`
-- Observer architecture: `docs/OBSERVER-ARCHITECTURE.md`
-- Pairing token: `~/.config/dzzk-jso-bridge/pairing-token`
+See `TODO.md` for authoritative task state and `project/readiness.json` for milestone definitions.

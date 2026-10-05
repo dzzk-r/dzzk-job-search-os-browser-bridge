@@ -1,5 +1,34 @@
 # Browser Bridge execution rules
 
+## IP and external-disclosure boundary
+
+This rule is mandatory for ChatGPT, Codex, OpenCode/local models and every other
+agent or worker operating on this project.
+
+- `Local Shared Browser Pages` is a private/personal facade only. Registering or
+  receiving a real ChatGPT/App SDK identifier (for example `asdk_app_...`) permits
+  only the minimum private registration needed for local use. It is **not**
+  permission to submit for public review, publish, list, distribute or otherwise
+  make the app available to other users.
+- External app metadata must stay neutral and minimal. It may describe only the
+  four read-only facade tools: `bridge_status`, `list_tabs`, `read_page`, and
+  `find_in_page`, operating on pages the user explicitly shared.
+- Do not disclose, upload or attach project source, repository archives, private
+  architecture, unpublished capabilities, internal names, private paths, logs,
+  evidence bundles or design documents to an external app/provider registration
+  flow unless the user explicitly authorizes that exact disclosure in the current
+  task. Do not use the internal project name in external app metadata.
+- Do not upload a plugin/repository ZIP, submit to a public review/store, click
+  Publish, change visibility to public/shared/workspace-wide, or grant third-party
+  distribution without a separate explicit user instruction. Registration alone
+  never implies publication permission.
+- Never invent an external application identifier. Use only an identifier actually
+  issued by the provider for this private facade.
+- If any registration, authentication, review or deployment step requests more
+  information than the minimal facade contract above, stop before sending it and
+  show the user exactly what would be disclosed. When uncertain, default to
+  non-disclosure.
+
 ## Local planning before execution
 
 Routine work should not depend on ChatGPT manually authoring each worker prompt.

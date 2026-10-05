@@ -5,3 +5,6 @@ artifacts/
 *.log
 *.xpi
 *.zip
+__pycache__/
+*.pyc
+runs/

@@ -122,6 +122,20 @@ Generic MCP history does not prove which MCP host produced an event. The UI must
 not label an unattributed MCP event as Remote Desktop Commander, ChatGPT, or any
 other client without source evidence carried by the gateway/span.
 
+Events observed outside the Harness pre-dispatch boundary are **observed but
+unscoped**. In particular, ChatGPT Web calls made directly through Remote Desktop
+Commander currently arrive from completed RDC history without authoritative
+conversation/turn/message identity. The Observer must not assign those events a
+correlation ID by timestamp proximity or other heuristics. They remain external
+evidence until the client/tool dispatch enters GW-01 before execution.
+
+Execution evidence is untrusted input to the Observer. A malformed OpenCode event,
+truncated tool-call argument, unknown field type or corrupt diagnostic row may be
+rendered as degraded/invalid evidence, but must not make the whole observer
+snapshot unavailable. Observer parsing therefore fails open at event granularity.
+A failed snapshot is DEGRADED; OFFLINE is reserved for actual companion/transport
+unavailability or authentication failure.
+
 Failure reporting must use a structured record with at least stage, actor, code,
 message and cause, correlated to a run and span. An overall FAILED status is only
 a summary. Distinct failure classes that must remain distinguishable:
@@ -211,10 +225,43 @@ polling call. Repeated `read_process_output`, sleep/grep probes and duplicated
 MCP/TERM lifecycle observations should collapse into one span with state changes,
 progress and elapsed time. Raw events remain available as drill-down evidence.
 
+Do **not** represent this compaction as an opaque standalone `×N` cell or badge in
+the raw three-column timeline. That experiment hid event meaning and distorted the
+row layout. Compaction must be semantic and named: for example, `polling for 42s`,
+`3 identical permission failures`, or one lifecycle span whose state/elapsed time
+changes in place. If the UI cannot explain what was grouped, it must show the raw
+events instead. The raw Unified Timeline is therefore literal evidence; semantic
+grouping belongs in the operator-facing trace/span projection or an explicit
+expandable summary.
+
 The same rule applies to architect escalation: local execution should produce a
 small semantic checkpoint/report for ChatGPT. The architect should not need to
 consume the full raw event log on every run; raw log retrieval is reserved for
 failure diagnosis, disputed provenance or explicit inspection.
+
+### Conversation-root projections
+
+The observer keeps one append-only global event ledger. It must not split the
+source-of-truth into one physical log per chat merely for UI convenience. Instead,
+operator views are projections over an explicit conversation/chat root.
+
+When authoritative or transport-observed source identity is available, the default
+projection should be the current conversation. Operators may switch to other known
+conversations, `Unscoped`, or `All activity`. An event without trustworthy
+conversation identity must remain `Unscoped`; the observer must not assign it to
+the currently focused browser tab or infer ownership from timestamp proximity.
+
+Conversation provenance should carry a stable client/conversation identity plus a
+safe source locator when the transport really provides one. A source-chat locator
+is navigation metadata, not authority by itself. Opening a source conversation is
+always an explicit user action. Prefer opening in a new tab; focusing/reusing an
+existing tab may be offered separately. Never auto-navigate the active work tab.
+Only allow navigation to trusted, validated client origins; arbitrary event text
+must never become an executable/clickable URL.
+
+GW-01 owns the prerequisite: allocate/propagate conversation/turn/action identity
+before external tool dispatch. Until that boundary is authoritative, multi-chat
+projection may expose `Unscoped` activity but must not manufacture a chat root.
 
 ### Causal chain
 
@@ -355,3 +402,25 @@ Not yet implemented:
 - authoritative CHAT TURN BUSY state for in-flight Remote Desktop calls
 - PAUSE / BREAK / STOP ALL gateway controls
 - verified Firefox sidebar and Opera observer adapters
+
+## 2026-10-06 implemented conversation / process attribution layer
+
+The Chrome adapter now has a concrete non-authoritative bridge for ChatGPT Web while the full transport boundary remains unavailable:
+
+1. A ChatGPT tab contributes the real conversation root from its URL `/c/<conversation_id>`.
+2. The browser adapter may observe a turn lifecycle (`TURN_START`, `TURN_ACTIVE`, `TURN_DONE`) without reading message text.
+3. A short active-turn lease may assign otherwise-unscoped MCP/TERM evidence only when exactly one browser-observed turn is a valid owner. Such attribution is labeled `browser_inferred`.
+4. Once a scoped `start_process` returns a PID, downstream process evidence is propagated by **PID + process-start timestamp**, not by continuing to infer from browser state.
+5. If no turn or more than one turn plausibly owns an event, it remains `Unscoped`.
+
+This is intentionally a narrow bridge for the first causal edge:
+
+```text
+conversation URL -> browser turn -> first tool/span -> PID/process descendants
+```
+
+It does not make browser focus authoritative, and it does not convert generic RDC/MCP history into transport-observed ChatGPT identity. The target remains a pre-dispatch client/tool boundary that carries conversation/turn identity before execution.
+
+### Extension version / reload contract
+
+Development reload is now version-visible rather than implicit. Package, Chrome and Firefox manifests share semantic version `0.1.3`. The Side Panel compares the loaded extension version with the manifest version on disk; when they differ it shows an explicit `Reload <loaded> → <disk>` control. Gateway restart must not reload the extension. File-change revision is only a signal that a newer build exists; the loaded runtime changes only after explicit user action.

@@ -36,7 +36,7 @@ passed end-to-end validation.
 | Client surface | Transport into the harness | Current state | What must be true |
 | --- | --- | --- | --- |
 | **ChatGPT Web** | Remote HTTPS MCP endpoint, or OpenAI Secure MCP Tunnel to the private/local companion | **Not yet live-verified** | ChatGPT must be able to discover the MCP tools; private/local companion stays non-public when the secure tunnel path is used |
-| **ChatGPT Desktop** | Target A: a plugin containing a local MCP app on the Mac. Target B: the same remote/tunnel MCP path used by other OpenAI surfaces | **Documented target; not yet packaged or live-verified** | Local-plugin packaging must preserve the same tool/policy boundary; a local Desktop app does not make its tools available on web/mobile |
+| **ChatGPT Desktop Codex** | Local personal plugin `Local Shared Browser Pages` via STDIO facade -> loopback companion `/local/browser-call` | **Plugin injection and real `list_tabs` invocation verified; shared-tab acceptance still incomplete** | The Desktop Codex runtime can invoke the four browser-read tools. Its STDIO facade is a distinct transport path and must emit/preserve Harness trace metadata independently of the HTTP MCP path. ChatGPT Classic Desktop still did not inject this plugin in the observed runtime and remains a separate compatibility gap. |
 | **OpenAI API** | Responses API MCP tool using `server_url` for a reachable remote MCP server or `tunnel_id` for a private/local server through Secure MCP Tunnel | **Documented target; not yet live-verified** | The selected model/API surface must support MCP; approval/auth policy remains explicit |
 | **Generic MCP client** | Whatever MCP transport the client and harness both support; do not assume host-specific discovery or auth | **Protocol direction only; compatibility must be tested per host** | Tool names/contracts stay host-neutral; host-specific auth, approvals and transport live outside browser adapters |
 
@@ -111,3 +111,9 @@ A client path is **verified** only after tool discovery, authorization/policy,
 one browser read and one bounded local read have all completed through that
 client. Documentation or successful local unit tests alone do not mark the path
 verified.
+
+## ChatGPT Web browser-observed identity vs transport identity
+
+Chrome can now observe a real ChatGPT Web conversation root directly from the loaded page URL (`/c/<conversation_id>`) and can publish browser-observed chat / turn lifecycle into the common ledger. This is useful evidence and supports named conversation projections in the Side Panel.
+
+It does **not** mean that a platform-managed ChatGPT Web MCP/RDC call carries that conversation ID into the Harness transport. Until the first tool dispatch is causally bound to the browser-observed turn, external calls may remain `Unscoped`. Downstream process ancestry can then be propagated by span identity and PID/process-instance metadata once that first edge is established.

@@ -7,6 +7,10 @@ called **Browser Bridge Observer**.
 By Daniel Chechik / dzzk. Independent of Mozilla, Google, OpenAI, LinkedIn and
 Opera.
 
+> **AI/runtime disclosure rule:** ChatGPT, Codex and all project agents must follow
+> the mandatory IP/external-disclosure boundary in [`AGENTS.md`](AGENTS.md). Private
+> app registration never implies permission to publish or disclose project internals.
+
 ## Current development status
 
 The project currently has three working surfaces around one MCP boundary:
@@ -24,7 +28,7 @@ The read-only bridge is the baseline. The Observer is already usable locally in
 Chrome and Firefox, but it is still under active development and must **not** yet
 be treated as an authoritative indicator that the current ChatGPT turn is idle.
 
-Verified locally on 2026-10-03:
+Verified locally through 2026-10-06:
 
 - Firefox read-only bridge synthetic smoke;
 - Chrome unpacked extension with live Side Panel Observer;
@@ -33,6 +37,9 @@ Verified locally on 2026-10-03:
 - observer timeline from completed MCP history, terminal markers, OpenCode/Qwen,
   llama.cpp and Git;
 - child-process lifecycle reconstruction for tracked PIDs;
+- named ChatGPT conversation scopes derived from real `/c/<conversation_id>` URLs;
+- browser-observed turn lifecycle with conservative `browser_inferred` attribution;
+- versioned Side Panel reload UX for loaded-vs-disk extension versions;
 - OpenCode 1.14.48 and 1.18.34 bounded-edit compatibility smoke.
 
 Known limitations:
@@ -41,8 +48,9 @@ Known limitations:
   call can be temporarily invisible;
 - ChatGPT may look ready for a new message while an MCP/local execution chain is
   still running;
-- authoritative CHAT TURN BUSY/IDLE/STALLED state requires the planned
-  pre-dispatch MCP gateway / turn lease;
+- Harness-owned pre-dispatch correlation exists, and Chrome can observe real
+  ChatGPT conversation IDs plus browser turn lifecycle, but platform-managed
+  ChatGPT Web tool calls still lack authoritative end-to-end transport identity;
 - PAUSE / BREAK / STOP ALL for the observer execution plane are not implemented;
 - Firefox Sidebar and Opera observer adapters are not yet verified;
 - live LinkedIn DOM, live ChatGPT OAuth linking, AMO signing/publication and
@@ -53,11 +61,13 @@ See [Current status](docs/STATUS.md),
 [Clients and transports](docs/CLIENTS-AND-TRANSPORTS.md), and the
 [cross-cutting TODO](TODO.md).
 
-> **Repository state:** as of 2026-10-04 the active local worktree is
-> `chore/local-execution` and is pushed to `origin/chore/local-execution`.
-> It has not yet been reviewed/integrated into `main`.
+> **Repository state:** as of 2026-10-06 the active local worktree is
+> `chore/local-execution` at pushed HEAD `f9a5091`, but substantial live-acceptance
+> work is still uncommitted. `TODO.md` is the authoritative task catalog; the
+> dirty worktree must be stabilized and split into reviewed commits before merge
+> planning for `main`.
 
-## Version 0.1.1 baseline
+## Version 0.1.3 development baseline
 
 The MCP server exposes four read-only page tools:
 `list_tabs`, `read_page`, `find_in_page`, `bridge_status`.
@@ -169,7 +179,7 @@ npm run build
 FIREFOX_BIN=/path/to/firefox npm run test:firefox
 ```
 
-`dist/dzzk_job_search_os_browser_bridge-0.1.1.zip` is the unsigned AMO submission
+`dist/execution_delivery_harness_browser_bridge-0.1.3.zip` is the unsigned AMO submission
 package. An unsigned ZIP is not an approved AMO release. Firefox smoke testing
 uses a disposable profile and synthetic pages, never personal browser sessions.
 
@@ -185,3 +195,34 @@ support in this release is claimed. Other websites can be manually shared as
 ordinary pages; dedicated extraction and end-to-end compatibility need testing.
 
 MIT license. Support: GitHub issues. Do not post private browser data or tokens.
+
+
+## Knowledge Plane
+
+Harness keeps durable engineering knowledge outside any model. `knowledge/events.jsonl` stores append-only chronology; `knowledge/records/*.json` stores curated claims, decisions, constraints, lessons and evidence. The local planner retrieves a compact context bundle before calling Qwen and persists the exact bundle as `knowledge-context.json` in the run directory.
+
+```bash
+npm run knowledge:query -- "ChatGPT Desktop stdio plugin"
+npm run knowledge:context -- "CT-03 Chrome local MCP"
+```
+
+See [`knowledge/README.md`](knowledge/README.md).
+
+
+## Project readiness
+
+Readiness is milestone-based, not an average of task percentages. The authoritative work state remains `TODO.md`; `project/readiness.json` defines which tasks and dependencies must be complete for each delivery class.
+
+```bash
+npm run project:readiness
+```
+
+Current task-catalog aggregate on 2026-10-06: **58% average, 4/35 tasks at 100%**. This aggregate is informative only; milestone readiness remains gate-based.
+
+The current milestones are:
+
+- `owner-local-v0` — usable owner-local loop without Remote Desktop Commander on the critical path.
+- `portable-private-v0` — the same private contract works across intended clients.
+- `public-distribution-v1` — signed/public browser and ChatGPT/plugin distribution gates are satisfied.
+
+Planner runs persist `planning-context.json`, which records repo HEAD, current and related task state, readiness snapshot, and the IDs of retrieved knowledge records. This makes each model decision reconstructable later.
