@@ -555,7 +555,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.3');
+  assert.equal(manifest.version,'0.1.4');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -572,7 +572,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.3');
+  assert.equal(pkg.version,'0.1.4');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -591,4 +591,13 @@ test('chat-scope change invalidates timeline render cache even when filtered res
   assert.match(js,/let renderedKeys=null/);
   assert.match(js,/Array\.isArray\(renderedKeys\)/);
   assert.match(js,/timelineScope=event\.target\.value;[\s\S]*renderedKeys=null;[\s\S]*renderTimeline\(lastState\)/);
+});
+
+
+test('Unified timeline merges and labels the active ChatGPT conversation in its single selector', async () => {
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(js,/type:'conversation-current'/);
+  assert.match(js,/is_current:true/);
+  assert.match(js,/Current · /);
+  assert.doesNotMatch(js,/id=['"]chat-selector/);
 });

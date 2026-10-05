@@ -606,6 +606,8 @@ async function refresh() {
     const state=await send({type:'observer-state'});
     try {
       const conversationState=await send({type:'conversation-state'});
+      const currentConversationState=await send({type:'conversation-current'});
+      const activeBinding=currentConversationState?.binding ? {...currentConversationState.binding,is_current:true} : null;
       const cachedBindings=conversationState?.bindings||[];
       const ledgerBindings=[];
       for(const event of (state.timeline||[])) {
@@ -621,7 +623,7 @@ async function refresh() {
         });
       }
       const byMergedId=new Map();
-      for(const binding of [...cachedBindings,...ledgerBindings]) {
+      for(const binding of [...cachedBindings,...ledgerBindings,...(activeBinding?[activeBinding]:[])]) {
         if(!binding?.conversation_id) continue;
         const prior=byMergedId.get(binding.conversation_id)||{};
         byMergedId.set(binding.conversation_id,{...prior,...binding});
@@ -640,7 +642,7 @@ async function refresh() {
           const opt=document.createElement('option');
           opt.value='chat:'+id;
           const title=String(binding.title||'').trim().replace(/\s+/g,' ');
-          opt.textContent=(title||'ChatGPT chat')+' · '+String(id).slice(-8);
+          opt.textContent=(binding.is_current?'Current · ':'')+(title||'ChatGPT chat')+' · '+String(id).slice(-8);
           selector.append(opt);
         }
         const wanted=selectedId && byId.has(selectedId) ? previous : (['all','unscoped'].includes(previous)?previous:'all');
