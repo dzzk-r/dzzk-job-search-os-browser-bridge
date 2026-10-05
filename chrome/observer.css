@@ -87,7 +87,7 @@ body.observer { max-width:none; padding:0; background:Canvas; color:CanvasText; 
 /* Side-panel containment: no child may widen the Chrome panel. */
 html, body.observer { width:100%; max-width:100%; overflow-x:hidden; box-sizing:border-box; }
 .observer header, .observer main, .observer main > section { min-width:0; max-width:100%; box-sizing:border-box; }
-.status-line { grid-template-columns:auto auto auto minmax(0,1fr) auto auto auto; min-width:0; }
+.status-line { grid-template-columns:auto auto auto minmax(0,1fr) auto auto; min-width:0; }
 .status-line > * { min-width:0; }
 .section-head { min-width:0; max-width:100%; flex-wrap:wrap; justify-content:flex-start; }
 .section-head h2 { flex:0 0 auto; }
@@ -130,4 +130,25 @@ html, body.observer { width:100%; max-width:100%; overflow-x:hidden; box-sizing:
   grid-column:2;
   justify-self:end;
   margin-left:0;
+}
+
+
+.version-line {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  min-width:0;
+  margin-top:3px;
+  font:10px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+.version-line #observer-build,
+.version-line #extension-version {
+  flex:0 0 auto;
+}
+.version-line .version-reload {
+  flex:0 1 auto;
+  min-width:0;
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }

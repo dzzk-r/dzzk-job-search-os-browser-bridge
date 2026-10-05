@@ -13,14 +13,16 @@
       <strong id="state-label">LOADING</strong>
       <span id="state-age" class="state-age">--:--</span>
       <span id="active-chain" class="active-chain">observer</span>
-      <span id="observer-build" class="muted" title="Observer UI build">trace-ui12</span>
-      <span id="extension-version" class="muted" title="Loaded extension version"></span>
-      <button id="reload-version" class="version-reload" hidden></button>
       <button id="settings-toggle" class="icon-button" aria-label="Bridge settings" title="Bridge settings">⚙</button>
       <details id="help-toggle" class="help-toggle">
         <summary aria-label="Runtime details" title="Runtime details">?</summary>
         <div id="runtime-grid" class="runtime-grid"></div>
       </details>
+    </div>
+    <div class="version-line" aria-label="Extension version">
+      <span id="observer-build" class="muted" title="Observer UI build">trace-ui12</span>
+      <span id="extension-version" class="muted" title="Loaded extension version"></span>
+      <button id="reload-version" class="version-reload" hidden></button>
     </div>
     <div id="truth-note" class="truth-note"><span>Current ChatGPT/MCP dispatch is not authoritative until the gateway exists.</span> <button id="gateway-next" class="link-button">Gap: ChatGPT turn → Harness gateway</button></div>
     <div id="prepared-dispatch" class="truth-note" hidden><strong>Prepared Harness task:</strong> <span id="prepared-dispatch-label"></span> <button id="dispatch-prepared" class="primary">Dispatch prepared task</button> <span id="prepared-dispatch-status" class="muted"></span></div>
