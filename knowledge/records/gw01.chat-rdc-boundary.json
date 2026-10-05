@@ -1,0 +1,18 @@
+{
+  "schema_version":"1.0",
+  "id":"gw01.chat-rdc-boundary",
+  "kind":"constraint",
+  "title":"ChatGPT Web to RDC is external observation until it enters the Harness gateway",
+  "summary":"Local Harness planner/worker work has authoritative correlation, while ChatGPT Web calls made directly through Remote Desktop Commander remain post-hoc external observations without trustworthy turn/message parentage.",
+  "status":"active",
+  "claims":["Do not synthesize correlation for RDC rows from timestamp proximity.","Harness-owned work already carries correlation through local model and worker actors.","The primary remaining provenance gap is pre-dispatch ChatGPT turn/tool identity for external RDC/MCP calls."],
+  "decision":"Move ChatGPT external tool dispatch behind GW-01 rather than heuristically decorating completed RDC history.",
+  "rationale":"Correlation is causal baggage allocated before work starts, not a visualization label inferred afterward.",
+  "tags":["gw-01","obs-04","rdc","chatgpt-web","correlation","provenance"],
+  "entities":["Execution Delivery Harness","ChatGPT Web","Remote Desktop Commander"],
+  "evidence":[{"type":"file","ref":"evidence/gw-01-chat-rdc-boundary-20261005.json"}],
+  "supersedes":[],
+  "created_at":"2026-10-05T07:58:00Z",
+  "updated_at":"2026-10-05T07:58:00Z",
+  "context":{"scope":"task","task_ids":["GW-01","OBS-04","LOC-02"],"source_artifacts":["TODO.md","docs/OBSERVER-ARCHITECTURE.md","docs/CLIENTS-AND-TRANSPORTS.md"]}
+}

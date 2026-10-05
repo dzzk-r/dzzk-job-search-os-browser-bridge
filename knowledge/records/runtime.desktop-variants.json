@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0",
+  "id": "runtime.desktop-variants",
+  "kind": "constraint",
+  "title": "ChatGPT Desktop variants have different plugin capability",
+  "summary": "The Codex/OWL Desktop build accepted the local plugin path; ChatGPT Classic 1.2026.184 did not provide the same installation capability during CT-03.",
+  "status": "tentative",
+  "claims": [
+    "CT-03 primary acceptance runtime is ChatGPT Powered by Codex & OWL 26.930.31730.",
+    "Classic remains a separate compatibility track until verified."
+  ],
+  "decision": "Do not block CT-03 on Classic compatibility.",
+  "rationale": "Primary acceptance should close on the runtime that exposes local plugin installation.",
+  "tags": [
+    "chatgpt-desktop",
+    "compatibility",
+    "codex-owl",
+    "classic"
+  ],
+  "entities": [
+    "ChatGPT Powered by Codex & OWL 26.930.31730",
+    "ChatGPT Classic 1.2026.184"
+  ],
+  "evidence": [
+    {
+      "type": "observation",
+      "ref": "Desktop plugin installation",
+      "note": "User installed local plugin in Codex/OWL build but not Classic."
+    }
+  ],
+  "supersedes": [],
+  "created_at": "2026-10-04T22:43:49.974592Z",
+  "updated_at": "2026-10-04T22:43:49.974592Z",
+  "context": {
+    "scope": "repository",
+    "repo": {
+      "name": "execution-delivery-harness",
+      "worktree": "_bridge-local-execution",
+      "branch": "chore/local-execution",
+      "head": "f9a50913fc5ebd3dd42435923e41677cbb813171"
+    },
+    "task_ids": [
+      "CT-03",
+      "CT-06"
+    ],
+    "plan_id": null,
+    "run_id": null,
+    "source_artifacts": [
+      "TODO.md",
+      "knowledge/events.jsonl"
+    ]
+  }
+}

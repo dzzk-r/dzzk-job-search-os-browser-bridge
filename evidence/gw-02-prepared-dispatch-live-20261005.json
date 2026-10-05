@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "id": "gw-02-prepared-dispatch-live-20261005",
+  "task_id": "GW-02-PREPARED-DISPATCH-ACCEPT",
+  "result": "PASS",
+  "controller_id": "detached:959a364c-4049-4b89-9f86-ba94cb9d8b9e",
+  "correlation_id": "corr:678119df-3da0-41b9-a940-eeacd6e4e24d",
+  "runtime_seconds": 57.79,
+  "executor": {
+    "name": "OpenCode",
+    "version": "1.14.48"
+  },
+  "model": "llamacpp/qwen3.8-27b",
+  "outcome_reason": "acceptance_passed",
+  "artifact": "artifacts/gw02-prepared-dispatch-acceptance.txt",
+  "artifact_exact": "PREPARED_DISPATCH_ACCEPTANCE=PASS\n",
+  "path": "Side Panel prepared task button -> companion prepared dispatch -> detached gateway -> OpenCode/Qwen/llama.cpp -> artifact",
+  "notes": [
+    "UI control returned while detached Harness run continued independently.",
+    "One correlation covered the Harness-owned worker chain.",
+    "Direct Web ChatGPT/RDC activity outside the gateway remains unscoped and is still the primary GW-01 boundary."
+  ]
+}

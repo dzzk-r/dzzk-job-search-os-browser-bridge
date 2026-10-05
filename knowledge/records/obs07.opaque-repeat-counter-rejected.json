@@ -1,0 +1,74 @@
+{
+  "schema_version": "1.0",
+  "id": "obs07.opaque-repeat-counter-rejected",
+  "kind": "decision",
+  "title": "Opaque xN repeat cells are rejected for Observer raw timeline",
+  "summary": "The standalone ×N repeat-cell experiment is rejected. Raw Unified Timeline must remain literal evidence; repetition may be compacted only when the UI names what was grouped and preserves drill-down.",
+  "status": "active",
+  "claims": [
+    "Standalone ×N markers hide which events were grouped and make the row/grid harder to read.",
+    "Raw Unified Timeline is evidence and should remain literal when semantic meaning cannot be preserved.",
+    "Semantic compaction belongs in trace/span/expandable summaries, not as an unexplained extra column.",
+    "Acceptable summaries name the grouping, e.g. polling for 42s, 3 identical permission failures, or one lifecycle span with state and elapsed time."
+  ],
+  "decision": "Do not reintroduce opaque repeat counters in the raw timeline. Implement named semantic grouping with explicit drill-down or show the raw events.",
+  "rationale": "Operator comprehension is more important than reducing row count. Compression that removes provenance or meaning is worse than noise.",
+  "tags": [
+    "obs-07",
+    "observer",
+    "timeline",
+    "semantic-compaction",
+    "ux",
+    "rejected-pattern"
+  ],
+  "entities": [
+    "Execution Delivery Harness Observer",
+    "Unified Timeline",
+    "Current/recent trace"
+  ],
+  "evidence": [
+    {
+      "type": "file",
+      "ref": "evidence/obs07-local-cycle-02-verifier-failure.json",
+      "note": "First failed compaction attempt."
+    },
+    {
+      "type": "file",
+      "ref": "evidence/obs07-local-cycle-03-verifier-failure.json",
+      "note": "Repeat-count/grid semantics failed acceptance."
+    },
+    {
+      "type": "file",
+      "ref": "docs/OBSERVER-ARCHITECTURE.md",
+      "note": "Architecture rule now explicitly rejects opaque ×N cells."
+    },
+    {
+      "type": "file",
+      "ref": "TODO.md",
+      "note": "OBS-07 now carries the rejected-pattern rule and replacement semantics."
+    }
+  ],
+  "supersedes": [],
+  "created_at": "2026-10-05T19:21:48Z",
+  "updated_at": "2026-10-05T19:21:48Z",
+  "context": {
+    "scope": "task",
+    "repo": {
+      "name": "execution-delivery-harness",
+      "worktree": "_bridge-local-execution",
+      "branch": "chore/local-execution",
+      "head": "f9a50913fc5ebd3dd42435923e41677cbb813171"
+    },
+    "task_ids": [
+      "OBS-07"
+    ],
+    "plan_id": null,
+    "run_id": null,
+    "source_artifacts": [
+      "TODO.md",
+      "docs/OBSERVER-ARCHITECTURE.md",
+      "evidence/obs07-local-cycle-02-verifier-failure.json",
+      "evidence/obs07-local-cycle-03-verifier-failure.json"
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version":"1.0",
+  "id":"pl03.semantic-verifier-required",
+  "kind":"lesson",
+  "title":"Worker termination reason is not the same as semantic task outcome",
+  "summary":"The live OBS-02 worker created the only permitted artifact with the required PASS marker, yet the wrapper reported worker_failed because max_steps_reached occurred after the useful edit.",
+  "status":"active",
+  "claims":[
+    "artifacts/observer-worker-acceptance.txt contained OBSERVER_WORKER_ACCEPTANCE=PASS.",
+    "The worker report recorded changed_files containing only the permitted artifact.",
+    "The wrapper still returned worker_failed/max_steps_reached."
+  ],
+  "decision":"PL-03 verifier must evaluate acceptance evidence independently of worker termination reason, then choose done, one bounded repair, or compact escalation.",
+  "rationale":"Transport/step-budget termination can occur after acceptance evidence has already been produced; treating termination alone as semantic failure creates false negatives.",
+  "tags":["pl-03","verifier","acceptance","max-steps","worker","escalation"],
+  "entities":["Execution Delivery Harness verifier","OpenCode worker"],
+  "evidence":[
+    {"type":"file","ref":"evidence/obs-02-worker-live-20261005.json","note":"Contains both acceptance artifact evidence and worker_failed/max_steps_reached outcome."},
+    {"type":"file","ref":"artifacts/observer-worker-acceptance.txt","note":"Contains OBSERVER_WORKER_ACCEPTANCE=PASS."}
+  ],
+  "supersedes":[],
+  "created_at":"2026-10-05T05:53:00Z",
+  "updated_at":"2026-10-05T05:53:00Z",
+  "context":{"scope":"task","repo":{"name":"execution-delivery-harness","worktree":"_bridge-local-execution","branch":"chore/local-execution","head":"f9a50913fc5ebd3dd42435923e41677cbb813171"},"task_ids":["PL-03","LLM-01"],"plan_id":"obs-02-real-worker-acceptance","run_id":"worker:OBS-02-WORKER-ACCEPT","source_artifacts":["TODO.md","evidence/obs-02-worker-live-20261005.json","docs/OBS-02-LIVE-ACCEPTANCE-2026-10-05.md","knowledge/events.jsonl"]}
+}

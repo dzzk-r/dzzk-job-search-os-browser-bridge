@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0",
+  "id": "ct03.sidepanel-consent",
+  "kind": "lesson",
+  "title": "OAuth consent must be visible in the actual Side Panel workflow",
+  "summary": "The settings page clears the pairing-token input after configuration and is not the OAuth consent UI. Pending connection requests must surface directly in the Observer Side Panel.",
+  "status": "active",
+  "claims": [
+    "An empty pairing-token input does not imply an unpaired extension.",
+    "Consent cards are rendered in the main Chrome Side Panel when pending."
+  ],
+  "decision": "Surface Connection request / Allow / Deny directly in Observer Side Panel.",
+  "rationale": "The toolbar-popup-only consent path was invisible in the user's normal workflow.",
+  "tags": [
+    "ct-03",
+    "ux",
+    "oauth",
+    "side-panel",
+    "chrome"
+  ],
+  "entities": [
+    "Chrome Side Panel",
+    "Browser Bridge Observer"
+  ],
+  "evidence": [
+    {
+      "type": "test",
+      "ref": "Chrome Observer surfaces MCP connection consent in the main side panel"
+    }
+  ],
+  "supersedes": [],
+  "created_at": "2026-10-04T22:43:49.974592Z",
+  "updated_at": "2026-10-04T22:43:49.974592Z",
+  "context": {
+    "scope": "task",
+    "repo": {
+      "name": "execution-delivery-harness",
+      "worktree": "_bridge-local-execution",
+      "branch": "chore/local-execution",
+      "head": "f9a50913fc5ebd3dd42435923e41677cbb813171"
+    },
+    "task_ids": [
+      "CT-03",
+      "CHR-01"
+    ],
+    "plan_id": null,
+    "run_id": null,
+    "source_artifacts": [
+      "TODO.md",
+      "knowledge/events.jsonl"
+    ]
+  }
+}

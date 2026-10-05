@@ -1,0 +1,34 @@
+{
+  "schema_version":"1.0",
+  "id":"obs-07-rdc-background-visibility-20261005",
+  "implemented":[
+    "Observer snapshot now exposes an rdc object derived from Desktop Commander tool history.",
+    "The rdc object includes last tool, summary, age, duration, open background processes and open_count.",
+    "Chrome Observer trace-ui4 renders a Remote Desktop / background section.",
+    "MCP actor detail shows age of the most recent RDC tool observation.",
+    "TERM actor detail shows the number of open background processes.",
+    "Header remains IDLE for quiet background services but reports N background open instead of pretending nothing is running."
+  ],
+  "semantics":{
+    "MCP_RDC_ACTIVE":"recent observed Desktop Commander tool activity",
+    "TERM_RUNNING":"process has recent activity",
+    "TERM_WAITING_OPEN":"process is alive but quiet; visible as background and does not make the whole Harness BUSY"
+  },
+  "limitations":[
+    "Desktop Commander tool-history records a tool invocation after it completes, so a currently executing read_file/edit/write cannot be represented as START without instrumenting RDC itself.",
+    "start_process becomes observable once RDC returns its PID; the child process remains visible while alive."
+  ],
+  "verified":{
+    "snapshot_example":{"open_count":1,"pid":55370,"status":"WAITING"},
+    "focused_ui_tests":"19/19 pass",
+    "full_suite":"54/54 pass",
+    "observer_build":"trace-ui4"
+  },
+  "source_artifacts":[
+    "scripts/run-observer.py",
+    "chrome/observer.html",
+    "chrome/observer.js",
+    "tests/extension.mjs",
+    "~/.claude-server-commander/tool-history.jsonl"
+  ]
+}

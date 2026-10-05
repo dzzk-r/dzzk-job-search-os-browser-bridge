@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0",
+  "id": "ct03.http-registry-vs-conversation",
+  "kind": "lesson",
+  "title": "Codex MCP registry visibility is not ChatGPT conversation tool exposure",
+  "summary": "Seeing a server in codex mcp list as enabled/OAuth does not prove that a ChatGPT conversation runtime can invoke its tools.",
+  "status": "active",
+  "claims": [
+    "Plugin installation, MCP authentication and conversation tool exposure are distinct gates."
+  ],
+  "decision": null,
+  "rationale": "CT-03 repeatedly passed registry/auth checks while new ChatGPT chats still lacked bridge_status/list_tabs.",
+  "tags": [
+    "ct-03",
+    "chatgpt",
+    "codex",
+    "tool-registry",
+    "lesson"
+  ],
+  "entities": [
+    "Codex",
+    "ChatGPT conversation runtime"
+  ],
+  "evidence": [
+    {
+      "type": "observation",
+      "ref": "CT-03 acceptance attempts",
+      "note": "Desktop chats reported only Opera tools while Codex listed local-shared-browser-pages."
+    }
+  ],
+  "supersedes": [],
+  "created_at": "2026-10-04T22:43:49.974592Z",
+  "updated_at": "2026-10-04T22:43:49.974592Z",
+  "context": {
+    "scope": "task",
+    "repo": {
+      "name": "execution-delivery-harness",
+      "worktree": "_bridge-local-execution",
+      "branch": "chore/local-execution",
+      "head": "f9a50913fc5ebd3dd42435923e41677cbb813171"
+    },
+    "task_ids": [
+      "CT-03"
+    ],
+    "plan_id": null,
+    "run_id": null,
+    "source_artifacts": [
+      "TODO.md",
+      "knowledge/events.jsonl"
+    ]
+  }
+}

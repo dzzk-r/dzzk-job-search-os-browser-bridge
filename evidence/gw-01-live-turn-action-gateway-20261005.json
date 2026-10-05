@@ -1,0 +1,54 @@
+{
+  "schema_version":"1.0",
+  "id":"gw-01-live-turn-action-gateway-20261005",
+  "status":"causal_trace_accepted",
+  "correlation_id":"corr:c9d51db6-6131-4157-94ea-730f58d3c109",
+  "turn_id":"gw01-live-acceptance-20261005",
+  "action_label":"Create GW-01 gateway acceptance marker through local OpenCode/Qwen worker",
+  "observed_chain":[
+    "CHAT START",
+    "ACTION START",
+    "TERM START",
+    "OC START",
+    "QWEN START",
+    "LLAMA REQUEST_START",
+    "OC tool/step events",
+    "LLAMA REQUEST_ERROR",
+    "QWEN ERROR",
+    "OC ERROR",
+    "TERM ERROR",
+    "ACTION ERROR",
+    "CHAT ERROR"
+  ],
+  "parentage":{
+    "ACTION":"CHAT",
+    "TERM":"ACTION",
+    "OC":"TERM",
+    "QWEN":"OC",
+    "LLAMA":"QWEN"
+  },
+  "provenance":{
+    "conversation_id":"execution-delivery-harness",
+    "turn_id":"gw01-live-acceptance-20261005",
+    "action_id":"action:5f9c74ba-4a78-407c-bc13-f21989714902",
+    "action_label":"Create GW-01 gateway acceptance marker through local OpenCode/Qwen worker",
+    "source_quality":"declared"
+  },
+  "worker_outcome":{
+    "status":"worker_failed",
+    "reason":"max_steps_reached",
+    "changed_files":[],
+    "note":"Worker semantic outcome failed, but gateway causal tracing itself was accepted because the entire failure lifecycle remained on one correlation and preserved parentage."
+  },
+  "remaining_gap":"Platform-managed ChatGPT Web -> Remote Desktop Commander calls still bypass this controlled gateway and therefore remain observed_unscoped.",
+  "artifacts":[
+    "scripts/turn-action-context.mjs",
+    "scripts/run-gateway-task.mjs",
+    "scripts/run-task-envelope.mjs",
+    "scripts/observer-events.mjs",
+    "scripts/local-agent.py",
+    "scripts/run-observer.py",
+    "chrome/observer.js",
+    "chrome/observer.html"
+  ]
+}

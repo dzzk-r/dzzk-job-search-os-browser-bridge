@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0",
+  "id": "ct03.chrome-adapter-routing",
+  "kind": "constraint",
+  "title": "CT-03 browser commands are Chrome-scoped",
+  "summary": "Firefox must not consume Chrome CT-03 consent, commands or command results.",
+  "status": "active",
+  "claims": [
+    "Adapter identity is carried across Browser Bridge control traffic.",
+    "Chrome-scoped Desktop MCP commands are not visible to the Firefox adapter."
+  ],
+  "decision": "Route CT-03 browser work to adapter=chrome and reject wrong-adapter results.",
+  "rationale": "A browser-generic queue allowed whichever extension polled first to consume work.",
+  "tags": [
+    "ct-03",
+    "chrome",
+    "firefox",
+    "routing",
+    "security"
+  ],
+  "entities": [
+    "Chrome adapter",
+    "Firefox adapter",
+    "Browser Bridge"
+  ],
+  "evidence": [
+    {
+      "type": "test",
+      "ref": "Chrome-scoped Desktop MCP cannot be consumed by the Firefox adapter"
+    }
+  ],
+  "supersedes": [],
+  "created_at": "2026-10-04T22:43:49.974592Z",
+  "updated_at": "2026-10-04T22:43:49.974592Z",
+  "context": {
+    "scope": "task",
+    "repo": {
+      "name": "execution-delivery-harness",
+      "worktree": "_bridge-local-execution",
+      "branch": "chore/local-execution",
+      "head": "f9a50913fc5ebd3dd42435923e41677cbb813171"
+    },
+    "task_ids": [
+      "CT-03",
+      "BRW-01"
+    ],
+    "plan_id": null,
+    "run_id": null,
+    "source_artifacts": [
+      "TODO.md",
+      "knowledge/events.jsonl"
+    ]
+  }
+}

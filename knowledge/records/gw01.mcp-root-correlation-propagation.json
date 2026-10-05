@@ -1,0 +1,37 @@
+{
+  "schema_version":"1.0",
+  "id":"gw01.mcp-root-correlation-propagation",
+  "kind":"decision",
+  "title":"Harness MCP allocates root correlation and propagates it into local worker execution",
+  "summary":"Harness MCP tools/call now allocates one correlation_id at dispatch, records MCP START/DONE/ERROR, carries trace metadata into browser commands, passes correlation into local_exec_start child environments, and allows run-task-envelope to reuse the same correlation for TERM→OC→QWEN→LLAMA. Detailed OpenCode tool/model events inherit the same context from event-context.json.",
+  "status":"active",
+  "claims":[
+    "MCP tool calls create a root span before tool execution.",
+    "local_exec_start exposes EDH_CORRELATION_ID and EDH_PARENT_SPAN_ID to its child process.",
+    "run-task-envelope reuses an upstream correlation and parents its TERM span to the MCP tool span.",
+    "OpenCode tool_use, step_finish and QWEN text events can inherit worker correlation from event-context.json.",
+    "The current ChatGPT Web session still does not provide transport-observed conversation/turn/message identity to Harness."
+  ],
+  "decision":"Treat MCP-root correlation propagation as implemented and tested; keep OBS-04/GW-01 open until a live Harness client proves MCP→TERM→OC→QWEN→LLAMA on one correlation and ChatGPT turn/message identity is transport-observed rather than declared.",
+  "rationale":"Correlation must be allocated before dispatch and carried by source-owned metadata, not reconstructed later by timestamp heuristics.",
+  "tags":["gw-01","obs-04","mcp","correlation","provenance","local-executor","opencode"],
+  "entities":["Execution Delivery Harness","MCP gateway","Local Executor","OpenCode","Qwen3.8","llama.cpp"],
+  "evidence":[
+    {"type":"file","ref":"evidence/gw-01-correlation-propagation-20261005.json","note":"Canonical implementation and focused-test evidence."},
+    {"type":"test","ref":"tests/server-auth.mjs","note":"MCP tools/call emits one START/DONE correlation and passes trace to browser command."},
+    {"type":"test","ref":"tests/local-executor.mjs","note":"local_exec_start propagates correlation metadata through child environment."},
+    {"type":"test","ref":"tests/run-task-envelope.mjs","note":"Task envelope reuses upstream MCP correlation when present."},
+    {"type":"observation","ref":"real worker events.log replay","note":"OC read/write/step and QWEN CRITICAL events inherit corr:30b0bf97-d535-4f6b-a41a-43f9df816d01 from event-context.json."}
+  ],
+  "supersedes":["obs04.worker-correlation-propagation-gap"],
+  "created_at":"2026-10-05T06:05:00Z",
+  "updated_at":"2026-10-05T06:05:00Z",
+  "context":{
+    "scope":"task",
+    "repo":{"name":"execution-delivery-harness","worktree":"_bridge-local-execution","branch":"chore/local-execution","head":"f9a50913fc5ebd3dd42435923e41677cbb813171"},
+    "task_ids":["OBS-04","GW-01","LOC-02"],
+    "plan_id":null,
+    "run_id":null,
+    "source_artifacts":["TODO.md","evidence/gw-01-correlation-propagation-20261005.json","knowledge/events.jsonl"]
+  }
+}

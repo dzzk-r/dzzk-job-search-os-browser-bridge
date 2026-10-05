@@ -1,0 +1,22 @@
+{
+  "schema_version":"1.0",
+  "id":"obs-07-observer-recovery-20261005",
+  "observed_failure":{
+    "ui":"OFFLINE / Observer unavailable",
+    "chrome_error":"Companion refused the request. Check pairing and server status.",
+    "companion_health":"HTTP 200 on /health; listener alive on 127.0.0.1:43119",
+    "root_cause":"scripts/run-observer.py parse_opencode assumed tool_use.state.input was an object; a malformed/truncated OpenCode tool call supplied a string and raised AttributeError."
+  },
+  "fix":{
+    "parser":"Malformed non-object tool input is treated as empty metadata; the OC event remains observable and correlation survives.",
+    "ui_semantics":"Chrome distinguishes observer_unavailable as DEGRADED from true companion OFFLINE; 401 invalid pairing is also reported distinctly.",
+    "live_acceptance":"GET /bridge/observer?adapter=chrome returned HTTP 200 after the parser fix."
+  },
+  "verification":{
+    "observer_snapshot_seconds":1.02,
+    "observer_http":200,
+    "focused_extension_tests":"20/20 pass",
+    "observer_parser_regression":"pass"
+  },
+  "principle":"Execution evidence is untrusted observer input. One malformed event must not collapse the observer plane."
+}

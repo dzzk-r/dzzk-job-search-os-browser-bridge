@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0",
+  "id": "ct03.desktop-local-stdio",
+  "kind": "decision",
+  "title": "ChatGPT Desktop browser facade uses a local stdio MCP plugin",
+  "summary": "For CT-03, the supported local path is ChatGPT Desktop Codex/OWL -> local plugin -> stdio MCP process -> loopback companion ingress -> Chrome adapter -> explicitly shared pages.",
+  "status": "active",
+  "claims": [
+    "An HTTP MCP configured at 127.0.0.1 can appear in the Codex MCP registry without becoming a ChatGPT conversation tool surface.",
+    "A Desktop plugin can launch a local MCP process through .mcp.json command/args.",
+    "The local stdio facade exports only list_tabs, read_page, find_in_page and bridge_status."
+  ],
+  "decision": "Use the local stdio MCP facade as the canonical CT-03 Desktop transport; keep /mcp/browser for OAuth/HTTP compatibility and diagnostics.",
+  "rationale": "This keeps execution local, preserves explicit Chrome sharing, avoids remote localhost registration, and matches working Desktop plugin packaging patterns.",
+  "tags": [
+    "ct-03",
+    "chatgpt-desktop",
+    "mcp",
+    "stdio",
+    "chrome",
+    "plugin"
+  ],
+  "entities": [
+    "ChatGPT Desktop Codex/OWL",
+    "Local Shared Browser Pages",
+    "Execution Delivery Harness",
+    "Chrome"
+  ],
+  "evidence": [
+    {
+      "type": "test",
+      "ref": "npm test",
+      "note": "Harness suite passed after local ingress changes."
+    },
+    {
+      "type": "command",
+      "ref": "MCP SDK listTools against plugins/local-shared-browser-pages/server.mjs",
+      "note": "Returned exactly four browser tools."
+    },
+    {
+      "type": "command",
+      "ref": "MCP SDK bridge_status through stdio facade",
+      "note": "Returned connected:true via companion/Chrome bridge."
+    }
+  ],
+  "supersedes": [],
+  "created_at": "2026-10-04T22:43:49.974592Z",
+  "updated_at": "2026-10-04T22:43:49.974592Z",
+  "context": {
+    "scope": "task",
+    "repo": {
+      "name": "execution-delivery-harness",
+      "worktree": "_bridge-local-execution",
+      "branch": "chore/local-execution",
+      "head": "f9a50913fc5ebd3dd42435923e41677cbb813171"
+    },
+    "task_ids": [
+      "CT-03"
+    ],
+    "plan_id": null,
+    "run_id": null,
+    "source_artifacts": [
+      "TODO.md",
+      "knowledge/events.jsonl"
+    ]
+  }
+}

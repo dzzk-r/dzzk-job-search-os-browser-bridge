@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0",
+  "id": "obs-02-worker-live-20261005",
+  "task_id": "OBS-02-WORKER-ACCEPT",
+  "parent_task_id": "OBS-02",
+  "plan_id": "obs-02-real-worker-acceptance",
+  "correlation_id": "corr:30b0bf97-d535-4f6b-a41a-43f9df816d01",
+  "runtime": {
+    "opencode_version": "1.14.48",
+    "model": "llamacpp/qwen3.8-27b",
+    "runtime": "llama.cpp"
+  },
+  "live_activity": {
+    "during_inference": {"TERM":"RUNNING","OC":"RUNNING","QWEN":"RUNNING","LLAMA":"RUNNING"},
+    "terminal": {"TERM":"ERROR","OC":"ERROR","QWEN":"ERROR","LLAMA":"ERROR"},
+    "post_run_actor_activity": {"TERM":false,"OC":false,"QWEN":false,"LLAMA":false}
+  },
+  "span_parentage": {
+    "TERM": null,
+    "OC": "worker:OBS-02-WORKER-ACCEPT:term",
+    "QWEN": "worker:OBS-02-WORKER-ACCEPT:oc",
+    "LLAMA": "worker:OBS-02-WORKER-ACCEPT:oc:qwen:1"
+  },
+  "worker_outcome": {
+    "harness_status": "worker_failed",
+    "worker_reason": "max_steps_reached",
+    "worker_exit": 1,
+    "opencode_exit": 0,
+    "artifact_changed": true,
+    "artifact_path": "artifacts/observer-worker-acceptance.txt",
+    "artifact_marker": "OBSERVER_WORKER_ACCEPTANCE=PASS"
+  },
+  "accepted_for": {
+    "OBS-02": "Actor activity and lifecycle truth across a real OpenCode/Qwen/llama worker, including the failure path."
+  },
+  "not_accepted_for": {
+    "OBS-04": "Detailed OpenCode read/write/step/model-detail events still include correlation=null.",
+    "GW-01": "ChatGPT/MCP boundary does not yet allocate transport-observed correlation/source identity.",
+    "PL-03": "Semantic verifier must distinguish acceptance evidence from transport/step-budget termination."
+  },
+  "source_artifacts": [
+    "artifacts/observer-worker-acceptance.txt",
+    "~/WORK/browser-bridge-runs/obs-worker-live-20261005-0255/worker-report.json",
+    "~/WORK/browser-bridge-runs/obs-worker-live-20261005-0255/agent-runs/20261004T235216132096Z/report.json",
+    "~/WORK/browser-bridge-runs/obs-worker-live-20261005-0255/agent-runs/20261004T235216132096Z/events.log",
+    "~/.local/state/execution-delivery-harness/observer-events.jsonl"
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version":"1.0",
+  "id":"obs07-local-cycle-03-verifier-failure",
+  "plan_id":"obs07-local-cycle-20261005-03",
+  "task_id":"OBS-07-LOCAL-03",
+  "correlation_id":"corr:915534ba-2b55-438e-aa9a-717b5f941781",
+  "worker":{
+    "termination":"deadline",
+    "seconds":240.27,
+    "changed_files":["chrome/observer.js"],
+    "confirmed_edit_tools":["edit","edit"]
+  },
+  "verification":{
+    "syntax":"pass",
+    "focused_tests":"19/19 pass",
+    "full_suite":"54/54 pass",
+    "semantic_acceptance":"fail",
+    "positives":[
+      "Three identical uncorrelated MCP polling rows compact to one row with repeat_count=3.",
+      "Correlated MCP rows remain separate.",
+      "Raw input array is not mutated."
+    ],
+    "failures":[
+      "The helper compacts any identical uncorrelated source, including TERM; scope must be limited to MCP/RDC polling rows.",
+      "The repeat-count span is appended as a standalone grid child before time/source/message, shifting the three-column event layout. The count must be rendered inside the existing message cell."
+    ]
+  },
+  "lesson":"Semantic verification overrules green regression tests and worker deadline status. The repair should be smaller: source==='MCP' only and inline repeat count in msg text."
+}

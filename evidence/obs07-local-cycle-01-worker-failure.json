@@ -1,0 +1,30 @@
+{
+  "schema_version":"1.0",
+  "id":"obs07-local-cycle-01-worker-failure",
+  "plan_id":"obs07-local-cycle-20261005-01",
+  "task_id":"OBS-07-LOCAL-01",
+  "correlation_id":"corr:e443dcec-069a-4566-b5a6-879324341e51",
+  "planner":{"status":"task_ready","seconds":91.048},
+  "worker":{
+    "status":"worker_failed",
+    "reason":"max_steps_reached",
+    "seconds":151.26,
+    "opencode_exit":0,
+    "changed_files":[],
+    "touched_files":[],
+    "confirmed_edit_tools":[],
+    "step_budget":4,
+    "observed_progress":[
+      "OpenCode read chrome/observer.js",
+      "Qwen completed multiple model cycles",
+      "No edit/write tool was invoked before the step budget was exhausted"
+    ]
+  },
+  "lesson":"The task was semantically bounded but operationally too expensive for a 4-step OpenCode/Qwen worker. The next planner cycle must reduce discovery cost or otherwise choose a step that can reach an edit within the available tool budget.",
+  "source_artifacts":[
+    "~/WORK/browser-bridge-runs/obs07-local-cycle-20261005-01/planner-retry/task.json",
+    "~/WORK/browser-bridge-runs/obs07-local-cycle-20261005-01/worker/worker-report.json",
+    "~/WORK/browser-bridge-runs/obs07-local-cycle-20261005-01/worker/agent-runs/20261005T070820901135Z/report.json",
+    "~/WORK/browser-bridge-runs/obs07-local-cycle-20261005-01/worker/agent-runs/20261005T070820901135Z/events.log"
+  ]
+}

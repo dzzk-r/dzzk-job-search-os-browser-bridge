@@ -1,0 +1,29 @@
+{
+  "schema_version":"1.0",
+  "id":"obs07-local-cycle-02-verifier-failure",
+  "plan_id":"obs07-local-cycle-20261005-02",
+  "task_id":"OBS-07-LOCAL-02",
+  "correlation_id":"corr:0d3eef7c-2630-405d-8ec2-385b8ac8af5c",
+  "worker":{
+    "termination":"deadline",
+    "seconds":180.12,
+    "changed_files":["chrome/observer.js"],
+    "confirmed_edit_tools":["edit","edit"]
+  },
+  "verification":{
+    "syntax":"pass",
+    "focused_tests":"19/19 pass",
+    "full_suite":"54/54 pass",
+    "semantic_acceptance":"fail",
+    "failures":[
+      "compactPollingEvents checks prev._compact, but no compacted entry ever sets _compact, so no events can merge.",
+      "repeat_count is created/incremented but never rendered, so the required count badge/summary is absent."
+    ]
+  },
+  "lesson":"Regression tests are necessary but insufficient. Harness verifier must evaluate acceptance semantics independently of worker termination and test-suite status.",
+  "source_artifacts":[
+    "~/WORK/browser-bridge-runs/obs07-local-cycle-20261005-02/planner/task.json",
+    "~/WORK/browser-bridge-runs/obs07-local-cycle-20261005-02/worker/worker-report.json",
+    "~/WORK/browser-bridge-runs/obs07-local-cycle-20261005-02/worker/agent-runs/20261005T071431812089Z/events.log"
+  ]
+}

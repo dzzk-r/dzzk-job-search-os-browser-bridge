@@ -1,0 +1,65 @@
+{
+  "schema_version": "1.0",
+  "id": "obs04.worker-correlation-propagation-gap",
+  "kind": "constraint",
+  "title": "Lifecycle correlation does not yet cover every worker/tool event",
+  "summary": "The real worker lifecycle skeleton is correlated end-to-end locally, but detailed OpenCode read/write/step events and some model-detail events reconstructed from secondary logs can still have correlation=null.",
+  "status": "superseded",
+  "claims": [
+    "TERM→OC→QWEN→LLAMA lifecycle events share one correlation_id.",
+    "Detailed OpenCode read/write/step-finish and some QWEN diagnostic events can remain uncorrelated.",
+    "Inbound MCP/ChatGPT work still has source_quality=unknown or declared rather than transport-observed turn/message identity."
+  ],
+  "decision": "Keep OBS-04 and GW-01 open; next causal-provenance work must propagate correlation into all child events and allocate it before inbound MCP/tool dispatch.",
+  "rationale": "A lifecycle skeleton alone is insufficient for end-to-end trace reconstruction or turn-level source navigation.",
+  "tags": [
+    "obs-04",
+    "gw-01",
+    "correlation",
+    "provenance",
+    "timeline",
+    "mcp"
+  ],
+  "entities": [
+    "Execution Delivery Harness",
+    "Unified Timeline",
+    "MCP gateway",
+    "OpenCode"
+  ],
+  "evidence": [
+    {
+      "type": "file",
+      "ref": "evidence/obs-02-worker-live-20261005.json",
+      "note": "Explicitly records correlated lifecycle and uncorrelated detailed events."
+    },
+    {
+      "type": "observation",
+      "ref": "Unified Timeline live worker acceptance",
+      "note": "OC/QWEN detail rows were visible without inherited correlation while terminal lifecycle rows were correlated."
+    }
+  ],
+  "supersedes": [],
+  "created_at": "2026-10-05T05:53:00Z",
+  "updated_at": "2026-10-05T06:05:00Z",
+  "context": {
+    "scope": "task",
+    "repo": {
+      "name": "execution-delivery-harness",
+      "worktree": "_bridge-local-execution",
+      "branch": "chore/local-execution",
+      "head": "f9a50913fc5ebd3dd42435923e41677cbb813171"
+    },
+    "task_ids": [
+      "OBS-04",
+      "GW-01"
+    ],
+    "plan_id": "obs-02-real-worker-acceptance",
+    "run_id": "worker:OBS-02-WORKER-ACCEPT",
+    "source_artifacts": [
+      "TODO.md",
+      "evidence/obs-02-worker-live-20261005.json",
+      "docs/OBS-02-LIVE-ACCEPTANCE-2026-10-05.md",
+      "knowledge/events.jsonl"
+    ]
+  }
+}

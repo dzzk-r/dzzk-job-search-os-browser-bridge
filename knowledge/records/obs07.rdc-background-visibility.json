@@ -1,0 +1,24 @@
+{
+  "schema_version":"1.0",
+  "id":"obs07.rdc-background-visibility",
+  "kind":"decision",
+  "title":"Remote Desktop activity and quiet background processes are separate observer states",
+  "summary":"The Observer now exposes recent RDC tool activity and living background processes without treating every quiet shell or service as active work.",
+  "status":"active",
+  "claims":[
+    "Recent RDC activity is shown separately from process liveness.",
+    "A living TERM process with no recent activity is WAITING/OPEN, not RUNNING.",
+    "WAITING/OPEN processes remain visible in the Remote Desktop/background section and TERM actor detail.",
+    "Quiet background processes do not force the top-level status to BUSY.",
+    "Current RDC tool invocations cannot be shown before tool-history records them; this requires RDC-side instrumentation."
+  ],
+  "decision":"Use separate recent-activity and background-liveness signals; never infer active execution from PID liveness alone.",
+  "rationale":"The operator needs to know both that work recently happened and that processes remain alive, without returning to the earlier false-WAITING/false-BUSY behavior.",
+  "tags":["obs-07","obs-01","rdc","remote-desktop","background","term","activity-truth"],
+  "entities":["Execution Delivery Harness Observer","Remote Desktop Commander"],
+  "evidence":[{"type":"file","ref":"evidence/obs-07-rdc-background-visibility-20261005.json","note":"Canonical implementation and acceptance evidence."}],
+  "supersedes":[],
+  "created_at":"2026-10-05T06:38:00Z",
+  "updated_at":"2026-10-05T06:38:00Z",
+  "context":{"scope":"task","repo":{"name":"execution-delivery-harness","worktree":"_bridge-local-execution","branch":"chore/local-execution"},"task_ids":["OBS-07","OBS-01","LOC-02"],"plan_id":null,"run_id":null,"source_artifacts":["TODO.md","evidence/obs-07-rdc-background-visibility-20261005.json","knowledge/events.jsonl"]}
+}

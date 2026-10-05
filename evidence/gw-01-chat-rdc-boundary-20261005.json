@@ -1,0 +1,12 @@
+{
+  "schema_version":"1.0",
+  "id":"gw-01-chat-rdc-boundary-20261005",
+  "current_truth":[
+    "Harness-owned planner/worker chains propagate one correlation across QWEN/LLAMA and TERM/OC/QWEN/LLAMA.",
+    "ChatGPT Web calls to Remote Desktop Commander currently bypass the Harness pre-dispatch gateway.",
+    "RDC tool-history is observed after the call and lacks authoritative ChatGPT conversation/turn/message parentage.",
+    "The observer must not invent correlation for those external rows by timestamp proximity."
+  ],
+  "target":"ChatGPT turn/tool dispatch enters GW-01 before external RDC/MCP execution; the gateway allocates correlation/span and carries transport-observed source identity so the Side Panel can render human-readable turn/action -> tool -> process child structure.",
+  "status":"primary remaining causal-provenance gap"
+}

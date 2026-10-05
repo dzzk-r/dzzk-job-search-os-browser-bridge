@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "id": "obs-04-trace-ui-20261005",
+  "implemented": [
+    "Chrome Observer now has a Current / recent trace section above Unified timeline.",
+    "The trace selects the active correlation when available, otherwise the most recent correlated trace.",
+    "Trace rows are indented by span_id / parent_span_id ancestry.",
+    "Trace metadata exposes a short correlation prefix, event count and source_quality.",
+    "Collapsed correlated Unified Timeline rows show a short [corr] prefix and child marker.",
+    "Raw Unified Timeline remains available below as drill-down evidence."
+  ],
+  "verified": {
+    "focused_ui_tests": "18/18 pass",
+    "full_suite": "53/53 pass",
+    "observer_build": "trace-ui3"
+  },
+  "remaining": [
+    "Visual acceptance after Chrome extension Reload.",
+    "Transport-observed ChatGPT conversation/turn/message identity and navigation.",
+    "Semantic compaction of raw MCP/TERM polling/self-noise in Unified Timeline.",
+    "Live Harness MCP local_exec_start trace acceptance showing MCP→TERM→OC→QWEN→LLAMA in one UI trace."
+  ],
+  "source_artifacts": [
+    "chrome/observer.html",
+    "chrome/observer.js",
+    "chrome/observer.css",
+    "tests/extension.mjs",
+    "evidence/gw-01-correlation-propagation-20261005.json"
+  ]
+}

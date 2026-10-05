@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0",
+  "id": "ct03-codex-stdio-runtime-split-20261005",
+  "observed": {
+    "chatgpt_desktop_codex": {
+      "plugin_invocation": "works",
+      "tool": "list_tabs",
+      "result": [],
+      "opera_used": false,
+      "firefox_used": false
+    },
+    "chatgpt_desktop_classic": {
+      "plugin_injected": false,
+      "observed_message": "local-shared-browser-pages is not injected into tool registry"
+    },
+    "observer": {
+      "fresh_successful_codex_list_tabs_trace_present": false,
+      "reason": "Codex Desktop uses a separate STDIO plugin facade whose invocation path is not yet written into the shared observer event stream."
+    }
+  },
+  "runtime_path": [
+    "ChatGPT Desktop Codex",
+    "~/.codex/plugins/local-shared-browser-pages/server.mjs",
+    "POST /local/browser-call",
+    "Browser Bridge companion",
+    "Chrome shared-pages adapter"
+  ],
+  "current_plugin_state": {
+    "stdio_server_version": "0.1.2",
+    "stdio_server_generates_correlation_id": true,
+    "stdio_server_sends_trace_to_companion": true,
+    "companion_observes_stdio_trace": false
+  },
+  "remaining": [
+    "Instrument the STDIO facade itself or accept/persist incoming trace at /local/browser-call.",
+    "Repeat one Codex Desktop list_tabs call and verify its exact correlation in Current/recent trace.",
+    "Keep Classic Desktop plugin-injection failure tracked separately from Codex runtime."
+  ],
+  "source_artifacts": [
+    "plugins/local-shared-browser-pages/server.mjs",
+    "~/.codex/plugins/local-shared-browser-pages/server.mjs",
+    "server/index.mjs",
+    "~/.local/state/execution-delivery-harness/observer-events.jsonl"
+  ]
+}

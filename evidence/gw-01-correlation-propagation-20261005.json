@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0",
+  "id": "gw-01-correlation-propagation-20261005",
+  "scope": "MCP root + local worker child propagation",
+  "implemented": [
+    "Every Harness MCP tools/call allocates one correlation_id and emits MCP START/DONE/ERROR.",
+    "Browser dispatch carries correlation/run/span trace metadata with the command.",
+    "local_exec_start injects EDH_CORRELATION_ID, EDH_PARENT_SPAN_ID, EDH_MCP_RUN_ID and EDH_MCP_TOOL into the child environment.",
+    "run-task-envelope reuses upstream EDH_CORRELATION_ID and parents its TERM span to the upstream MCP tool span.",
+    "local-agent writes event-context.json beside events.log.",
+    "run-observer parse_opencode inherits correlation/run/task/source metadata for OpenCode tool_use, step_finish and QWEN text/model-detail events."
+  ],
+  "verified": {
+    "focused_tests": "15/15 pass",
+    "real_worker_log_replay": {
+      "correlation_id": "corr:30b0bf97-d535-4f6b-a41a-43f9df816d01",
+      "events_now_correlated": [
+        "OC read error",
+        "OC write completed",
+        "OC read completed",
+        "OC step finish",
+        "QWEN CRITICAL - MAXIMUM STEPS REACHED"
+      ]
+    }
+  },
+  "remaining": [
+    "Current ChatGPT Web session still uses Remote Desktop Commander rather than Harness MCP.",
+    "Transport-observed ChatGPT conversation_id/turn_id/message_id are still unavailable at the Harness gateway boundary.",
+    "Need one live client path that invokes Harness MCP local_exec_start and visually proves MCP\u2192TERM\u2192OC\u2192QWEN\u2192LLAMA on one correlation.",
+    "Unified Timeline still needs trace-oriented grouping/compaction so one correlation is readable as one causal trace."
+  ],
+  "source_artifacts": [
+    "server/index.mjs",
+    "server/local-executor.mjs",
+    "scripts/run-task-envelope.mjs",
+    "scripts/local-agent.py",
+    "scripts/run-observer.py",
+    "tests/server-auth.mjs",
+    "tests/local-executor.mjs",
+    "tests/run-task-envelope.mjs"
+  ],
+  "production_live_mcp_root": {
+    "correlation_id": "corr:63c707a2-e4b9-47d0-bce9-c1257f4dbcb1",
+    "tool": "list_tabs",
+    "terminal": "ERROR",
+    "reason": "Browser permission changed; this action was canceled.",
+    "evidence": "~/.local/state/execution-delivery-harness/observer-events.jsonl",
+    "note": "Production companion emitted MCP START/ERROR on one correlation after restart; failure was policy/permission, not trace loss."
+  }
+}
