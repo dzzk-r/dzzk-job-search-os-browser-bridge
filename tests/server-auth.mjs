@@ -198,7 +198,7 @@ test('observer snapshot reports disk extension semver without forcing reload',as
   const b=await setup(t);
   const snapshot=await b.extension('observer');
   assert.equal(snapshot.status,200);
-  assert.equal(snapshot.value.extension_version.disk,'0.1.7');
+  assert.equal(snapshot.value.extension_version.disk,'0.1.8');
 });
 
 test('OpenCode-style DCR metadata is accepted without advertising unsupported refresh grants',async t=>{
@@ -274,4 +274,5 @@ test('observer snapshot exposes running gateway identity separately from repo HE
   assert.match(snapshot.value.gateway_version.runtime_server_hash,/^[0-9a-f]{64}$/);
   assert.match(snapshot.value.gateway_version.disk_server_hash,/^[0-9a-f]{64}$/);
   assert.equal(snapshot.value.gateway_version.restart_required,false);
+  assert.equal(snapshot.value.gateway_version.repo_changed,false);
 });

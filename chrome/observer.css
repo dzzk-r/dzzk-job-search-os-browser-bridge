@@ -159,3 +159,16 @@ html, body.observer { width:100%; max-width:100%; overflow-x:hidden; box-sizing:
   color:#b45309;
   font-weight:700;
 }
+
+
+.source-chat-button {
+  margin-top:6px;
+  padding:3px 7px;
+  border:1px solid #8886;
+  border-radius:5px;
+  background:Canvas;
+  color:CanvasText;
+  font:10px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;
+  cursor:pointer;
+}
+.source-chat-button:hover { background:color-mix(in srgb, Canvas 86%, CanvasText 14%); }

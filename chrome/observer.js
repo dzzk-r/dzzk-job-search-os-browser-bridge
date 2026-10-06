@@ -240,10 +240,13 @@ function renderExtensionVersion(state) {
   const runtime=gv.runtime_commit?String(gv.runtime_commit).slice(0,8):'?';
   const head=gv.repo_head?String(gv.repo_head).slice(0,8):'?';
   gateway.className='muted gateway-version'+(gv.restart_required?' restart-required':'');
-  gateway.textContent=gv.restart_required ? ('Gateway restart '+runtime+' → '+head) : ('gw '+runtime);
+  gateway.textContent=gv.restart_required
+    ? ('Gateway restart '+runtime+' → '+head)
+    : ('gw '+runtime+(gv.repo_changed?' · repo '+head:''));
   gateway.title='Gateway runtime '+runtime+' · repo HEAD '+head+
     (gv.started_at?' · started '+gv.started_at:'')+
-    (gv.restart_required?' · restart required':'');
+    (gv.repo_changed?' · repository moved since gateway start':'')+
+    (gv.restart_required?' · server code changed; restart required':'');
 }
 function appendKeyValues(parent, rows) {
   const frag=document.createDocumentFragment();
@@ -605,6 +608,19 @@ function renderTimeline(state) {
         'source_quality='+(c.source_quality||'unknown')
       ].filter(Boolean);
       full.textContent=provenance.join('\n');
+      if(c.conversation_id) {
+        const nav=document.createElement('button');
+        nav.className='source-chat-button';
+        nav.textContent='Open source chat';
+        nav.title='Activate the ChatGPT conversation that owns this event';
+        nav.addEventListener('click',async e=>{
+          e.stopPropagation();
+          nav.disabled=true;
+          try { await send({type:'conversation-open',conversation_id:c.conversation_id}); }
+          catch(err) { $('error').textContent=String(err?.message||err); nav.disabled=false; }
+        });
+        full.append(document.createElement('br'),nav);
+      }
       const toggle=()=>{ row.classList.toggle('expanded'); if(row.classList.contains('expanded')) expandedKeys.add(key); else expandedKeys.delete(key); };
       row.addEventListener('click',toggle);
       row.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); }});

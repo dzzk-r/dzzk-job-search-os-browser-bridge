@@ -282,6 +282,36 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
     }
     case 'conversation-state': return {bindings:conversations.list()};
 
+    case 'conversation-open': {
+      const id=String(m.conversation_id||'');
+      if(!/^[A-Za-z0-9_-]{6,160}$/.test(id)) throw new Error('Invalid conversation id.');
+      let binding=conversations.list().find(x=>x.conversation_id===id)||null;
+      const candidates=await chrome.tabs.query({url:['https://chatgpt.com/*','https://*.chatgpt.com/*']});
+      let tab=null;
+      for(const candidate of candidates||[]) {
+        try {
+          if(DzzkConversationBindings.conversationId({...candidate,status:'complete'})===id) { tab=candidate; break; }
+        } catch {}
+      }
+      if(!tab && binding?.tabId!=null) {
+        try {
+          const candidate=await chrome.tabs.get(binding.tabId);
+          if(DzzkConversationBindings.conversationId({...candidate,status:'complete'})===id) tab=candidate;
+        } catch {}
+      }
+      if(tab) {
+        try { binding=conversations.bind({...tab,status:'complete'}); await persistConversationBindings(); } catch {}
+        await chrome.tabs.update(tab.id,{active:true});
+        if(Number.isInteger(tab.windowId) && chrome.windows?.update) await chrome.windows.update(tab.windowId,{focused:true});
+        return {ok:true,opened:'existing',tab_id:tab.id};
+      }
+      if(!binding?.url) throw new Error('Source chat is no longer available.');
+      const synthetic={id:-1,url:binding.url,title:binding.title||'',status:'complete',incognito:false};
+      if(DzzkConversationBindings.conversationId(synthetic)!==id) throw new Error('Stored source chat URL does not match the conversation.');
+      const created=await chrome.tabs.create({url:binding.url,active:true});
+      return {ok:true,opened:'new',tab_id:created?.id??null};
+    }
+
     case 'conversation-current': return {binding:await currentConversationBinding()};
     case 'conversation-bind': {
       const tab=await conversationTab(m.tabId);

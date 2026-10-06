@@ -87,9 +87,9 @@ export async function createBridgeServer(options = {}) {
       };
     }
     const repo=gatewayRepoVersionCache;
+    const repoChanged=Boolean(gatewayRuntimeVersion.commit&&repo.commit&&gatewayRuntimeVersion.commit!==repo.commit);
     const restartRequired=Boolean(
-      (gatewayRuntimeVersion.commit&&repo.commit&&gatewayRuntimeVersion.commit!==repo.commit) ||
-      (gatewayRuntimeVersion.server_hash&&repo.server_hash&&gatewayRuntimeVersion.server_hash!==repo.server_hash)
+      gatewayRuntimeVersion.server_hash&&repo.server_hash&&gatewayRuntimeVersion.server_hash!==repo.server_hash
     );
     return {
       runtime_commit:gatewayRuntimeVersion.commit,
@@ -97,6 +97,7 @@ export async function createBridgeServer(options = {}) {
       runtime_server_hash:gatewayRuntimeVersion.server_hash,
       disk_server_hash:repo.server_hash,
       started_at:gatewayRuntimeVersion.started_at,
+      repo_changed:repoChanged,
       restart_required:restartRequired
     };
   }
