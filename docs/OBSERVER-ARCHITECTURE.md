@@ -423,7 +423,7 @@ It does not make browser focus authoritative, and it does not convert generic RD
 
 ### Extension version / reload contract
 
-Development reload is now version-visible rather than implicit. Package, Chrome and Firefox manifests share semantic version `0.1.9`. The Side Panel compares the loaded extension version with the manifest version on disk; when they differ it shows an explicit `Reload <loaded> → <disk>` control. Gateway restart must not reload the extension. File-change revision is only a signal that a newer build exists; the loaded runtime changes only after explicit user action.
+Development reload is now version-visible rather than implicit. Package, Chrome and Firefox manifests share semantic version `0.1.10`. The Side Panel compares the loaded extension version with the manifest version on disk; when they differ it shows an explicit `Reload <loaded> → <disk>` control. Gateway restart must not reload the extension. File-change revision is only a signal that a newer build exists; the loaded runtime changes only after explicit user action.
 
 
 ### Gateway runtime / repository identity
@@ -434,3 +434,8 @@ The observer also distinguishes the gateway process actually running from the re
 ### Browser-turn lease recovery
 
 A visible ChatGPT generation must not lose chat attribution merely because the gateway or extension runtime restarted. The detector therefore recreates a local turn when generation is visible but no local active turn exists. The gateway accepts a HEARTBEAT as recovery for an otherwise-valid browser turn whose in-memory state was lost, and enforces at most one active turn per conversation by replacing stale siblings. Unknown DONE is idempotent.
+
+
+### Persistent timeline scope control
+
+The Unified timeline scope selector is a persistent DOM island. The 1.5-second observer refresh computes a stable fingerprint of available scope options and leaves the existing select element and its options untouched when the model has not changed. When conversations do change, options are reconciled in place and the current timelineScope value is preserved. Polling therefore no longer destroys/recreates the native selector on every refresh.

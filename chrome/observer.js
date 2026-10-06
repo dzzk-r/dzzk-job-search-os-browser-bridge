@@ -14,9 +14,55 @@ let lastState=null;
 let timelineScope='all';
 let currentConversationBinding=null;
 let knownConversationBindings=[];
+let timelineScopeOptionsFingerprint='';
 const expandedKeys=new Set();
 
 function eventKey(event) { const c=event.correlation||{}; return [event.ts||0,event.source||'',event.message||'',c.correlation_id||'',c.span_id||''].join('|'); }
+
+function scopeOptionModel(bindings) {
+  const byId=new Map();
+  for(const binding of bindings||[]) {
+    if(binding?.conversation_id && !byId.has(binding.conversation_id)) byId.set(binding.conversation_id,binding);
+  }
+  const model=[
+    {value:'all',label:'All activity'},
+    {value:'unscoped',label:'Unscoped'}
+  ];
+  for(const [id,binding] of byId) {
+    const title=String(binding.title||'').trim().replace(/\s+/g,' ');
+    model.push({
+      value:'chat:'+id,
+      label:(binding.is_current?'Current · ':'')+(title||'ChatGPT chat')+' · '+String(id).slice(-8),
+      binding
+    });
+  }
+  return {model,byId};
+}
+
+function reconcileTimelineScopeOptions(selector, model) {
+  const fingerprint=JSON.stringify(model.map(x=>[x.value,x.label]));
+  if(fingerprint===timelineScopeOptionsFingerprint) return false;
+  const existing=new Map([...selector.options].map(option=>[option.value,option]));
+  const ordered=[];
+  for(const item of model) {
+    let option=existing.get(item.value);
+    if(!option) {
+      option=document.createElement('option');
+      option.value=item.value;
+    }
+    if(option.textContent!==item.label) option.textContent=item.label;
+    ordered.push(option);
+    existing.delete(item.value);
+  }
+  for(const option of existing.values()) option.remove();
+  for(let index=0;index<ordered.length;index++) {
+    const option=ordered[index];
+    if(selector.options[index]!==option) selector.insertBefore(option,selector.options[index]||null);
+  }
+  timelineScopeOptionsFingerprint=fingerprint;
+  return true;
+}
+
 function compactMessage(message) {
   return String(message||'')
     .replaceAll('/Users/dzzk/WORK/_bridge-local-execution/','…/harness/')
@@ -666,20 +712,10 @@ async function refresh() {
       if(selector) {
         const previous=timelineScope;
         const selectedId=previous.startsWith('chat:') ? previous.slice(5) : null;
-        selector.replaceChildren();
-        const all=document.createElement('option'); all.value='all'; all.textContent='All activity'; selector.append(all);
-        const unscoped=document.createElement('option'); unscoped.value='unscoped'; unscoped.textContent='Unscoped'; selector.append(unscoped);
-        const byId=new Map();
-        for(const binding of knownConversationBindings) if(binding?.conversation_id && !byId.has(binding.conversation_id)) byId.set(binding.conversation_id,binding);
-        for(const [id,binding] of byId) {
-          const opt=document.createElement('option');
-          opt.value='chat:'+id;
-          const title=String(binding.title||'').trim().replace(/\s+/g,' ');
-          opt.textContent=(binding.is_current?'Current · ':'')+(title||'ChatGPT chat')+' · '+String(id).slice(-8);
-          selector.append(opt);
-        }
+        const {model,byId}=scopeOptionModel(knownConversationBindings);
+        reconcileTimelineScopeOptions(selector,model);
         const wanted=selectedId && byId.has(selectedId) ? previous : (['all','unscoped'].includes(previous)?previous:'all');
-        selector.value=wanted;
+        if(selector.value!==wanted) selector.value=wanted;
         timelineScope=wanted;
         currentConversationBinding=timelineScope.startsWith('chat:') ? byId.get(timelineScope.slice(5))||null : null;
       }

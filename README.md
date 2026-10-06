@@ -67,7 +67,7 @@ See [Current status](docs/STATUS.md),
 > checkpoint commits. `TODO.md` is the authoritative task catalog; integration
 > into `main` remains a separate reviewed step.
 
-## Version 0.1.9 development baseline
+## Version 0.1.10 development baseline
 
 The MCP server exposes four read-only page tools:
 `list_tabs`, `read_page`, `find_in_page`, `bridge_status`.
@@ -179,7 +179,7 @@ npm run build
 FIREFOX_BIN=/path/to/firefox npm run test:firefox
 ```
 
-`dist/execution_delivery_harness_browser_bridge-0.1.9.zip` is the unsigned AMO submission
+`dist/execution_delivery_harness_browser_bridge-0.1.10.zip` is the unsigned AMO submission
 package. An unsigned ZIP is not an approved AMO release. Firefox smoke testing
 uses a disposable profile and synthetic pages, never personal browser sessions.
 
