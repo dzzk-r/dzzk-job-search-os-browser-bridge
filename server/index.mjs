@@ -645,7 +645,26 @@ export async function createBridgeServer(options = {}) {
               const manifest=JSON.parse(await readFile(join(repoRoot,'chrome','manifest.json'),'utf8'));
               diskVersion=typeof manifest.version==='string'?manifest.version:null;
             } catch {}
-            return json(res,200,{...snapshot,extension_version:{disk:diskVersion},gateway_version:await gatewayVersionState()});
+            const now=Date.now();
+            const binding=activeBrowserConversations.get(adapter);
+            let chatActivity={active:false,generating:false,conversation_id:null,turn_id:null,source_quality:'browser_observed'};
+            if(binding && now-binding.observedAtMs<=15000) {
+              const turns=[...activeBrowserTurns.values()]
+                .filter(turn=>turn.conversation_id===binding.conversation_id && Date.parse(turn.lease_until||0)>now)
+                .sort((a,b)=>Date.parse(b.last_seen_at||0)-Date.parse(a.last_seen_at||0));
+              const detector=[...chatDetectorStatuses.values()]
+                .filter(status=>status.conversation_id===binding.conversation_id && now-Date.parse(status.observed_at||0)<=15000)
+                .sort((a,b)=>Date.parse(b.observed_at||0)-Date.parse(a.observed_at||0))[0]||null;
+              const turn=turns[0]||null;
+              chatActivity={
+                active:Boolean(turn || detector?.generating || detector?.active_turn_id),
+                generating:detector?.generating===true,
+                conversation_id:binding.conversation_id,
+                turn_id:turn?.turn_id||detector?.active_turn_id||null,
+                source_quality:'browser_observed'
+              };
+            }
+            return json(res,200,{...snapshot,chat_activity:chatActivity,extension_version:{disk:diskVersion},gateway_version:await gatewayVersionState()});
           }
           catch { fail(503,'observer_unavailable','Observer snapshot is unavailable.'); }
         }

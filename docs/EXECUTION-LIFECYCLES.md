@@ -351,3 +351,95 @@ This vertical order is a projection for an operator. It is not a claim that ever
 4. Task identity, Project identity, conversation identity and Run identity must remain separate ledger dimensions.
 5. A future project selector must not be conflated with the Unified timeline chat selector.
 6. Help and field tooltips should link back to this lifecycle vocabulary rather than inventing local explanations per card.
+
+## Operator loop: Side Panel mapped to the lifecycle
+
+```mermaid
+flowchart TD
+    C[Conversation / Turn] -->|intent + provenance| T[Current task]
+    P[Selected Project] -->|contains / prioritizes| T
+    T -->|prepare| H[Prepared task / handoff]
+    H -->|Dispatch| R[Execution cycle / Run]
+    R --> S[Execution spans]
+    S --> X[Actors / transports / processes]
+    X --> E[Events / evidence]
+    E --> A[Attribution / causal trace]
+    A --> L[Append-only ledger]
+    L --> V[Verification / acceptance]
+    V -->|task progress| T
+    V -->|aggregate effect| PR[Project readiness]
+    PR -->|next task / milestone| T
+```
+
+Compact operator reading:
+
+```text
+Conversation / Turn          where did the request come from?
+        |
+        v
+Current task                 what intended work are we orchestrating?
+        |
+        v
+Prepared -> Dispatch -> Run  how does that work cross into execution?
+        |
+        v
+Execution spans              which bounded operations make up the run?
+        |
+        v
+Transports & background      through which mechanisms does execution continue?
+        |
+        v
+Attribution diagnostics      can we prove which chat/turn/task/run owns the evidence?
+        |
+        v
+Unified timeline / ledger    what raw evidence actually happened?
+        |
+        v
+Verification / acceptance
+        |
+        +-- updates Task progress
+        +-- recomputes selected Project readiness
+```
+
+### CHAT in the actor strip
+
+`CHAT` is a context/root actor, not an executor. It is active while the browser turn detector reports a live ChatGPT turn.
+
+```text
+CHAT active + executors idle
+= ChatGPT is still generating, but no external/local Harness execution is currently observed.
+
+CHAT active + MCP/RDC/TERM active
+= the browser turn is live and external/local work is also observed.
+
+CHAT idle + TERM/OC/QWEN active
+= detached/local execution continues after the originating browser turn.
+```
+
+### Project readiness in the loop
+
+`Project readiness` is the macro feedback projection after verification/acceptance. It answers: for which selected Project did this work matter, and what is the current delivery state of that Project?
+
+Before the UI panel is considered complete it must show explicit selected Project identity and use semantic-help labels for `Overall`, `Completed`, `Critical path`, `Next milestone`, `Remaining ETA`, and `Observed activity`. It must never imply that the current ChatGPT conversation is the Project.
+
+### Execution spans in the loop
+
+`Execution spans` lives inside one Run/Execution cycle. A span is a bounded causal operation such as a tool call, process lifecycle, model invocation or verifier step.
+
+It answers: which operations made up this execution, which are still open, and where did a failure occur?
+
+Required semantic fields/help: Status, Actor, Operation, Parent/causal root, Elapsed, Last update, Source quality/attribution, and Failure locus when present.
+
+### Transports & background in the loop
+
+`Transports & background` is infrastructure/continuity, not another work hierarchy. It answers: through what mechanism is execution continuing, and what background ownership/process remains alive?
+
+It should use the shared key/value table grammar with semantic help for transport, endpoint/device, process/PID, state, last activity, ownership and relevant configuration/path.
+
+### Attribution diagnostics in the loop
+
+`Attribution diagnostics` is the proof boundary between observed evidence and its claimed owner. It answers: how confidently can evidence be assigned to Conversation/Turn, Task, Run and causal span?
+
+Required concepts/help: Correlation, Conversation, Turn, Task, Run, Span/parent span, Source quality, `browser_inferred`, `browser_observed`, `transport_observed`, and Unscoped.
+
+Attribution diagnostics do not execute work; they explain provenance quality of evidence already observed.

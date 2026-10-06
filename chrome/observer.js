@@ -149,6 +149,7 @@ function activeChain(state) {
 function renderActors(state) {
   const activity=state.actor_activity||{};
   const defs=[
+    ['CHAT',state.chat_activity?.active?'active':'','ChatGPT browser turn','browser conversation / turn context'],
     ['MCP','','Model Context Protocol activity','protocol / connected-client boundary'],
     ['RDC',state.rdc?.last_activity_seconds!=null?seconds(state.rdc.last_activity_seconds):'','Remote Desktop Commander','local transport'],
     ['TERM',(state.rdc?.open_count||0)?String(state.rdc.open_count)+' open':'','Terminal / managed process lifecycle','local process runtime'],
@@ -159,7 +160,7 @@ function renderActors(state) {
   ];
   const frag=document.createDocumentFragment();
   for(const [name,detail,fullName,origin] of defs) {
-    const isActive=activity[name]===true;
+    const isActive=name==='CHAT' ? state.chat_activity?.active===true : activity[name]===true;
     const chip=document.createElement('span');
     chip.className='actor-chip '+name.toLowerCase()+(isActive?' active':'');
     const titleParts=[];

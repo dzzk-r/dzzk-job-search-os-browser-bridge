@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build-version="0.1.18">
+<html lang="en" data-build-version="0.1.19">
 <head>
   <meta charset="utf-8">
   <title>Execution Delivery Harness — Observer</title>
@@ -48,6 +48,14 @@
       <p><strong>Run</strong> currently shows a wider execution cycle: pre-run handoff, the strict Run execution, and post-run result. A future label such as <strong>Execution</strong> or <strong>Execution cycle</strong> may be more precise.</p>
       <p><strong>Project readiness</strong> is progress for one selected Harness Project. It is <strong>not</strong> progress of the current ChatGPT conversation. One conversation may touch multiple Projects, and one Project may continue across multiple conversations, devices and executors.</p>
       <p><strong>Prepared task</strong> is a validated execution envelope waiting to start. <strong>Dispatch</strong> transfers it into Harness-owned execution and creates/starts a Run. Dispatch does not continue an existing Run and does not accept a result.</p>
+      <pre class="help-diagram">Conversation / Turn
+  → Current task
+  → Prepared → Dispatch → Run
+  → Execution spans
+  → Transports / background
+  → Attribution / evidence
+  → Verification
+  → selected Project readiness</pre>
       <p><strong>Actors</strong> are tools, transports, models and runtimes observed by the Harness. <strong>Attribution</strong> links evidence to a conversation/turn. <strong>browser_inferred</strong> means the chat identity was conservatively inferred from one active browser turn; it is not authoritative transport identity.</p>
     </section>
     <section class="help-section">
