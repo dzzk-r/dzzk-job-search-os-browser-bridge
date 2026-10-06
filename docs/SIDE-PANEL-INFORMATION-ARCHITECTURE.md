@@ -1,7 +1,7 @@
 # Side Panel information architecture and semantic map
 
-Status: design baseline  
-Date: 2026-10-06  
+Status: design baseline
+Date: 2026-10-06
 Scope: Chrome Side Panel first; browser-neutral semantics for Observer projections
 
 ## Why this document exists
