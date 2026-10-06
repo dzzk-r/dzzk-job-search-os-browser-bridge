@@ -295,7 +295,7 @@ function renderExtensionVersion(state) {
     (gv.repo_changed?' · repository moved since gateway start':'')+
     (gv.restart_required?' · server code changed; restart required':'');
   const versionLine=$('version-line');
-  if(versionLine) versionLine.hidden=!(mismatch||gv.restart_required);
+  if(versionLine) versionLine.hidden=!gv.restart_required;
 }
 
 function setDisclosureDefault(section, open) {

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build-version="0.1.12">
+<html lang="en" data-build-version="0.1.13">
 <head>
   <meta charset="utf-8">
   <title>Execution Delivery Harness — Observer</title>
@@ -15,16 +15,19 @@
       <span id="state-age" class="state-age">--:--</span>
       <span id="active-chain" class="active-chain">observer</span>
       <button id="settings-toggle" class="icon-button" aria-label="Bridge settings" title="Bridge settings">⚙</button>
-      <details id="help-toggle" class="help-toggle">
-        <summary aria-label="Observer help" title="Observer help">?</summary>
-        <div id="runtime-grid" class="runtime-grid"></div>
-      </details>
-    </div>
-    <div id="version-line" class="version-line" aria-label="Runtime version status" hidden>
-      <span id="observer-build" class="muted" title="Observer UI build">trace-ui12</span>
-      <span id="extension-version" class="muted" title="Loaded extension version"></span>
-      <span id="gateway-version" class="muted gateway-version" title="Gateway runtime / repository version"></span>
+      <div class="help-cluster">
+        <button id="help-toggle" class="icon-button" type="button" aria-label="Observer help and runtime summary" title="Help — hover for runtime summary, click for full help">?</button>
+        <div id="runtime-popover" class="runtime-popover" role="tooltip" aria-label="Runtime summary">
+          <strong>Runtime summary</strong>
+          <div id="runtime-grid" class="runtime-grid runtime-grid-compact"></div>
+        </div>
+      </div>
+      <span id="extension-version" class="header-version" title="Loaded Side Panel / extension version"></span>
       <button id="reload-version" class="version-reload" hidden></button>
+    </div>
+    <div id="version-line" class="version-line" aria-label="Runtime version warning" hidden>
+      <span id="observer-build" class="muted" title="Observer UI build">trace-ui12</span>
+      <span id="gateway-version" class="muted gateway-version" title="Gateway runtime / repository version"></span>
     </div>
     <button id="attribution-health" class="attribution-health" type="button" title="Recent chat-attribution health">
       <span id="attribution-health-label">Attribution — checking…</span>
