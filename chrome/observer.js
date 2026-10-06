@@ -1,3 +1,10 @@
+const panelRuntimeVersion=chrome.runtime.getManifest().version;
+const panelDocumentVersion=document.documentElement.dataset.buildVersion||null;
+if(panelDocumentVersion && panelDocumentVersion!==panelRuntimeVersion) {
+  const target=chrome.runtime.getURL('observer.html')+'?v='+encodeURIComponent(panelRuntimeVersion);
+  if(location.href!==target) location.replace(target);
+}
+
 const $=id=>document.getElementById(id);
 const must=id=>{const element=$(id);if(!element) throw new Error('Missing required Observer element #'+id);return element;};
 const send=m=>chrome.runtime.sendMessage(m);

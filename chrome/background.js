@@ -209,9 +209,14 @@ chrome.tabs.onActivated.addListener(({tabId}) => {
 });
 chrome.alarms.onAlarm.addListener(() => {grants.list(); void poll();});
 chrome.runtime.onMessage.addListener(async (m,sender) => {
-  const ui = [chrome.runtime.getURL('popup.html'), chrome.runtime.getURL('options.html'), chrome.runtime.getURL('observer.html')];
+  const uiPaths = new Set(['/popup.html','/options.html','/observer.html']);
+  let trustedUi=false;
+  try {
+    const u=new URL(sender.url||'');
+    trustedUi=sender.id===chrome.runtime.id && u.origin===new URL(chrome.runtime.getURL('/')).origin && uiPaths.has(u.pathname);
+  } catch {}
   const isChatObservation = ['chat-context-observed','chat-turn-observed','chat-detector-status'].includes(m?.type) && sender.id===chrome.runtime.id && sender.tab;
-  if (!isChatObservation && (sender.id !== chrome.runtime.id || !ui.includes(sender.url))) throw new Error('Only extension UI can change access.');
+  if (!isChatObservation && !trustedUi) throw new Error('Only extension UI can change access.');
   switch (m.type) {
     case 'state': return {status,enabled:config.enabled,paused:isPaused(),grants:grants.list(),consents,clients,actions,pendingReloadRevision,loadedVersion:chrome.runtime.getManifest().version};
     case 'chat-context-observed': {
@@ -368,6 +373,10 @@ void (async () => {
   conversations = new DzzkConversationBindings(saved.conversationBindings || []);
   if (saved.config) {try {config = validateConfig(saved.config);} catch {}}
   await chrome.alarms.create('connection',{periodInMinutes:0.5});
+  try {
+    const version=chrome.runtime.getManifest().version;
+    await chrome.sidePanel.setOptions({path:'observer.html?v='+encodeURIComponent(version),enabled:true});
+  } catch {}
   await discoverExistingChatTabs();
   await publishChatTabInventory(true);
   void poll();
