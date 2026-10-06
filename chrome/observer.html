@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build-version="0.1.10">
+<html lang="en" data-build-version="0.1.11">
 <head>
   <meta charset="utf-8">
   <title>Execution Delivery Harness — Observer</title>
@@ -8,6 +8,7 @@
 </head>
 <body class="observer">
   <header class="status-header">
+    <div id="actor-strip" class="actor-strip actor-strip-primary" aria-label="Observed actors"></div>
     <div class="status-line">
       <span id="state-dot" class="state-dot" aria-hidden="true"></span>
       <strong id="state-label">LOADING</strong>
@@ -15,39 +16,46 @@
       <span id="active-chain" class="active-chain">observer</span>
       <button id="settings-toggle" class="icon-button" aria-label="Bridge settings" title="Bridge settings">⚙</button>
       <details id="help-toggle" class="help-toggle">
-        <summary aria-label="Runtime details" title="Runtime details">?</summary>
+        <summary aria-label="Observer help" title="Observer help">?</summary>
         <div id="runtime-grid" class="runtime-grid"></div>
       </details>
     </div>
-    <div class="version-line" aria-label="Extension version">
+    <div id="version-line" class="version-line" aria-label="Runtime version status" hidden>
       <span id="observer-build" class="muted" title="Observer UI build">trace-ui12</span>
       <span id="extension-version" class="muted" title="Loaded extension version"></span>
       <span id="gateway-version" class="muted gateway-version" title="Gateway runtime / repository version"></span>
       <button id="reload-version" class="version-reload" hidden></button>
     </div>
-    <div id="truth-note" class="truth-note"><span>Current ChatGPT/MCP dispatch is not authoritative until the gateway exists.</span> <button id="gateway-next" class="link-button">Gap: ChatGPT turn → Harness gateway</button></div>
-    <div id="prepared-dispatch" class="truth-note" hidden><strong>Prepared Harness task:</strong> <span id="prepared-dispatch-label"></span> <button id="dispatch-prepared" class="primary">Dispatch prepared task</button> <span id="prepared-dispatch-status" class="muted"></span></div>
-    <div id="actor-strip" class="actor-strip" aria-label="Observed actors"></div>
+    <button id="attribution-health" class="attribution-health" type="button" title="Recent chat-attribution health">
+      <span id="attribution-health-label">Attribution — checking…</span>
+    </button>
   </header>
+
   <section id="connection-requests" class="connection-requests" aria-live="polite" hidden></section>
+
   <aside id="help-panel" class="overlay-panel" hidden>
     <div class="overlay-head"><strong>Observer help</strong><button id="help-close" class="icon-button" aria-label="Close help">×</button></div>
-    <p><strong>Actors.</strong> MCP, TERM, OC, QWEN, LLAMA and GIT are known actors. Gray means known/idle; a blinking dot means confirmed current activity. LLAMA BUSY is live slot state. GIT Δn is working-tree state, not Git activity.</p>
-    <p><strong>Execution spans.</strong> Show managed process lifecycle such as RUNNING, WAITING and terminal states. <strong>Current / recent trace</strong> groups the latest correlated causal chain by span parentage. <strong>Unified timeline</strong> remains the raw observed event stream; click a row to expand full provenance.</p>
-    <p><strong>Turn truth.</strong> "Current ChatGPT/MCP dispatch is not authoritative until the gateway exists" means GW-01 has not yet made the current ChatGPT dispatch correlatable end-to-end. It does not invalidate Browser Bridge reads.</p>
-    <p id="gateway-next-action"><strong>Next engineering gap.</strong> Manual prepared dispatch is now live-accepted. The remaining GW-01/GW-02 boundary is automatic ChatGPT turn → prepared Harness handoff: the platform turn must allocate/propagate authoritative turn/action identity before any external RDC/MCP or detached local execution begins. Until then direct Web ChatGPT tool calls remain external/unscoped.</p><p><button id="gw01-acceptance" class="primary">Run GW-01 correlation acceptance</button> <span id="gw01-acceptance-status" class="muted"></span></p>
-    <p><strong>Bridge controls.</strong> The gear opens explicit page-sharing controls. Only pages you share are readable.</p>
     <section class="help-section">
-      <h2>Current run</h2>
-      <div id="run-summary" class="run-summary"></div>
-      <details id="run-task-details"><summary>Task / prompt</summary><pre id="run-task"></pre></details>
-      <details><summary>Artifacts and logs</summary><div id="run-artifacts" class="artifact-list"></div></details>
+      <h2>Concepts</h2>
+      <p><strong>Actors</strong> are tools and runtimes observed by the Harness. <strong>Task</strong> is the current goal. <strong>Run</strong> is a durable execution instance. <strong>Span</strong> is one causally scoped operation. <strong>Unified timeline</strong> is the raw evidence stream.</p>
+      <p><strong>Attribution</strong> links evidence to a ChatGPT conversation/turn. <strong>browser_inferred</strong> means the identity was conservatively inferred from one active browser turn; it is not authoritative transport identity.</p>
     </section>
     <section class="help-section">
-      <h2>Runtime diagnostics</h2>
+      <h2>Controls</h2>
+      <p><strong>Settings</strong> manages explicit Browser Bridge page sharing. <strong>Update</strong> appears only when the loaded extension differs from disk. <strong>Open source chat</strong> navigates from scoped evidence to its owning ChatGPT conversation.</p>
+      <p><button id="gw01-acceptance" class="primary">Run GW-01 correlation acceptance</button> <span id="gw01-acceptance-status" class="muted"></span></p>
+    </section>
+    <section class="help-section">
+      <h2>Diagnostics</h2>
       <div id="help-runtime-grid" class="runtime-grid"></div>
+      <details><summary>Current run inspection</summary>
+        <div id="run-summary" class="run-summary"></div>
+        <details id="run-task-details"><summary>Task / prompt</summary><pre id="run-task"></pre></details>
+        <details><summary>Artifacts and logs</summary><div id="run-artifacts" class="artifact-list"></div></details>
+      </details>
     </section>
   </aside>
+
   <aside id="settings-panel" class="settings-panel" hidden>
     <div class="settings-head"><strong>Bridge controls</strong><button id="settings-close" class="icon-button" aria-label="Close settings">×</button></div>
     <p id="bridge-status" class="muted">Checking connection…</p>
@@ -59,58 +67,77 @@
     <p><button id="open-options">Advanced settings</button></p>
     <p id="settings-error" role="alert"></p>
   </aside>
+
   <main>
-    <section id="prepared-result-section" hidden>
-      <div class="section-head">
-        <h2>Last prepared dispatch</h2>
-        <span id="prepared-result-meta" class="muted"></span>
+    <details id="task-lifecycle-section" class="panel-section" open>
+      <summary class="panel-summary">
+        <span id="task-lifecycle-title" class="panel-title">Current task</span>
+        <span id="task-safety" class="panel-meta muted"></span>
+      </summary>
+      <div class="panel-body">
+        <div id="task-lifecycle-summary" class="run-summary"></div>
+        <div id="task-lifecycle-work" class="artifact-list"></div>
       </div>
-      <div id="prepared-result-summary" class="run-summary"></div>
-    </section>
-    <section id="project-status-section">
-      <div class="section-head">
-        <h2>Project readiness</h2>
-        <span id="project-status-meta" class="muted"></span>
+    </details>
+
+    <details id="run-section" class="panel-section" open>
+      <summary class="panel-summary">
+        <span class="panel-title">Run</span>
+        <span id="run-meta" class="panel-meta muted"></span>
+      </summary>
+      <div class="panel-body">
+        <div id="prepared-dispatch" class="inline-action" hidden>
+          <strong>Prepared task</strong>
+          <span id="prepared-dispatch-label"></span>
+          <button id="dispatch-prepared" class="primary">Dispatch</button>
+          <span id="prepared-dispatch-status" class="muted"></span>
+        </div>
+        <div id="detached-run-section" hidden>
+          <h3>Harness-owned run <span id="detached-heartbeat" class="muted"></span></h3>
+          <div id="detached-run-summary" class="run-summary"></div>
+        </div>
+        <div id="prepared-result-section" hidden>
+          <h3>Last prepared handoff <span id="prepared-result-meta" class="muted"></span></h3>
+          <div id="prepared-result-summary" class="run-summary"></div>
+        </div>
       </div>
-      <div id="project-status-summary" class="run-summary"></div>
-    </section>
-    <section id="detached-run-section" hidden>
-      <div class="section-head">
-        <h2>Harness-owned run</h2>
-        <span id="detached-heartbeat" class="muted"></span>
+    </details>
+
+    <details id="project-status-section" class="panel-section">
+      <summary class="panel-summary" title="Project-level delivery progress from the tracked TODO catalog">
+        <span class="panel-title">Project readiness</span>
+        <span id="project-status-meta" class="panel-meta muted"></span>
+      </summary>
+      <div class="panel-body">
+        <div id="project-status-summary" class="run-summary"></div>
       </div>
-      <div id="detached-run-summary" class="run-summary"></div>
-    </section>
-    <section id="task-lifecycle-section">
-      <div class="section-head">
-        <h2 id="task-lifecycle-title">Current task</h2>
-        <span id="task-safety" class="muted"></span>
-      </div>
-      <div id="task-lifecycle-summary" class="run-summary"></div>
-      <div id="task-lifecycle-work" class="artifact-list"></div>
-    </section>
-    <section id="spans-section">
-      <div class="section-head">
-        <h2>Execution spans</h2>
-        <span id="span-count" class="muted"></span>
-      </div>
-      <div id="spans" class="spans"></div>
-    </section>
-    <section id="rdc-section">
-      <div class="section-head">
-        <h2>Remote Desktop / background</h2>
-        <span id="rdc-meta" class="muted"></span>
-      </div>
-      <div id="rdc-activity" class="artifact-list"></div>
-    </section>
-    <section id="trace-section">
-      <div class="section-head">
-        <h2 id="trace-title">Current / recent trace</h2>
-        <span id="trace-meta" class="muted"></span>
-      </div>
-      <div id="trace" class="trace"></div>
-    </section>
-    <section>
+    </details>
+
+    <details id="spans-section" class="panel-section">
+      <summary class="panel-summary" title="Causally scoped tool/process operations">
+        <span class="panel-title">Execution spans</span>
+        <span id="span-count" class="panel-meta muted"></span>
+      </summary>
+      <div class="panel-body"><div id="spans" class="spans"></div></div>
+    </details>
+
+    <details id="rdc-section" class="panel-section">
+      <summary class="panel-summary" title="Remote Desktop Commander and background process diagnostics">
+        <span class="panel-title">Transports &amp; background</span>
+        <span id="rdc-meta" class="panel-meta muted"></span>
+      </summary>
+      <div class="panel-body"><div id="rdc-activity" class="artifact-list"></div></div>
+    </details>
+
+    <details id="trace-section" class="panel-section">
+      <summary class="panel-summary" title="Current attribution and causal-trace diagnostics">
+        <span id="trace-title" class="panel-title">Attribution / causal trace</span>
+        <span id="trace-meta" class="panel-meta muted"></span>
+      </summary>
+      <div class="panel-body"><div id="trace" class="trace"></div></div>
+    </details>
+
+    <section id="timeline-section" class="evidence-section">
       <div class="section-head">
         <h2>Unified timeline</h2>
         <select id="timeline-scope" aria-label="Timeline scope">

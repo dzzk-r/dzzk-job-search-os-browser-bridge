@@ -149,19 +149,20 @@ function activeChain(state) {
 function renderActors(state) {
   const activity=state.actor_activity||{};
   const defs=[
-    ['MCP',state.rdc?.last_activity_seconds!=null?'RDC '+seconds(state.rdc.last_activity_seconds):''],
-    ['TERM',(state.rdc?.open_count||0)?String(state.rdc.open_count)+' open':''],
-    ['OC',''],
-    ['QWEN',''],
-    ['LLAMA',String(state.llama||'').replace(/^slot\d+:/,'')],
-    ['GIT','Δ'+String(state.git_total??0)]
+    ['MCP',state.rdc?.last_activity_seconds!=null?'RDC '+seconds(state.rdc.last_activity_seconds):'','Model Context Protocol'],
+    ['RDC',state.rdc?.last_activity_seconds!=null?seconds(state.rdc.last_activity_seconds):'','Remote Desktop Commander'],
+    ['TERM',(state.rdc?.open_count||0)?String(state.rdc.open_count)+' open':'','Terminal / managed process lifecycle'],
+    ['OC','','OpenCode worker'],
+    ['QWEN','','Qwen local model actor'],
+    ['LLAMA',String(state.llama||'').replace(/^slot\d+:/,''),'llama.cpp inference runtime'],
+    ['GIT','Δ'+String(state.git_total??0),'Git repository working-tree state']
   ];
   const frag=document.createDocumentFragment();
-  for(const [name,detail] of defs) {
+  for(const [name,detail,fullName] of defs) {
     const isActive=activity[name]===true;
     const chip=document.createElement('span');
     chip.className='actor-chip '+name.toLowerCase()+(isActive?' active':'');
-    chip.title=isActive ? name+' has confirmed current activity' : name+' is known but idle';
+    chip.title=fullName+' — '+(isActive?'confirmed current activity':'known/idle');
     const dot=document.createElement('span'); dot.className='dot';
     const label=document.createElement('span'); label.textContent=name;
     chip.append(dot,label);
@@ -293,7 +294,76 @@ function renderExtensionVersion(state) {
     (gv.started_at?' · started '+gv.started_at:'')+
     (gv.repo_changed?' · repository moved since gateway start':'')+
     (gv.restart_required?' · server code changed; restart required':'');
+  const versionLine=$('version-line');
+  if(versionLine) versionLine.hidden=!(mismatch||gv.restart_required);
 }
+
+function setDisclosureDefault(section, open) {
+  if(!section || section.dataset.disclosureInitialized==='true') return;
+  section.open=Boolean(open);
+  section.dataset.disclosureInitialized='true';
+}
+
+function recentAttributionHealth(state, windowSeconds=120) {
+  const now=Date.now()/1000;
+  const workSources=new Set(['MCP','TERM','ACTION','OC','QWEN','LLAMA']);
+  const events=(state.timeline||[]).filter(event=>
+    workSources.has(String(event.source||'')) &&
+    Number.isFinite(Number(event.ts)) &&
+    now-Number(event.ts)<=windowSeconds
+  );
+  const scoped=events.filter(event=>Boolean(event.correlation?.conversation_id)).length;
+  return {total:events.length,scoped,unscoped:events.length-scoped,rate:events.length?Math.round(scoped*100/events.length):null,windowSeconds};
+}
+
+function renderAttributionHealth(state) {
+  const health=recentAttributionHealth(state);
+  const button=$('attribution-health');
+  const label=$('attribution-health-label');
+  button.className='attribution-health';
+  if(!health.total) {
+    label.textContent='Attribution · no recent work evidence';
+    button.title='No MCP/TERM/action/model events observed in the last 2 minutes.';
+    return health;
+  }
+  const healthy=health.rate>=90;
+  button.classList.add(healthy?'healthy':'degraded');
+  label.textContent=(healthy?'Attribution healthy':'Attribution degraded')+' · '+health.rate+'% · '+health.scoped+'/'+health.total+' recent';
+  button.title='Recent 2-minute work attribution: '+health.scoped+' scoped, '+health.unscoped+' unscoped. Click for causal diagnostics.';
+  if(!healthy) setDisclosureDefault($('trace-section'),true);
+  return health;
+}
+
+function renderRunMeta(state) {
+  const section=$('run-section');
+  const meta=$('run-meta');
+  const run=detachedRunHealth(state);
+  const prepared=state.prepared_dispatch;
+  const ready=!$('prepared-dispatch')?.hidden;
+  if(run) {
+    const terminal=['DONE','ERROR','CANCELED'].includes(String(run.status||'').toUpperCase());
+    meta.textContent=String(run.status||'?')+(run.phase?' · '+run.phase:'');
+    setDisclosureDefault(section,!terminal);
+    section.hidden=false;
+    return;
+  }
+  if(prepared) {
+    meta.textContent=(prepared.result||prepared.run_status||prepared.status||'?')+(prepared.seconds!=null?' · '+seconds(prepared.seconds):'');
+    setDisclosureDefault(section,false);
+    section.hidden=false;
+    return;
+  }
+  if(ready) {
+    meta.textContent='prepared task ready';
+    setDisclosureDefault(section,true);
+    section.hidden=false;
+    return;
+  }
+  meta.textContent='no active run';
+  setDisclosureDefault(section,false);
+  section.hidden=false;
+}
+
 function appendKeyValues(parent, rows) {
   const frag=document.createDocumentFragment();
   for(const [key,value,cls] of rows) {
@@ -385,6 +455,7 @@ function renderTaskLifecycle(state) {
     return;
   }
   const terminal=['DONE','ERROR','CANCELED'].includes(String(task.status||'').toUpperCase());
+  setDisclosureDefault(section,!terminal);
   $('task-lifecycle-title').textContent=terminal?'Last task':'Current task';
   $('task-safety').textContent='safe to interrupt: '+String(task.safe_to_interrupt||'?');
   appendKeyValues($('task-lifecycle-summary'),[
@@ -485,7 +556,9 @@ function renderSpans(state) {
   }
   $('spans').replaceChildren(frag);
   $('span-count').textContent=openCount+' open · '+Math.max(0,spans.length-openCount)+' recent';
-  $('spans-section').hidden=spans.length===0;
+  const spansSection=$('spans-section');
+  spansSection.hidden=spans.length===0;
+  setDisclosureDefault(spansSection,openCount>0||spans.some(s=>String(s.status||'').toUpperCase()==='ERROR'));
 }
 function renderRdc(state) {
   const rdc=state.rdc||{};
@@ -509,8 +582,10 @@ function renderRdc(state) {
     row.append(strong,span); frag.append(row);
   }
   box.replaceChildren(frag);
-  meta.textContent=String(rdc.open_count||0)+' open';
-  $('rdc-section').hidden=false;
+  meta.textContent=(rdc.last_activity_seconds!=null?'RDC '+seconds(rdc.last_activity_seconds)+' ago · ':'')+String(rdc.open_count||0)+' process'+((rdc.open_count||0)===1?'':'es');
+  const section=$('rdc-section');
+  section.hidden=false;
+  setDisclosureDefault(section,false);
 }
 
 function correlationShort(value) {
@@ -558,9 +633,9 @@ function renderTrace(state) {
   const box=$('trace'), meta=$('trace-meta');
   const title=$('trace-title');
   if(external) {
-    title.textContent='Current external activity — unscoped';
+    title.textContent='Attribution diagnostics';
   } else {
-    title.textContent='Current / recent trace';
+    title.textContent='Attribution / causal trace';
   }
   if(!corr) {
     box.replaceChildren();
@@ -725,13 +800,15 @@ async function refresh() {
     }
     $('error').textContent='';
     lastState=state;
+    renderActors(state);
     renderHeader(state);
     renderExtensionVersion(state);
-    renderActors(state);
+    renderAttributionHealth(state);
     renderPreparedResult(state);
-    renderProjectStatus(state);
     renderDetachedRun(state);
+    renderRunMeta(state);
     renderTaskLifecycle(state);
+    renderProjectStatus(state);
     renderSpans(state);
     renderRdc(state);
     renderTrace(state);
@@ -787,10 +864,9 @@ must('pause-actions').addEventListener('click',async()=>{
 must('open-options').addEventListener('click',()=>chrome.runtime.openOptionsPage());
 
 
-must('gateway-next').addEventListener('click',()=>{
-  $('help-panel').hidden=false;
-  $('gateway-next-action')?.scrollIntoView({block:'center'});
-  if(lastState){renderRunInspection(lastState);renderHeader(lastState);}
+must('attribution-health').addEventListener('click',()=>{
+  const section=$('trace-section');
+  if(section) { section.hidden=false; section.open=true; section.scrollIntoView({block:'nearest'}); }
 });
 must('gw01-acceptance').addEventListener('click',async()=>{
   const button=$('gw01-acceptance');

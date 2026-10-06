@@ -69,7 +69,7 @@ See [Current status](docs/STATUS.md),
 > checkpoint commits. `TODO.md` is the authoritative task catalog; integration
 > into `main` remains a separate reviewed step.
 
-## Version 0.1.10 development baseline
+## Version 0.1.11 development baseline
 
 The MCP server exposes four read-only page tools:
 `list_tabs`, `read_page`, `find_in_page`, `bridge_status`.
@@ -181,7 +181,7 @@ npm run build
 FIREFOX_BIN=/path/to/firefox npm run test:firefox
 ```
 
-`dist/execution_delivery_harness_browser_bridge-0.1.10.zip` is the unsigned AMO submission
+`dist/execution_delivery_harness_browser_bridge-0.1.11.zip` is the unsigned AMO submission
 package. An unsigned ZIP is not an approved AMO release. Firefox smoke testing
 uses a disposable profile and synthetic pages, never personal browser sessions.
 
@@ -219,7 +219,7 @@ Readiness is milestone-based, not an average of task percentages. The authoritat
 npm run project:readiness
 ```
 
-Current task-catalog aggregate on 2026-10-06: **57% average, 4/36 tasks at 100%**. The count now includes explicit Side Panel information-architecture work (UI-01); this aggregate is informative only, while milestone readiness remains gate-based.
+Current task-catalog aggregate on 2026-10-06: **58% average, 4/36 tasks at 100%**. The count now includes explicit Side Panel information-architecture work (UI-01); this aggregate is informative only, while milestone readiness remains gate-based.
 
 The current milestones are:
 

@@ -370,13 +370,13 @@ test('Observer distinguishes degraded snapshot failure from companion offline', 
 });
 
 
-test('Observer distinguishes current unscoped external activity from recent correlated trace', async () => {
+test('Observer folds unscoped external activity into attribution diagnostics while preserving recent trace evidence', async () => {
   const html = await readFile(new URL('../chrome/observer.html', import.meta.url), 'utf8');
   const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
   assert.match(html,/id="trace-title"/);
-  assert.match(html,/trace-ui12/);
+  assert.match(html,/Attribution \/ causal trace/);
   assert.match(js,/function currentExternalActivity\(state\)/);
-  assert.match(js,/Current external activity — unscoped/);
+  assert.match(js,/Attribution diagnostics/);
   assert.match(js,/Recent correlated trace /);
   assert.match(js,/awaiting authoritative gateway/);
 });
@@ -394,13 +394,15 @@ test('Observer surfaces detached Harness ownership and heartbeat without log act
 });
 
 
-test('Observer gateway warning has an explicit next-action CTA', async () => {
+test('Observer exposes recent attribution health instead of a permanent gateway-gap CTA', async () => {
   const html = await readFile(new URL('../chrome/observer.html', import.meta.url), 'utf8');
   const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
-  assert.match(html,/id="gateway-next"/);
-  assert.match(html,/Gap: ChatGPT turn → Harness gateway/);
-  assert.match(html,/id="gateway-next-action"/);
-  assert.match(js,/gateway-next.*addEventListener/s);
+  assert.match(html,/id="attribution-health"/);
+  assert.doesNotMatch(html,/Gap: ChatGPT turn → Harness gateway/);
+  assert.match(js,/function recentAttributionHealth\(state/);
+  assert.match(js,/Attribution healthy/);
+  assert.match(js,/Attribution degraded/);
+  assert.match(js,/attribution-health.*addEventListener/s);
 });
 
 
@@ -411,12 +413,14 @@ test('terminal detached runs show finished age instead of stale heartbeat', asyn
 });
 
 
-test('Observer exposes a real prepared dispatch control separate from gateway help', async () => {
+test('Observer keeps prepared dispatch as an explicit Run action rather than a separate top-level concept', async () => {
   const html = await readFile(new URL('../chrome/observer.html', import.meta.url), 'utf8');
   const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
   const bg = await readFile(new URL('../chrome/background.js', import.meta.url), 'utf8');
-  assert.match(html,/id="prepared-dispatch"/);
-  assert.match(html,/Dispatch prepared task/);
+  const runIndex=html.indexOf('id="run-section"');
+  const preparedIndex=html.indexOf('id="prepared-dispatch"');
+  assert.ok(runIndex>=0 && preparedIndex>runIndex);
+  assert.match(html,/id="dispatch-prepared"[^>]*>Dispatch</);
   assert.match(js,/refreshPreparedDispatch/);
   assert.match(js,/type:'dispatch-prepared'/);
   assert.match(bg,/case 'dispatch-state'/);
@@ -424,14 +428,19 @@ test('Observer exposes a real prepared dispatch control separate from gateway he
 });
 
 
-test('Project readiness and prepared dispatch result are first-class observer sections', async () => {
+test('Work and diagnostics use progressive disclosure while prepared dispatch is run metadata', async () => {
   const html = await readFile(new URL('../chrome/observer.html', import.meta.url), 'utf8');
   const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
-  assert.match(html,/id=\"prepared-result-section\"/);
-  assert.match(html,/id=\"project-status-section\"/);
-  assert.match(js,/function renderPreparedResult\(state\)/);
-  assert.match(js,/function renderProjectStatus\(state\)/);
-  assert.match(js,/label:'OBSERVED'/);
+  assert.match(html,/<details id="task-lifecycle-section" class="panel-section"/);
+  assert.match(html,/<details id="run-section" class="panel-section"/);
+  assert.match(html,/<details id="project-status-section" class="panel-section"/);
+  assert.match(html,/<details id="spans-section" class="panel-section"/);
+  assert.match(html,/<details id="rdc-section" class="panel-section"/);
+  assert.match(html,/<details id="trace-section" class="panel-section"/);
+  assert.match(html,/id="prepared-result-section"/);
+  assert.match(html,/id="prepared-dispatch"/);
+  assert.match(js,/function renderRunMeta\(state\)/);
+  assert.match(js,/function setDisclosureDefault\(section, open\)/);
 });
 
 test('Raw timeline no longer uses opaque xN repeat compaction', async () => {
@@ -555,7 +564,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.10');
+  assert.equal(manifest.version,'0.1.11');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -572,7 +581,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.10');
+  assert.equal(pkg.version,'0.1.11');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -627,7 +636,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.10"/);
+  assert.match(html,/data-build-version="0\.1\.11"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -664,4 +673,20 @@ test('Unified timeline scope selector is a persistent DOM island across polling 
   assert.doesNotMatch(refreshBlock,/selector\.replaceChildren\(/);
   assert.match(refreshBlock,/reconcileTimelineScopeOptions\(selector,model\)/);
   assert.match(refreshBlock,/if\(selector\.value!==wanted\) selector\.value=wanted/);
+});
+
+
+test('UI-01 first viewport prioritizes actors, operator status, work summaries and evidence', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  const actorIndex=html.indexOf('id="actor-strip"');
+  const statusIndex=html.indexOf('class="status-line"');
+  assert.ok(actorIndex>=0 && statusIndex>actorIndex);
+  assert.match(html,/id="version-line"[^>]*hidden/);
+  assert.match(html,/id="timeline-section" class="evidence-section"/);
+  assert.match(html,/<h2>Concepts<\/h2>/);
+  assert.match(html,/<h2>Controls<\/h2>/);
+  assert.match(html,/<h2>Diagnostics<\/h2>/);
+  assert.match(js,/versionLine\.hidden=!\(mismatch\|\|gv\.restart_required\)/);
+  assert.match(js,/Recent 2-minute work attribution/);
 });
