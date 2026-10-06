@@ -35,7 +35,7 @@ The live-acceptance worktree has been classified and stabilized into separate im
 - Named conversation scopes in Unified timeline; selecting a known conversation filters its scoped evidence.
 - Browser-observed ChatGPT TURN START/ACTIVE/DONE lifecycle and conservative single-active-turn attribution substrate.
 - PID/process descendants can inherit an already-scoped launch after the browser turn lease ends.
-- Versioned extension reload UX: loaded-vs-disk semver mismatch is shown in Side Panel; reload is explicit user action.
+- Versioned extension reload UX is live-accepted: loaded-vs-disk semver mismatch is shown in Side Panel, reload is explicit user action, and the mismatch control disappears after the requested version loads.
 - Gateway restart no longer implies extension reload.
 - Knowledge plane and project/task context injection for local planning.
 
