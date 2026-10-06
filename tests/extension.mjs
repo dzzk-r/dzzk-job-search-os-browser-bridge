@@ -514,6 +514,7 @@ test('GW-01 extension auto-admits the active saved ChatGPT conversation from its
 
 test('GW-01 Observer exposes chat-scoped timeline projections without changing the global ledger', async () => {
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   assert.match(html,/id="timeline-scope"/);
@@ -522,6 +523,8 @@ test('GW-01 Observer exposes chat-scoped timeline projections without changing t
   assert.doesNotMatch(html,/Current chat/);
   assert.doesNotMatch(html,/Other chats/);
   assert.match(html,/id="current-conversation"/);
+  assert.match(css,/#current-conversation\s*\{[\s\S]*?display:none;/);
+  assert.match(css,/#position\s*\{[\s\S]*?white-space:nowrap;/);
   assert.match(js,/function timelineEventsForScope\(events,scope,binding\)/);
   assert.match(js,/scope==='unscoped'/);
   assert.doesNotMatch(html,/id="chat-selector"/);
@@ -564,7 +567,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.27');
+  assert.equal(manifest.version,'0.1.28');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -581,7 +584,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.27');
+  assert.equal(pkg.version,'0.1.28');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -636,7 +639,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.27"/);
+  assert.match(html,/data-build-version="0\.1\.28"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);

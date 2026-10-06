@@ -124,16 +124,19 @@ html, body.observer { width:100%; max-width:100%; overflow-x:hidden; box-sizing:
   width:100%;
   max-width:100%;
   min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
+/* The selected chat is already named by the scope control. Repeating its id here
+   forced LIVE x/y onto a third row and made chat scopes visually noisy. */
 #current-conversation {
-  grid-column:2;
-  justify-self:end;
-  max-width:16ch;
+  display:none;
 }
 #position {
   grid-column:2;
   justify-self:end;
   margin-left:0;
+  white-space:nowrap;
 }
 
 
