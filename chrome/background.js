@@ -248,7 +248,7 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
       return {ok:true,binding};
     }
     case 'chat-detector-status': {
-      if(m.detector_version!=='turn-v4') return {ok:true,ignored:true};
+      if(m.detector_version!=='turn-v5') return {ok:true,ignored:true};
       const tab=sender.tab;
       if(!tab || !Number.isInteger(tab.id)) throw new Error('Chat detector status requires a browser tab.');
       const localActivity={
@@ -256,7 +256,9 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
         conversation_id:m.conversation_id,
         observed_at:m.observed_at||new Date().toISOString(),
         generating:m.generating===true,
-        active_turn_id:m.active_turn_id||null
+        active_turn_id:m.active_turn_id||null,
+        activity_state:['active','waiting_user','pending','idle'].includes(m.activity_state)?m.activity_state:'idle',
+        waiting_user:m.waiting_user===true
       };
       chatDetectorByTab.set(tab.id,localActivity);
       try {
@@ -270,6 +272,8 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
           assistant_count:m.assistant_count,
           generating:localActivity.generating,
           active_turn_id:localActivity.active_turn_id,
+          activity_state:localActivity.activity_state,
+          waiting_user:localActivity.waiting_user,
           structural_counts:m.structural_counts&&typeof m.structural_counts==='object'?m.structural_counts:null,
           tab_id:tab.id
         });
@@ -277,7 +281,7 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
       return {ok:true,local:true};
     }
     case 'chat-turn-observed': {
-      if(m.detector_version!=='turn-v4') return {ok:true,ignored:true};
+      if(m.detector_version!=='turn-v5') return {ok:true,ignored:true};
       const tab=sender.tab;
       if(!tab || !Number.isInteger(tab.id)) throw new Error('Chat turn observation requires a browser tab.');
       const binding=conversations.getByTab({...tab,url:m.url||tab.url,title:m.title||tab.title||''});
@@ -333,7 +337,10 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
       return {binding,activity:fresh ? {
         conversation_id:fresh.conversation_id,
         turn_id:fresh.active_turn_id,
-        active:Boolean(fresh.generating||fresh.active_turn_id),
+        state:fresh.activity_state||'idle',
+        active:fresh.activity_state==='active',
+        waiting_user:fresh.activity_state==='waiting_user',
+        pending:fresh.activity_state==='pending',
         generating:fresh.generating===true,
         source_quality:'browser_observed'
       } : null};

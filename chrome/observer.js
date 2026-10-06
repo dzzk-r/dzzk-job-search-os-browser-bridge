@@ -153,7 +153,7 @@ function renderActors(state,companionAvailable=true) {
   const rdcAge=state.rdc?.last_activity_seconds;
   const rdcRecent=Number.isFinite(rdcAge) && rdcAge<=30;
   const defs=[
-    ['CHAT',chatActivity?.active?'active':'','ChatGPT browser turn','browser conversation / turn context',null],
+    ['CHAT',chatActivity?.state==='waiting_user'?'waiting':chatActivity?.state==='pending'?'pending':chatActivity?.state==='active'?'active':'','ChatGPT browser turn','browser conversation / turn context',chatActivity?.state?('state '+chatActivity.state):null],
     ['MCP','','Observed MCP transport activity','transport boundary; only instrumented providers are visible',null],
     ['RDC',rdcRecent?seconds(rdcAge):'','Remote Desktop Commander','provider / tool family',Number.isFinite(rdcAge)?('last observed '+seconds(rdcAge)+' ago'):null],
     ['TERM',(state.rdc?.open_count||0)?String(state.rdc.open_count)+' open':'','Terminal / managed process lifecycle','local process runtime',null],
@@ -166,15 +166,19 @@ function renderActors(state,companionAvailable=true) {
   for(const [name,detail,fullName,origin,diagnostic] of defs) {
     const isBrowserActor=name==='CHAT';
     const unavailable=!isBrowserActor && !companionAvailable;
-    const isActive=isBrowserActor ? chatActivity?.active===true : activity[name]===true;
+    const isActive=isBrowserActor ? chatActivity?.state==='active' : activity[name]===true;
+    const isWaiting=isBrowserActor && chatActivity?.state==='waiting_user';
+    const isPending=isBrowserActor && chatActivity?.state==='pending';
     const chip=document.createElement('span');
-    chip.className='actor-chip '+name.toLowerCase()+(isActive?' active':'')+(unavailable?' unavailable':'');
+    chip.className='actor-chip '+name.toLowerCase()+(isActive?' active':'')+(isWaiting?' waiting':'')+(isPending?' pending':'')+(unavailable?' unavailable':'');
     const titleParts=[];
     if(origin) titleParts.push(origin);
     if(detail) titleParts.push(detail);
     if(diagnostic) titleParts.push(diagnostic);
     if(unavailable) titleParts.push('telemetry unavailable');
-    else if(isActive) titleParts.push(name==='CHAT'?'active browser turn':'recently observed activity');
+    else if(isActive) titleParts.push(name==='CHAT'?'positive browser activity evidence':'recently observed activity');
+    else if(isWaiting) titleParts.push('turn open · waiting for user input');
+    else if(isPending) titleParts.push('turn open · no positive activity evidence');
     else titleParts.push('known idle');
     chip.title=titleParts.join(' · ');
     const dot=document.createElement('span'); dot.className='dot';

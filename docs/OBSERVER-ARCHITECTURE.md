@@ -423,7 +423,7 @@ It does not make browser focus authoritative, and it does not convert generic RD
 
 ### Extension version / reload contract
 
-Development reload is now version-visible rather than implicit. Package, Chrome and Firefox manifests share semantic version `0.1.25`. The Side Panel compares the loaded extension version with the manifest version on disk; when they differ it shows an explicit `Reload <loaded> → <disk>` control. Gateway restart must not reload the extension. File-change revision is only a signal that a newer build exists; the loaded runtime changes only after explicit user action.
+Development reload is now version-visible rather than implicit. Package, Chrome and Firefox manifests share semantic version `0.1.26`. The Side Panel compares the loaded extension version with the manifest version on disk; when they differ it shows an explicit `Reload <loaded> → <disk>` control. Gateway restart must not reload the extension. File-change revision is only a signal that a newer build exists; the loaded runtime changes only after explicit user action.
 
 
 ### Gateway runtime / repository identity
@@ -453,3 +453,8 @@ Detector diagnostics expose response-action count/baseline, completion evidence,
 ### Actor/provider vs transport provenance
 
 Observer actor identity and transport identity are separate dimensions. Remote Desktop Commander history is recorded as provider `RDC` with `transport=mcp`, rather than being mislabeled as a generic MCP actor. The `MCP` chip means recent activity over an MCP transport from providers instrumented by the Harness; it does not claim visibility into every MCP/plugin call inside ChatGPT. `RDC` means recent activity specifically from the Remote Desktop Commander provider. One RDC call can truthfully activate both chips for different reasons. A future GitHub, Gmail, or other instrumented MCP provider may activate MCP without activating RDC.
+
+
+### Browser turn activity states (turn-v5)
+
+The existence of an open browser turn is not itself evidence that ChatGPT is actively executing. The browser detector exposes four states: `active` when there is positive generation or recent assistant-DOM activity evidence; `waiting_user` when the open turn is blocked by a structurally observed modal/approval gate; `pending` when the turn remains open but no positive activity evidence is currently visible; and `idle` when no turn is open. Side Panel actor styling must render these states distinctly and must not infer `active` from `active_turn_id != null`. Approval detection is structural (`dialog`/`alertdialog` plus interactive controls) and does not inspect message text.

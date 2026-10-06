@@ -480,3 +480,8 @@ html, body.observer { width:100%; max-width:100%; overflow-x:hidden; box-sizing:
   background:color-mix(in srgb, Canvas 97%, CanvasText 3%);
   font:10.5px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;
 }
+
+.actor-chip.waiting { font-weight:700; opacity:1; }
+.actor-chip.waiting .dot { background:#d49400; box-shadow:0 0 0 2px rgba(212,148,0,.12); }
+.actor-chip.pending { opacity:.78; }
+.actor-chip.pending .dot { background:#8a8a8a; box-shadow:0 0 0 2px rgba(128,128,128,.08); }

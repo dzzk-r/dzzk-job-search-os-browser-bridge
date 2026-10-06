@@ -1,6 +1,6 @@
 (() => {
-  if (globalThis.__EDH_CHAT_CONTEXT_V4__) return;
-  globalThis.__EDH_CHAT_CONTEXT_V4__=true;
+  if (globalThis.__EDH_CHAT_CONTEXT_V5__) return;
+  globalThis.__EDH_CHAT_CONTEXT_V5__=true;
 
   const USER='[data-message-author-role="user"]';
   const ASSISTANT='[data-message-author-role="assistant"]';
@@ -40,6 +40,27 @@
   }
   const send=message=>chrome.runtime.sendMessage(message).catch(()=>{});
 
+  function visible(el) {
+    if(!el) return false;
+    const style=getComputedStyle(el);
+    return style.display!=='none' && style.visibility!=='hidden' && el.getClientRects().length>0;
+  }
+  function approvalGatePresent() {
+    const dialogs=[...document.querySelectorAll('[role="dialog"],[role="alertdialog"],dialog[open]')];
+    return dialogs.some(dialog=>{
+      if(!visible(dialog)) return false;
+      const controls=[...dialog.querySelectorAll('button,[role="button"],input,select,textarea')].filter(visible);
+      return controls.length>=2;
+    });
+  }
+  function turnActivityState(now,isGenerating=generating()) {
+    if(!activeTurn) return 'idle';
+    if(approvalGatePresent()) return 'waiting_user';
+    if(isGenerating) return 'active';
+    if(now-(activeTurn.lastAssistantMutationAt||0)<=2000) return 'active';
+    return 'pending';
+  }
+
   let contextSignature='';
   let conversationId=null;
   let initialized=false;
@@ -75,7 +96,7 @@
     if(!activeTurn || !conversationId) return;
     send({
       type:'chat-turn-observed',
-      detector_version:'turn-v4',
+      detector_version:'turn-v5',
       phase,
       conversation_id:conversationId,
       turn_id:activeTurn.id,
@@ -148,7 +169,7 @@
     const structure=structuralNames();
     send({
       type:'chat-detector-status',
-      detector_version:'turn-v4',
+      detector_version:'turn-v5',
       conversation_id:conversationId,
       url:location.href,
       title:document.title||'',
@@ -157,6 +178,8 @@
       assistant_count:assistantCount,
       generating:generating(),
       active_turn_id:activeTurn?.id||null,
+      activity_state:turnActivityState(now),
+      waiting_user:approvalGatePresent(),
       structural_counts:{
         article:count('article'),
         conversation_turn:count('[data-testid^="conversation-turn"]'),
@@ -175,6 +198,9 @@
         roles:structure.roles,
         composer:structure.composer,
         response_action_controls:structure.response_action_controls,
+        dialog:count('[role="dialog"]'),
+        alertdialog:count('[role="alertdialog"]'),
+        open_dialog:count('dialog[open]'),
         response_action_baseline:activeTurn?.responseActionBaseline??null,
         completion_evidence:Boolean(activeTurn && structure.response_action_controls>activeTurn.responseActionBaseline),
         completion_candidate_ms:activeTurn?.completionCandidateSince?Math.max(0,now-activeTurn.completionCandidateSince):0
