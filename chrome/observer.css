@@ -43,6 +43,8 @@ body.observer { max-width:none; padding:0; background:Canvas; color:CanvasText; 
 .actor-chip { display:inline-flex; gap:4px; align-items:center; }
 .actor-chip .dot { width:6px; height:6px; border-radius:50%; background:#888; }
 .actor-chip.active .dot { background:#16a34a; animation:observer-blink 1s steps(2,start) infinite; }
+.actor-chip.unavailable { opacity:.52; }
+.actor-chip.unavailable .dot { background:transparent; border:1px solid #888; box-sizing:border-box; }
 .actor-chip.llama.busy .dot { background:#16a34a; }
 .actor-chip .detail { opacity:.68; }
 .settings-panel { position:fixed; z-index:20; inset:0; width:100%; height:100%; overflow:auto; box-sizing:border-box; padding:12px 14px; background:Canvas; }

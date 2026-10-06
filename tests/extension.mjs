@@ -564,7 +564,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.19');
+  assert.equal(manifest.version,'0.1.20');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -581,7 +581,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.19');
+  assert.equal(pkg.version,'0.1.20');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -636,7 +636,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.19"/);
+  assert.match(html,/data-build-version="0\.1\.20"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -864,9 +864,30 @@ test('Help explains macro/micro lifecycle boundaries and Project is not Chat', a
 
 test('Actor strip exposes browser CHAT turn as a first-class context actor', async () => {
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
-  assert.ok(js.includes("['CHAT',state.chat_activity?.active?'active':'','ChatGPT browser turn','browser conversation / turn context']"));
-  assert.match(js,/name==='CHAT' \? state\.chat_activity\?\.active===true/);
+  assert.ok(js.includes("['CHAT',chatActivity?.active?'active':'','ChatGPT browser turn','browser conversation / turn context']"));
+  assert.match(js,/const isBrowserActor=name==='CHAT'/);
+  assert.match(js,/const isActive=isBrowserActor \? chatActivity\?\.active===true/);
   const chatIndex=js.indexOf("['CHAT'");
   const mcpIndex=js.indexOf("['MCP'");
   assert.ok(chatIndex>=0 && mcpIndex>chatIndex);
+});
+
+
+test('CHAT actor uses browser-local detector truth even when companion snapshot fails', async () => {
+  const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
+  assert.match(bg,/const chatDetectorByTab = new Map\(\)/);
+  assert.match(bg,/chatDetectorByTab\.set\(tab\.id,localActivity\)/);
+  assert.match(bg,/case 'conversation-current':[\s\S]*activity:fresh/s);
+  assert.match(js,/browserLocalChatActivity=currentConversationState\?\.activity\|\|null/);
+  assert.match(js,/renderActors\(lastState\?[\s\S]*false\)/);
+  assert.match(css,/\.actor-chip\.unavailable/);
+});
+
+test('Actor activity maps Desktop Commander evidence to both MCP transport and RDC provider with a 15s lease', async () => {
+  const py=await readFile(new URL('../scripts/run-observer.py',import.meta.url),'utf8');
+  assert.match(py,/transport_recent = bool\(activity_age is not None and activity_age <= 15\)/);
+  assert.match(py,/"MCP": transport_recent/);
+  assert.match(py,/"RDC": transport_recent/);
 });

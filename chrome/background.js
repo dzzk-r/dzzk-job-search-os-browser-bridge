@@ -6,6 +6,7 @@ let loopRunning = false, generation = 0, status = 'Disconnected', consents = [],
 let localPaused = false, serverPaused = false, actions = [];
 let seenReloadRevision = 0, pendingReloadRevision = 0;
 let publishedConversationSignature = null, publishedConversationAt = 0;
+const chatDetectorByTab = new Map();
 let policyWrites = Promise.resolve(), pauseIntent = 0;
 const isPaused = () => localPaused || serverPaused;
 async function persistConversationBindings() { const api=globalThis.chrome || globalThis.browser; await api.storage.local.set({conversationBindings:conversations.serialize()}); }
@@ -193,11 +194,13 @@ chrome.tabs.onUpdated.addListener((id,change) => {
     grants.revoke(id);
     if (conversations.revoke(id)) void persistConversationBindings();
     publishedConversationSignature=null; publishedConversationAt=0;
+    chatDetectorByTab.delete(id);
     void chrome.action.setBadgeText({tabId:id,text:''});
   }
   if(change.status==='complete' || change.url) void ensureChatContext(id);
 });
 chrome.tabs.onRemoved.addListener(id => {
+  chatDetectorByTab.delete(id);
   grants.revoke(id);
   if (conversations.revoke(id)) void persistConversationBindings();
   publishedConversationSignature=null; publishedConversationAt=0;
@@ -248,19 +251,30 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
       if(m.detector_version!=='turn-v3') return {ok:true,ignored:true};
       const tab=sender.tab;
       if(!tab || !Number.isInteger(tab.id)) throw new Error('Chat detector status requires a browser tab.');
-      return companion('/bridge/chat-detector-status',{
+      const localActivity={
         detector_version:m.detector_version,
         conversation_id:m.conversation_id,
-        url:m.url||tab.url,
-        title:m.title||tab.title||'',
-        observed_at:m.observed_at,
-        user_count:m.user_count,
-        assistant_count:m.assistant_count,
+        observed_at:m.observed_at||new Date().toISOString(),
         generating:m.generating===true,
-        active_turn_id:m.active_turn_id||null,
-        structural_counts:m.structural_counts&&typeof m.structural_counts==='object'?m.structural_counts:null,
-        tab_id:tab.id
-      });
+        active_turn_id:m.active_turn_id||null
+      };
+      chatDetectorByTab.set(tab.id,localActivity);
+      try {
+        await companion('/bridge/chat-detector-status',{
+          detector_version:m.detector_version,
+          conversation_id:m.conversation_id,
+          url:m.url||tab.url,
+          title:m.title||tab.title||'',
+          observed_at:localActivity.observed_at,
+          user_count:m.user_count,
+          assistant_count:m.assistant_count,
+          generating:localActivity.generating,
+          active_turn_id:localActivity.active_turn_id,
+          structural_counts:m.structural_counts&&typeof m.structural_counts==='object'?m.structural_counts:null,
+          tab_id:tab.id
+        });
+      } catch {}
+      return {ok:true,local:true};
     }
     case 'chat-turn-observed': {
       if(m.detector_version!=='turn-v3') return {ok:true,ignored:true};
@@ -312,7 +326,18 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
       return {ok:true,opened:'new',tab_id:created?.id??null};
     }
 
-    case 'conversation-current': return {binding:await currentConversationBinding()};
+    case 'conversation-current': {
+      const binding=await currentConversationBinding();
+      const activity=binding?.tabId!=null ? chatDetectorByTab.get(binding.tabId)||null : null;
+      const fresh=activity && Date.now()-Date.parse(activity.observed_at||0)<=15000 ? activity : null;
+      return {binding,activity:fresh ? {
+        conversation_id:fresh.conversation_id,
+        turn_id:fresh.active_turn_id,
+        active:Boolean(fresh.generating||fresh.active_turn_id),
+        generating:fresh.generating===true,
+        source_quality:'browser_observed'
+      } : null};
+    }
     case 'conversation-bind': {
       const tab=await conversationTab(m.tabId);
       if (!tab.active || tab.status === 'loading') throw new Error('Select a fully loaded ChatGPT tab before binding.');

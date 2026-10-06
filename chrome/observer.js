@@ -11,6 +11,7 @@ const send=m=>chrome.runtime.sendMessage(m);
 let follow=true;
 let renderedKeys=null;
 let lastState=null;
+let browserLocalChatActivity=null;
 let timelineScope='all';
 let currentConversationBinding=null;
 let knownConversationBindings=[];
@@ -146,10 +147,11 @@ function activeChain(state) {
   return open ? (open+' background open · gateway not authoritative') : 'safe locally · gateway not authoritative';
 }
 
-function renderActors(state) {
+function renderActors(state,companionAvailable=true) {
   const activity=state.actor_activity||{};
+  const chatActivity=browserLocalChatActivity||state.chat_activity||null;
   const defs=[
-    ['CHAT',state.chat_activity?.active?'active':'','ChatGPT browser turn','browser conversation / turn context'],
+    ['CHAT',chatActivity?.active?'active':'','ChatGPT browser turn','browser conversation / turn context'],
     ['MCP','','Model Context Protocol activity','protocol / connected-client boundary'],
     ['RDC',state.rdc?.last_activity_seconds!=null?seconds(state.rdc.last_activity_seconds):'','Remote Desktop Commander','local transport'],
     ['TERM',(state.rdc?.open_count||0)?String(state.rdc.open_count)+' open':'','Terminal / managed process lifecycle','local process runtime'],
@@ -160,13 +162,17 @@ function renderActors(state) {
   ];
   const frag=document.createDocumentFragment();
   for(const [name,detail,fullName,origin] of defs) {
-    const isActive=name==='CHAT' ? state.chat_activity?.active===true : activity[name]===true;
+    const isBrowserActor=name==='CHAT';
+    const unavailable=!isBrowserActor && !companionAvailable;
+    const isActive=isBrowserActor ? chatActivity?.active===true : activity[name]===true;
     const chip=document.createElement('span');
-    chip.className='actor-chip '+name.toLowerCase()+(isActive?' active':'');
+    chip.className='actor-chip '+name.toLowerCase()+(isActive?' active':'')+(unavailable?' unavailable':'');
     const titleParts=[];
     if(origin) titleParts.push(origin);
     if(detail) titleParts.push(detail);
-    if(isActive) titleParts.push('active now');
+    if(unavailable) titleParts.push('telemetry unavailable');
+    else if(isActive) titleParts.push(name==='CHAT'?'active browser turn':'recently observed activity');
+    else titleParts.push('known idle');
     chip.title=titleParts.join(' · ');
     const dot=document.createElement('span'); dot.className='dot';
     const label=document.createElement('span'); label.textContent=name;
@@ -835,11 +841,18 @@ function renderTimeline(state) {
   $('position').textContent='LIVE '+events.length+'/'+allEvents.length;
 }
 async function refresh() {
+  let currentConversationState=null;
+  try {
+    currentConversationState=await send({type:'conversation-current'});
+    browserLocalChatActivity=currentConversationState?.activity||null;
+  } catch {
+    browserLocalChatActivity=null;
+  }
   try {
     const state=await send({type:'observer-state'});
+    state.chat_local_activity=browserLocalChatActivity;
     try {
       const conversationState=await send({type:'conversation-state'});
-      const currentConversationState=await send({type:'conversation-current'});
       const activeBinding=currentConversationState?.binding ? {...currentConversationState.binding,is_current:true} : null;
       const cachedBindings=conversationState?.bindings||[];
       const ledgerBindings=[];
@@ -879,7 +892,7 @@ async function refresh() {
     }
     $('error').textContent='';
     lastState=state;
-    renderActors(state);
+    renderActors(state,true);
     renderHeader(state);
     renderExtensionVersion(state);
     renderAttributionHealth(state);
@@ -901,6 +914,7 @@ async function refresh() {
     $('state-label').textContent=degraded?'DEGRADED':'OFFLINE';
     $('state-dot').className='state-dot error';
     $('active-chain').textContent=degraded?'Observer snapshot unavailable':'Companion unavailable';
+    renderActors(lastState?{...lastState,chat_local_activity:browserLocalChatActivity}:{chat_local_activity:browserLocalChatActivity},false);
   }
 }
 must('reload-version').addEventListener('click',async()=>{
