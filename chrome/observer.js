@@ -342,19 +342,19 @@ function renderAttributionHealth(state) {
   button.disabled=true;
   button.setAttribute('aria-disabled','true');
   if(!health.total) {
-    label.textContent='Chat attribution · idle';
-    button.title='No recent work events need chat attribution. This is an idle state, not a failure.';
+    label.textContent='Attribution coverage · no recent work';
+    button.title='No recent work events require conversation attribution in the current 2-minute window.';
     return health;
   }
   const healthy=health.rate>=90;
   button.classList.add(healthy?'healthy':'degraded');
   if(healthy) {
-    label.textContent='Chat attribution · healthy · '+health.rate+'% · '+health.scoped+'/'+health.total;
+    label.textContent='Attribution coverage · healthy · '+health.rate+'% · '+health.scoped+'/'+health.total;
     button.title='Recent 2-minute work attribution: '+health.scoped+' scoped, '+health.unscoped+' unscoped.';
   } else {
     button.disabled=false;
     button.setAttribute('aria-disabled','false');
-    label.textContent='Chat attribution · degraded · '+health.unscoped+'/'+health.total+' unscoped · Inspect';
+    label.textContent='Attribution coverage · degraded · '+health.unscoped+'/'+health.total+' unscoped · Inspect';
     button.title='Recent 2-minute work attribution is degraded. Click to inspect causal diagnostics.';
     setDisclosureDefault($('trace-section'),true);
   }
