@@ -17,7 +17,7 @@ The local owner workflow is substantially implemented, but the repository is not
 - Active worktree: `chore/local-execution`
 - Checkpoint base: `f9a5091`; stabilized checkpoint commits follow on `chore/local-execution`
 - Automated suite: **90/90 passing** on 2026-10-06
-- TODO aggregate: **59% average, 4/35 tasks at 100%**
+- TODO aggregate: **57% average, 4/36 tasks at 100%**. The count increased because UI-01 now tracks Side Panel information architecture explicitly instead of hiding that work inside CHR/OBS tasks.
 - Milestone gate `owner-local-v0`: still blocked by unfinished Local Executor critical-path replacement / execution isolation work.
 
 The live-acceptance worktree has been classified and stabilized into separate implementation, evidence/knowledge, and documentation checkpoint commits. Bulk runtime run directories remain local-only; compact acceptance evidence is committed under `evidence/`.
@@ -87,3 +87,5 @@ The 2026-10-06 live-acceptance pile has been stabilized:
 Remaining repository work is to keep the checkpoint branch pushed and review integration into `main`; further feature work should not recreate a mixed uncommitted pile.
 
 See `TODO.md` for authoritative task state and `project/readiness.json` for milestone definitions.
+
+Side Panel semantic/UI design baseline: `docs/SIDE-PANEL-INFORMATION-ARCHITECTURE.md`.

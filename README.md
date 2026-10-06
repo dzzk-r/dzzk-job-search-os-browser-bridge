@@ -11,6 +11,8 @@ Opera.
 > the mandatory IP/external-disclosure boundary in [`AGENTS.md`](AGENTS.md). Private
 > app registration never implies permission to publish or disclose project internals.
 
+Side Panel semantic/UI design baseline: `docs/SIDE-PANEL-INFORMATION-ARCHITECTURE.md`.
+
 ## Current development status
 
 The project currently has three working surfaces around one MCP boundary:
@@ -217,7 +219,7 @@ Readiness is milestone-based, not an average of task percentages. The authoritat
 npm run project:readiness
 ```
 
-Current task-catalog aggregate on 2026-10-06: **59% average, 4/35 tasks at 100%**. This aggregate is informative only; milestone readiness remains gate-based.
+Current task-catalog aggregate on 2026-10-06: **57% average, 4/36 tasks at 100%**. The count now includes explicit Side Panel information-architecture work (UI-01); this aggregate is informative only, while milestone readiness remains gate-based.
 
 The current milestones are:
 
