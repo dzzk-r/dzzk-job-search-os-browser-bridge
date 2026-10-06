@@ -371,7 +371,7 @@ def browser_turn_windows(events_path: Path = HARNESS_OBSERVER_EVENTS, state_path
 
 def infer_browser_turn_scope(events, windows):
     for item in events:
-        if item.get("source") not in {"MCP","TERM"}:
+        if item.get("source") not in {"MCP","RDC","TERM"}:
             continue
         ts = item.get("ts") or 0
         if not ts:
@@ -1270,7 +1270,22 @@ def print_once(root, repo, commands, mcp):
 
 def print_json(root, repo, commands, mcp):
     d = snapshot(root, repo, commands, mcp)
-    merged = d["timeline"][-300:]
+    full_timeline = d["timeline"]
+    merged = full_timeline[-300:]
+    scope_events = {"all": merged}
+    scope_totals = {"all": len(full_timeline)}
+    unscoped = [item for item in full_timeline if not ((item.get("correlation") or {}).get("conversation_id"))]
+    scope_events["unscoped"] = unscoped[-300:]
+    scope_totals["unscoped"] = len(unscoped)
+    by_conversation = {}
+    for item in full_timeline:
+        cid = (item.get("correlation") or {}).get("conversation_id")
+        if cid:
+            by_conversation.setdefault(cid, []).append(item)
+    for cid, items in by_conversation.items():
+        key = f"chat:{cid}"
+        scope_events[key] = items[-300:]
+        scope_totals[key] = len(items)
     active = active_source(d, merged)
     status = project_status(repo, d["timeline"])
     prepared = prepared_dispatch_summary()
@@ -1298,6 +1313,8 @@ def print_json(root, repo, commands, mcp):
         "project_status": status,
         "spans": (d.get("spans", []) + d.get("harness_spans", []))[-60:],
         "timeline": merged,
+        "timeline_scopes": scope_events,
+        "timeline_scope_totals": scope_totals,
     }
     print(json.dumps(payload, separators=(",", ":")))
 

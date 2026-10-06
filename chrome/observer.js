@@ -18,7 +18,7 @@ let knownConversationBindings=[];
 let timelineScopeOptionsFingerprint='';
 const expandedKeys=new Set();
 
-function eventKey(event) { const c=event.correlation||{}; return [event.ts||0,event.source||'',event.message||'',c.correlation_id||'',c.span_id||''].join('|'); }
+function eventKey(event) { const c=event.correlation||{}; return [event.ts||0,event.source||'',event.message||'',c.correlation_id||'',c.span_id||'',c.conversation_id||'',c.turn_id||'',c.source_quality||'',event.attribution||''].join('|'); }
 
 function scopeOptionModel(bindings) {
   const byId=new Map();
@@ -787,7 +787,8 @@ function timelineEventsForScope(events,scope,binding) {
 function renderTimeline(state) {
   const box=$('timeline');
   const allEvents=state.timeline||[];
-  const events=timelineEventsForScope(allEvents,timelineScope,currentConversationBinding);
+  const scoped=state.timeline_scopes?.[timelineScope];
+  const events=Array.isArray(scoped)?scoped:timelineEventsForScope(allEvents,timelineScope,currentConversationBinding);
   const compacted=compactPollingEvents(events);
   const keys=events.map(eventKey);
   const unchanged=Array.isArray(renderedKeys) && keys.length===renderedKeys.length && keys.every((key,i)=>key===renderedKeys[i]);
@@ -847,7 +848,8 @@ function renderTimeline(state) {
   }
   const current=currentConversationBinding?.conversation_id;
   $('current-conversation').textContent=current ? 'chat '+String(current).slice(-8) : (timelineScope==='unscoped'?'without chat identity':'');
-  $('position').textContent='LIVE '+events.length+'/'+allEvents.length;
+  const scopeTotal=Number(state.timeline_scope_totals?.[timelineScope]);
+  $('position').textContent='LIVE '+events.length+'/'+(Number.isFinite(scopeTotal)?scopeTotal:allEvents.length);
 }
 async function refresh() {
   let currentConversationState=null;

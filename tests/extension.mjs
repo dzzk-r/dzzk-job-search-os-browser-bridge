@@ -567,7 +567,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.28');
+  assert.equal(manifest.version,'0.1.29');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -584,7 +584,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.28');
+  assert.equal(pkg.version,'0.1.29');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -615,6 +615,21 @@ test('Unified timeline merges and labels the active ChatGPT conversation in its 
 });
 
 
+test('Unified timeline scopes before applying the 300-event presentation cap and rerenders on attribution enrichment', async () => {
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  const observer=await readFile(new URL('../scripts/run-observer.py',import.meta.url),'utf8');
+  assert.match(observer,/scope_events\["unscoped"\] = unscoped\[-300:\]/);
+  assert.match(observer,/scope_events\[key\] = items\[-300:\]/);
+  assert.match(observer,/\{"MCP","RDC","TERM"\}/);
+  assert.match(js,/state\.timeline_scopes\?\.\[timelineScope\]/);
+  assert.match(js,/c\.conversation_id\|\|''/);
+  assert.match(js,/c\.turn_id\|\|''/);
+  assert.match(js,/c\.source_quality\|\|''/);
+  assert.match(js,/event\.attribution\|\|''/);
+  assert.match(js,/timeline_scope_totals/);
+});
+
+
 test('version mismatch action has a dedicated Side Panel row', async () => {
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
@@ -639,7 +654,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.28"/);
+  assert.match(html,/data-build-version="0\.1\.29"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
