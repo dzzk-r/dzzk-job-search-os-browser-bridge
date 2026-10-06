@@ -1,7 +1,7 @@
 # Execution Delivery Harness lifecycle model
 
-Status: canonical conceptual model  
-Date: 2026-10-06  
+Status: canonical conceptual model
+Date: 2026-10-06
 Audience: operator, UI designer, Harness implementer
 
 ## Why this model exists
