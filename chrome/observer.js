@@ -150,18 +150,20 @@ function activeChain(state) {
 function renderActors(state,companionAvailable=true) {
   const activity=state.actor_activity||{};
   const chatActivity=browserLocalChatActivity||state.chat_activity||null;
+  const rdcAge=state.rdc?.last_activity_seconds;
+  const rdcRecent=Number.isFinite(rdcAge) && rdcAge<=30;
   const defs=[
-    ['CHAT',chatActivity?.active?'active':'','ChatGPT browser turn','browser conversation / turn context'],
-    ['MCP','','Model Context Protocol activity','protocol / connected-client boundary'],
-    ['RDC',state.rdc?.last_activity_seconds!=null?seconds(state.rdc.last_activity_seconds):'','Remote Desktop Commander','local transport'],
-    ['TERM',(state.rdc?.open_count||0)?String(state.rdc.open_count)+' open':'','Terminal / managed process lifecycle','local process runtime'],
-    ['OC','','OpenCode worker','local executor'],
-    ['QWEN','','Qwen model actor','local model'],
-    ['LLAMA',String(state.llama||'').replace(/^slot\d+:/,''),'llama.cpp inference runtime','local inference runtime'],
-    ['GIT','Δ'+String(state.git_total??0),'Git repository working-tree state','repository state']
+    ['CHAT',chatActivity?.active?'active':'','ChatGPT browser turn','browser conversation / turn context',null],
+    ['MCP','','Model Context Protocol activity','protocol / connected-client boundary',null],
+    ['RDC',rdcRecent?seconds(rdcAge):'','Remote Desktop Commander','local transport',Number.isFinite(rdcAge)?('last observed '+seconds(rdcAge)+' ago'):null],
+    ['TERM',(state.rdc?.open_count||0)?String(state.rdc.open_count)+' open':'','Terminal / managed process lifecycle','local process runtime',null],
+    ['OC','','OpenCode worker','local executor',null],
+    ['QWEN','','Qwen model actor','local model',null],
+    ['LLAMA',String(state.llama||'').replace(/^slot\d+:/,''),'llama.cpp inference runtime','local inference runtime',null],
+    ['GIT','Δ'+String(state.git_total??0),'Git repository working-tree state','repository state',null]
   ];
   const frag=document.createDocumentFragment();
-  for(const [name,detail,fullName,origin] of defs) {
+  for(const [name,detail,fullName,origin,diagnostic] of defs) {
     const isBrowserActor=name==='CHAT';
     const unavailable=!isBrowserActor && !companionAvailable;
     const isActive=isBrowserActor ? chatActivity?.active===true : activity[name]===true;
@@ -170,6 +172,7 @@ function renderActors(state,companionAvailable=true) {
     const titleParts=[];
     if(origin) titleParts.push(origin);
     if(detail) titleParts.push(detail);
+    if(diagnostic) titleParts.push(diagnostic);
     if(unavailable) titleParts.push('telemetry unavailable');
     else if(isActive) titleParts.push(name==='CHAT'?'active browser turn':'recently observed activity');
     else titleParts.push('known idle');

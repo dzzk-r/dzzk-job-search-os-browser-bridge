@@ -564,7 +564,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.21');
+  assert.equal(manifest.version,'0.1.22');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -581,7 +581,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.21');
+  assert.equal(pkg.version,'0.1.22');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -636,7 +636,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.21"/);
+  assert.match(html,/data-build-version="0\.1\.22"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -717,8 +717,8 @@ test('Prepared dispatch action disappears when companion reports no task is read
 
 test('Actor strip keeps MCP and RDC as distinct semantic actors', async () => {
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
-  assert.ok(js.includes("['MCP','','Model Context Protocol activity','protocol / connected-client boundary']"));
-  assert.ok(js.includes("['RDC',state.rdc?.last_activity_seconds!=null?seconds(state.rdc.last_activity_seconds):'','Remote Desktop Commander','local transport']"));
+  assert.ok(js.includes("['MCP','','Model Context Protocol activity','protocol / connected-client boundary',null]"));
+  assert.ok(js.includes("['RDC',rdcRecent?seconds(rdcAge):'','Remote Desktop Commander','local transport',Number.isFinite(rdcAge)?('last observed '+seconds(rdcAge)+' ago'):null]"));
   assert.doesNotMatch(js,/\['MCP',state\.rdc\?\.last_activity_seconds/);
 });
 
@@ -864,7 +864,7 @@ test('Help explains macro/micro lifecycle boundaries and Project is not Chat', a
 
 test('Actor strip exposes browser CHAT turn as a first-class context actor', async () => {
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
-  assert.ok(js.includes("['CHAT',chatActivity?.active?'active':'','ChatGPT browser turn','browser conversation / turn context']"));
+  assert.ok(js.includes("['CHAT',chatActivity?.active?'active':'','ChatGPT browser turn','browser conversation / turn context',null]"));
   assert.match(js,/const isBrowserActor=name==='CHAT'/);
   assert.match(js,/const isActive=isBrowserActor \? chatActivity\?\.active===true/);
   const chatIndex=js.indexOf("['CHAT'");
@@ -901,4 +901,12 @@ test('Actor activity remains human-readable long enough for visual acceptance', 
   assert.match(css,/\.actor-chip\.active \{ font-weight:700; opacity:1; \}/);
   assert.match(css,/\.actor-chip\.active \.dot \{ background:#16a34a; box-shadow:/);
   assert.doesNotMatch(css,/\.actor-chip\.active \.dot \{[^}]*animation:observer-blink/s);
+});
+
+
+test('RDC age is shown inline only inside the recent-activity window', async () => {
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(js,/const rdcRecent=Number\.isFinite\(rdcAge\) && rdcAge<=30/);
+  assert.match(js,/\['RDC',rdcRecent\?seconds\(rdcAge\):''/);
+  assert.match(js,/last observed '\+seconds\(rdcAge\)\+' ago/);
 });
