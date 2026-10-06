@@ -527,7 +527,36 @@ export async function createBridgeServer(options = {}) {
             source_quality:'browser_observed'
           };
           let state=activeBrowserTurns.get(data.turn_id);
+          let recovered=false;
+          let started=false;
+          const dropConversationSiblings=()=>{
+            for(const [id,other] of activeBrowserTurns) {
+              if(id!==data.turn_id && other.conversation_id===data.conversation_id) activeBrowserTurns.delete(id);
+            }
+          };
           if(phase==='START') {
+            dropConversationSiblings();
+            if(state && state.conversation_id===data.conversation_id) {
+              state.url=chatUrl.href;
+              state.title=title||state.title;
+              state.last_seen_at=observedAt.toISOString();
+              state.lease_until=new Date(now.getTime()+15000).toISOString();
+            } else {
+              state={
+                conversation_id:data.conversation_id,
+                turn_id:data.turn_id,
+                url:chatUrl.href,
+                title,
+                started_at:observedAt.toISOString(),
+                last_seen_at:observedAt.toISOString(),
+                lease_until:new Date(now.getTime()+15000).toISOString(),
+                active_emitted:false
+              };
+              activeBrowserTurns.set(data.turn_id,state);
+              started=true;
+            }
+          } else if(phase==='HEARTBEAT' && (!state || state.conversation_id!==data.conversation_id)) {
+            dropConversationSiblings();
             state={
               conversation_id:data.conversation_id,
               turn_id:data.turn_id,
@@ -536,9 +565,13 @@ export async function createBridgeServer(options = {}) {
               started_at:observedAt.toISOString(),
               last_seen_at:observedAt.toISOString(),
               lease_until:new Date(now.getTime()+15000).toISOString(),
-              active_emitted:false
+              active_emitted:true
             };
             activeBrowserTurns.set(data.turn_id,state);
+            recovered=true;
+          } else if(phase==='DONE' && (!state || state.conversation_id!==data.conversation_id)) {
+            await persistBrowserTurnState();
+            return json(res,200,{ok:true,phase,conversation_id:data.conversation_id,turn_id:data.turn_id,active_turns:activeBrowserTurns.size,already_inactive:true});
           } else {
             if(!state || state.conversation_id!==data.conversation_id) fail(409,'turn_not_active');
             state.url=chatUrl.href;
@@ -548,7 +581,8 @@ export async function createBridgeServer(options = {}) {
           }
 
           let appendPhase=null;
-          if(phase==='START') appendPhase='TURN_START';
+          if(phase==='START' && started) appendPhase='TURN_START';
+          else if(phase==='HEARTBEAT' && recovered) appendPhase='TURN_START';
           else if(phase==='ACTIVE' && !state.active_emitted) { appendPhase='TURN_ACTIVE'; state.active_emitted=true; }
           else if(phase==='DONE') appendPhase='TURN_DONE';
 
@@ -573,7 +607,7 @@ export async function createBridgeServer(options = {}) {
           }
           if(phase==='DONE') activeBrowserTurns.delete(data.turn_id);
           await persistBrowserTurnState();
-          return json(res,200,{ok:true,phase,conversation_id:data.conversation_id,turn_id:data.turn_id,active_turns:activeBrowserTurns.size});
+          return json(res,200,{ok:true,phase,conversation_id:data.conversation_id,turn_id:data.turn_id,active_turns:activeBrowserTurns.size,recovered});
         }
 
         if (path === '/bridge/chat-observed' && req.method === 'POST') {

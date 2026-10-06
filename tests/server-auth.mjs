@@ -198,7 +198,7 @@ test('observer snapshot reports disk extension semver without forcing reload',as
   const b=await setup(t);
   const snapshot=await b.extension('observer');
   assert.equal(snapshot.status,200);
-  assert.equal(snapshot.value.extension_version.disk,'0.1.8');
+  assert.equal(snapshot.value.extension_version.disk,'0.1.9');
 });
 
 test('OpenCode-style DCR metadata is accepted without advertising unsupported refresh grants',async t=>{
@@ -275,4 +275,35 @@ test('observer snapshot exposes running gateway identity separately from repo HE
   assert.match(snapshot.value.gateway_version.disk_server_hash,/^[0-9a-f]{64}$/);
   assert.equal(snapshot.value.gateway_version.restart_required,false);
   assert.equal(snapshot.value.gateway_version.repo_changed,false);
+});
+
+
+test('browser turn lease is unique per conversation and heartbeat recovers lost gateway state',async t=>{
+  const b=await setup(t);
+  const base={
+    conversation_id:'chat-real-123',
+    url:'https://chatgpt.com/c/chat-real-123',
+    title:'Recovery chat',
+    observed_at:new Date().toISOString(),
+    user_count:0,
+    assistant_count:0
+  };
+  const turn1='browser:chat-real-123:11111111-1111-1111-1111-111111111111';
+  const turn2='browser:chat-real-123:22222222-2222-2222-2222-222222222222';
+  assert.equal((await b.extension('turn-observed',{...base,turn_id:turn1,phase:'START'})).status,200);
+  assert.equal((await b.extension('turn-observed',{...base,turn_id:turn2,phase:'START'})).status,200);
+  let state=JSON.parse(await readFile(b.browserTurnStatePath,'utf8'));
+  assert.equal(state.active.length,1);
+  assert.equal(state.active[0].turn_id,turn2);
+
+  assert.equal((await b.extension('turn-observed',{...base,turn_id:turn2,phase:'DONE'})).status,200);
+  state=JSON.parse(await readFile(b.browserTurnStatePath,'utf8'));
+  assert.deepEqual(state.active,[]);
+
+  const recovered=await b.extension('turn-observed',{...base,turn_id:turn2,phase:'HEARTBEAT'});
+  assert.equal(recovered.status,200);
+  assert.equal(recovered.value.recovered,true);
+  state=JSON.parse(await readFile(b.browserTurnStatePath,'utf8'));
+  assert.equal(state.active.length,1);
+  assert.equal(state.active[0].turn_id,turn2);
 });

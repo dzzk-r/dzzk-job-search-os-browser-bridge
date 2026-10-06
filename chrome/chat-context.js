@@ -182,14 +182,21 @@
       return;
     }
 
+    const isGenerating=generating();
     if(!activeTurn && userCount>lastUserCount) {
       startTurn(now,userCount,assistantCount,'user-message-node-added-fallback');
+    }
+    if(!activeTurn && isGenerating) {
+      startTurn(now,userCount,assistantCount,'generating-without-active-turn-recovery');
+      activeTurn.sawGenerating=true;
+      activeTurn.lastGeneratingAt=now;
+      activeTurn.activePublished=true;
+      sendTurn('ACTIVE','generating-control-present');
     }
     lastUserCount=userCount;
     lastAssistantCount=assistantCount;
     if(!activeTurn) return;
 
-    const isGenerating=generating();
     if(isGenerating) {
       activeTurn.sawGenerating=true;
       activeTurn.lastGeneratingAt=now;
