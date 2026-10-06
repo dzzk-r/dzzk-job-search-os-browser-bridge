@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build-version="0.1.16">
+<html lang="en" data-build-version="0.1.17">
 <head>
   <meta charset="utf-8">
   <title>Execution Delivery Harness — Observer</title>
@@ -101,20 +101,24 @@
         <span id="run-meta" class="panel-meta muted"></span>
       </summary>
       <div class="panel-body">
-        <div id="prepared-dispatch" class="inline-action" hidden>
-          <strong>Prepared task</strong>
-          <span id="prepared-dispatch-label"></span>
-          <button id="dispatch-prepared" class="primary">Dispatch</button>
-          <span id="prepared-dispatch-status" class="muted"></span>
-        </div>
-        <div id="detached-run-section" hidden>
-          <h3>Harness-owned run <span id="detached-heartbeat" class="muted"></span></h3>
-          <div id="detached-run-summary" class="run-summary"></div>
-        </div>
-        <div id="prepared-result-section" hidden>
-          <h3>Last prepared handoff <span id="prepared-result-meta" class="muted"></span></h3>
-          <div id="prepared-result-summary" class="run-summary"></div>
-        </div>
+        <section id="run-execution-group" class="detail-group" hidden>
+          <h3>Execution &amp; ownership <span id="detached-heartbeat" class="muted"></span></h3>
+          <div id="detached-run-section" hidden>
+            <div id="detached-run-summary" class="run-summary"></div>
+          </div>
+        </section>
+        <section id="run-handoff-group" class="detail-group" hidden>
+          <h3>Handoff &amp; result <span id="prepared-result-meta" class="muted"></span></h3>
+          <div id="prepared-dispatch" class="inline-action" hidden>
+            <strong>Prepared task</strong>
+            <span id="prepared-dispatch-label"></span>
+            <button id="dispatch-prepared" class="primary">Dispatch</button>
+            <span id="prepared-dispatch-status" class="muted"></span>
+          </div>
+          <div id="prepared-result-section" hidden>
+            <div id="prepared-result-summary" class="run-summary"></div>
+          </div>
+        </section>
       </div>
     </details>
 

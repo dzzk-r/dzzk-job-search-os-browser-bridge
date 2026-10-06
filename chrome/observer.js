@@ -215,13 +215,17 @@ async function refreshPreparedDispatch() {
   const status=$('prepared-dispatch-status');
   try {
     const s=await send({type:'dispatch-state'});
-    if(!s?.ready) { box.hidden=true; status.textContent=''; button.disabled=false; return; }
+    if(!s?.ready) { box.hidden=true; status.textContent=''; button.disabled=false; updateRunDetailGroups(); return; }
     box.hidden=false;
     label.textContent=(s.label||s.task_id||'Prepared task')+(s.goal?' — '+s.goal:'');
+    label.title=label.textContent;
+    button.title='Start this prepared task as a Harness-owned run.';
     status.textContent='READY';
     button.disabled=false;
+    updateRunDetailGroups();
   } catch(e) {
     box.hidden=true;
+    updateRunDetailGroups();
   }
 }
 
@@ -347,6 +351,13 @@ function renderAttributionHealth(state) {
   return health;
 }
 
+function updateRunDetailGroups() {
+  const execution=$('run-execution-group');
+  const handoff=$('run-handoff-group');
+  if(execution) execution.hidden=$('detached-run-section')?.hidden!==false;
+  if(handoff) handoff.hidden=($('prepared-dispatch')?.hidden!==false)&&($('prepared-result-section')?.hidden!==false);
+}
+
 function renderRunMeta(state) {
   const section=$('run-section');
   const meta=$('run-meta');
@@ -364,6 +375,8 @@ function renderRunMeta(state) {
     stateLabel.textContent=runStatus||'RUNNING';
     meta.textContent=run.phase||'active';
     preview.textContent='Harness-owned execution is active'+(run.safe_to_interrupt?' · interrupt '+run.safe_to_interrupt:'');
+    preview.title=preview.textContent;
+    meta.title='Current execution phase reported by the Harness-owned run.';
     setDisclosureDefault(section,true);
     return;
   }
@@ -372,6 +385,8 @@ function renderRunMeta(state) {
     stateLabel.textContent='ACTION REQUIRED';
     meta.textContent='Dispatch available';
     preview.textContent='Prepared Harness task is ready to start';
+    preview.title=preview.textContent;
+    meta.title='A prepared task can be dispatched into Harness-owned execution.';
     setDisclosureDefault(section,true);
     return;
   }
@@ -381,6 +396,8 @@ function renderRunMeta(state) {
     stateLabel.textContent=result;
     meta.textContent=prepared.seconds!=null?seconds(prepared.seconds):'last result';
     preview.textContent='Last prepared handoff'+(prepared.task_id?' · '+prepared.task_id:'');
+    preview.title=preview.textContent;
+    meta.title='Elapsed runtime reported for the latest prepared handoff.';
     setDisclosureDefault(section,false);
     return;
   }
@@ -389,6 +406,8 @@ function renderRunMeta(state) {
     stateLabel.textContent=runStatus||'DONE';
     meta.textContent=run.phase||'finished';
     preview.textContent='Last Harness-owned run'+(run.ended_at?' · finished':'');
+    preview.title=preview.textContent;
+    meta.title='Terminal phase of the latest Harness-owned execution.';
     setDisclosureDefault(section,false);
     return;
   }
@@ -396,6 +415,8 @@ function renderRunMeta(state) {
   stateLabel.textContent='IDLE';
   meta.textContent='';
   preview.textContent='No active or recent run';
+  preview.title=preview.textContent;
+  meta.title='';
   setDisclosureDefault(section,false);
 }
 
@@ -419,22 +440,23 @@ function appendKeyValues(parent, rows) {
 function renderPreparedResult(state) {
   const p=state.prepared_dispatch;
   const section=$('prepared-result-section');
-  if(!p){section.hidden=true; $('prepared-result-summary').replaceChildren(); $('prepared-result-meta').textContent=''; return;}
+  if(!p){section.hidden=true; $('prepared-result-summary').replaceChildren(); $('prepared-result-meta').textContent=''; updateRunDetailGroups(); return;}
   section.hidden=false;
   const corr=p.correlation_id?correlationShort(p.correlation_id):'-';
   const files=Array.isArray(p.changed_files)?p.changed_files:[];
   const rows=[
-    ['Result',p.result||p.run_status||p.status||'?'],
-    ['Task',p.task_id||'-'],
-    ['Correlation',corr],
-    ['Runtime',p.seconds!=null?seconds(p.seconds):'-'],
-    ['Executor',p.opencode_version?'OpenCode '+p.opencode_version:'-'],
-    ['Model',p.model||'-'],
-    ['Artifacts',files.length?files.join(', '):'-'],
-    ['Outcome',p.outcome_reason||p.worker_status||'-']
+    ['Result',p.result||p.run_status||p.status||'?','', 'Final result reported for this prepared handoff/run.'],
+    ['Task',p.task_id||'-','', 'Harness task identifier associated with this prepared handoff.'],
+    ['Correlation',corr,'', 'Short correlation identifier linking this run result to its causal trace and evidence.'],
+    ['Runtime',p.seconds!=null?seconds(p.seconds):'-','', 'Elapsed execution time reported for the prepared handoff.'],
+    ['Executor',p.opencode_version?'OpenCode '+p.opencode_version:'-','', 'Executor runtime and version that performed the work.'],
+    ['Model',p.model||'-','', 'Model/runtime identity used by the executor for this run.'],
+    ['Artifacts',files.length?files.join(', '):'-','', 'Files or durable outputs produced or changed by this run.'],
+    ['Outcome',p.outcome_reason||p.worker_status||'-','', 'Harness interpretation of why the run ended in its reported result.']
   ];
   appendKeyValues($('prepared-result-summary'),rows);
   $('prepared-result-meta').textContent=(p.result||p.run_status||p.status||'?')+(p.seconds!=null?' · '+seconds(p.seconds):'');
+  updateRunDetailGroups();
 }
 function hoursRange(low,high) {
   const lo=Number(low)||0, hi=Number(high)||0;
@@ -463,7 +485,7 @@ function renderProjectStatus(state) {
 function renderDetachedRun(state) {
   const section=$('detached-run-section');
   const run=detachedRunHealth(state);
-  if(!run) { section.hidden=true; return; }
+  if(!run) { section.hidden=true; updateRunDetailGroups(); return; }
   section.hidden=false;
   const terminal=['DONE','ERROR','CANCELED'].includes(String(run.status||'').toUpperCase());
   const ended=Date.parse(run.ended_at||'')/1000;
@@ -472,15 +494,16 @@ function renderDetachedRun(state) {
     ? (finishedAge==null?'finished':'finished '+seconds(finishedAge)+' ago')
     : (run.heartbeat_age_seconds==null?'heartbeat unknown':'heartbeat '+seconds(run.heartbeat_age_seconds)+' ago');
   appendKeyValues($('detached-run-summary'),[
-    ['Controller',run.controller_id||'-'],
-    ['Status',run.status||'-'],
-    ['Phase',run.phase||'-'],
-    ['PID',run.pid==null?'-':String(run.pid)],
-    ['Ownership',run.owner||'-'],
-    ['Mode',run.mode||'-'],
-    ['Safe to interrupt',run.safe_to_interrupt||'-'],
-    ['Run dir',run.run_dir||'-']
+    ['Controller',run.controller_id||'-','', 'Durable controller identity that owns this Harness execution.'],
+    ['Status',run.status||'-','', 'High-level run status, for example RUNNING, WAITING, DONE, ERROR or CANCELED.'],
+    ['Phase',run.phase||'-','', 'Current or terminal execution phase inside this run.'],
+    ['PID',run.pid==null?'-':String(run.pid),'', 'Local operating-system process ID when this run owns a live process.'],
+    ['Ownership',run.owner||'-','', 'Which subsystem currently owns responsibility for progressing this run.'],
+    ['Mode',run.mode||'-','', 'Execution mode, for example detached Harness-owned work versus interactive execution.'],
+    ['Safe to interrupt',run.safe_to_interrupt||'-','', 'Declared interruption boundary for this run; informational until an explicit stop action is used.'],
+    ['Run dir',run.run_dir||'-','', 'Durable filesystem directory containing this run state, checkpoints and evidence.']
   ]);
+  updateRunDetailGroups();
 }
 
 function renderTaskLifecycle(state) {

@@ -386,7 +386,7 @@ test('Observer surfaces detached Harness ownership and heartbeat without log act
   const html = await readFile(new URL('../chrome/observer.html', import.meta.url), 'utf8');
   const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
   assert.match(html,/id="detached-run-section"/);
-  assert.match(html,/Harness-owned run/);
+  assert.match(html,/Execution &amp; ownership/);
   assert.match(html,/trace-ui12/);
   assert.match(js,/function detachedRunHealth\(state\)/);
   assert.match(js,/HARNESS .*detached/);
@@ -564,7 +564,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.16');
+  assert.equal(manifest.version,'0.1.17');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -581,7 +581,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.16');
+  assert.equal(pkg.version,'0.1.17');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -636,7 +636,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.16"/);
+  assert.match(html,/data-build-version="0\.1\.17"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -819,4 +819,31 @@ test('Task field help is quiet by default and emphasized only on hover or focus'
   const interactive=css.slice(hover,css.indexOf('#task-preview',hover));
   assert.match(interactive,/text-decoration:underline dotted/);
   assert.match(css,/\.detail-group \+ \.detail-group \{ margin-top:13px; \}/);
+});
+
+
+test('Run reuses Current task semantic table grammar in two domain-specific groups', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(html,/id="run-execution-group" class="detail-group"/);
+  assert.match(html,/Execution &amp; ownership/);
+  assert.match(html,/id="run-handoff-group" class="detail-group"/);
+  assert.match(html,/Handoff &amp; result/);
+  assert.match(html,/id="detached-run-summary" class="run-summary"/);
+  assert.match(html,/id="prepared-result-summary" class="run-summary"/);
+  assert.match(js,/Durable controller identity that owns this Harness execution/);
+  assert.match(js,/Declared interruption boundary for this run/);
+  assert.match(js,/Short correlation identifier linking this run result/);
+  assert.match(js,/Files or durable outputs produced or changed by this run/);
+});
+
+test('Run summary preview exposes full text and prepared Dispatch remains inside handoff group', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  const handoff=html.indexOf('id="run-handoff-group"');
+  const dispatch=html.indexOf('id="prepared-dispatch"');
+  assert.ok(handoff>=0 && dispatch>handoff);
+  assert.match(js,/preview\.title=preview\.textContent/);
+  assert.match(js,/Start this prepared task as a Harness-owned run/);
+  assert.match(js,/function updateRunDetailGroups\(\)/);
 });
