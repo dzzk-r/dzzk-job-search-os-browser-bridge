@@ -564,7 +564,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.13');
+  assert.equal(manifest.version,'0.1.14');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -581,7 +581,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.13');
+  assert.equal(pkg.version,'0.1.14');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -636,7 +636,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.13"/);
+  assert.match(html,/data-build-version="0\.1\.14"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -720,8 +720,8 @@ test('Prepared dispatch action disappears when companion reports no task is read
 
 test('Actor strip keeps MCP and RDC as distinct semantic actors', async () => {
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
-  assert.match(js,/\['MCP','','Model Context Protocol'\]/);
-  assert.match(js,/\['RDC',state\.rdc\?\.last_activity_seconds/);
+  assert.ok(js.includes("['MCP','','Model Context Protocol activity','protocol / connected-client boundary']"));
+  assert.ok(js.includes("['RDC',state.rdc?.last_activity_seconds!=null?seconds(state.rdc.last_activity_seconds):'','Remote Desktop Commander','local transport']"));
   assert.doesNotMatch(js,/\['MCP',state\.rdc\?\.last_activity_seconds/);
 });
 
@@ -740,4 +740,30 @@ test('Header keeps loaded version visible and exposes runtime diagnostics on hel
   assert.match(js,/label\.textContent='v'\+loaded/);
   assert.match(js,/versionLine\.hidden=!gv\.restart_required/);
   assert.match(js,/help-toggle.*addEventListener/s);
+});
+
+
+test('Actor strip scales horizontally and explicitly distinguishes Harness observation from ChatGPT integration', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(html,/Harness-observed actors and sources\. Presence here does not imply native ChatGPT integration/);
+  assert.match(css,/\.actor-strip-primary \{[\s\S]*flex-wrap:nowrap/);
+  assert.match(css,/overflow-x:auto/);
+  assert.match(css,/scrollbar-width:none/);
+  assert.match(js,/Harness observation does not imply native ChatGPT integration/);
+  assert.match(js,/local executor/);
+  assert.match(js,/repository state/);
+});
+
+test('Attribution health is non-actionable unless recent attribution is degraded', async () => {
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
+  assert.match(js,/button\.disabled=true/);
+  assert.match(js,/button\.setAttribute\('aria-disabled','true'\)/);
+  assert.match(js,/Attribution · no recent work/);
+  assert.match(js,/Attribution healthy/);
+  assert.match(js,/button\.disabled=false/);
+  assert.match(js,/Attribution degraded.*Inspect/);
+  assert.match(css,/\.attribution-health:disabled/);
 });

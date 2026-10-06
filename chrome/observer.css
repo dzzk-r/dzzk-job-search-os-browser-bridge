@@ -406,3 +406,50 @@ html, body.observer { width:100%; max-width:100%; overflow-x:hidden; box-sizing:
   gap:4px 8px;
   font-size:10px;
 }
+
+
+/* UI-01 density + scalable actor strip. */
+.observer header { padding:7px 9px 7px; }
+.observer main { padding:7px 9px 14px; }
+.status-header { gap:4px; }
+
+.actor-strip-primary {
+  flex-wrap:nowrap;
+  overflow-x:auto;
+  overflow-y:hidden;
+  overscroll-behavior-x:contain;
+  scrollbar-width:none;
+  gap:4px 10px;
+  padding:0 0 3px;
+  margin:0;
+  white-space:nowrap;
+}
+.actor-strip-primary::-webkit-scrollbar { display:none; }
+.actor-strip-primary .actor-chip { flex:0 0 auto; }
+
+.attribution-health {
+  margin:0;
+  min-height:20px;
+}
+.attribution-health:disabled {
+  cursor:default;
+  opacity:.62;
+}
+.attribution-health.degraded:not(:disabled) {
+  cursor:pointer;
+  opacity:1;
+}
+
+.panel-section { margin:4px 0; border-radius:7px; }
+.panel-summary {
+  grid-template-columns:12px minmax(0,1fr) auto;
+  gap:6px;
+  padding:6px 8px;
+}
+.panel-chevron { width:12px; }
+.panel-summary-copy { gap:1px; }
+.panel-body { padding:0 8px 7px 26px; }
+.detail-group { margin-top:6px; }
+.detail-group > h3 { margin-bottom:4px; }
+.inline-action { margin:2px 0 5px; padding:5px 6px; gap:5px; }
+.evidence-section { margin-top:4px; padding-top:7px; }

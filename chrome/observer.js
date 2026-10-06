@@ -149,20 +149,20 @@ function activeChain(state) {
 function renderActors(state) {
   const activity=state.actor_activity||{};
   const defs=[
-    ['MCP','','Model Context Protocol'],
-    ['RDC',state.rdc?.last_activity_seconds!=null?seconds(state.rdc.last_activity_seconds):'','Remote Desktop Commander'],
-    ['TERM',(state.rdc?.open_count||0)?String(state.rdc.open_count)+' open':'','Terminal / managed process lifecycle'],
-    ['OC','','OpenCode worker'],
-    ['QWEN','','Qwen local model actor'],
-    ['LLAMA',String(state.llama||'').replace(/^slot\d+:/,''),'llama.cpp inference runtime'],
-    ['GIT','Δ'+String(state.git_total??0),'Git repository working-tree state']
+    ['MCP','','Model Context Protocol activity','protocol / connected-client boundary'],
+    ['RDC',state.rdc?.last_activity_seconds!=null?seconds(state.rdc.last_activity_seconds):'','Remote Desktop Commander','local transport'],
+    ['TERM',(state.rdc?.open_count||0)?String(state.rdc.open_count)+' open':'','Terminal / managed process lifecycle','local process runtime'],
+    ['OC','','OpenCode worker','local executor'],
+    ['QWEN','','Qwen model actor','local model'],
+    ['LLAMA',String(state.llama||'').replace(/^slot\d+:/,''),'llama.cpp inference runtime','local inference runtime'],
+    ['GIT','Δ'+String(state.git_total??0),'Git repository working-tree state','repository state']
   ];
   const frag=document.createDocumentFragment();
-  for(const [name,detail,fullName] of defs) {
+  for(const [name,detail,fullName,origin] of defs) {
     const isActive=activity[name]===true;
     const chip=document.createElement('span');
     chip.className='actor-chip '+name.toLowerCase()+(isActive?' active':'');
-    chip.title=fullName+' — '+(isActive?'confirmed current activity':'known/idle');
+    chip.title=fullName+' · '+origin+' · '+(isActive?'confirmed current activity':'known/idle')+'. Harness observation does not imply native ChatGPT integration.';
     const dot=document.createElement('span'); dot.className='dot';
     const label=document.createElement('span'); label.textContent=name;
     chip.append(dot,label);
@@ -321,16 +321,25 @@ function renderAttributionHealth(state) {
   const button=$('attribution-health');
   const label=$('attribution-health-label');
   button.className='attribution-health';
+  button.disabled=true;
+  button.setAttribute('aria-disabled','true');
   if(!health.total) {
-    label.textContent='Attribution · no recent work evidence';
-    button.title='No MCP/TERM/action/model events observed in the last 2 minutes.';
+    label.textContent='Attribution · no recent work';
+    button.title='No MCP/TERM/action/model work evidence was observed in the last 2 minutes.';
     return health;
   }
   const healthy=health.rate>=90;
   button.classList.add(healthy?'healthy':'degraded');
-  label.textContent=(healthy?'Attribution healthy':'Attribution degraded')+' · '+health.rate+'% · '+health.scoped+'/'+health.total+' recent';
-  button.title='Recent 2-minute work attribution: '+health.scoped+' scoped, '+health.unscoped+' unscoped. Click for causal diagnostics.';
-  if(!healthy) setDisclosureDefault($('trace-section'),true);
+  if(healthy) {
+    label.textContent='Attribution healthy · '+health.rate+'% · '+health.scoped+'/'+health.total+' recent';
+    button.title='Recent 2-minute work attribution: '+health.scoped+' scoped, '+health.unscoped+' unscoped.';
+  } else {
+    button.disabled=false;
+    button.setAttribute('aria-disabled','false');
+    label.textContent='Attribution degraded · '+health.rate+'% · '+health.scoped+'/'+health.total+' recent · Inspect';
+    button.title='Recent 2-minute work attribution is degraded. Click to inspect causal diagnostics.';
+    setDisclosureDefault($('trace-section'),true);
+  }
   return health;
 }
 
