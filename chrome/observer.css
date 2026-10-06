@@ -135,6 +135,7 @@ html, body.observer { width:100%; max-width:100%; overflow-x:hidden; box-sizing:
 
 .version-line {
   display:flex;
+  flex-wrap:wrap;
   align-items:center;
   gap:6px;
   min-width:0;
@@ -151,4 +152,10 @@ html, body.observer { width:100%; max-width:100%; overflow-x:hidden; box-sizing:
   max-width:100%;
   overflow:hidden;
   text-overflow:ellipsis;
+}
+
+
+.gateway-version.restart-required {
+  color:#b45309;
+  font-weight:700;
 }

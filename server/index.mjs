@@ -30,6 +30,18 @@ const permissionModes = ['allow','ask','block'];
 const execFileAsync = promisify(execFile);
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const observerScript = join(repoRoot,'scripts','run-observer.py');
+const gatewaySourcePath = join(repoRoot,'server','index.mjs');
+async function gitHead() {
+  try {
+    const {stdout}=await execFileAsync('/usr/bin/env',['git','rev-parse','HEAD'],{cwd:repoRoot,timeout:1500,maxBuffer:65536});
+    const value=stdout.trim();
+    return /^[0-9a-f]{40}$/i.test(value)?value:null;
+  } catch { return null; }
+}
+async function fileSha256(path) {
+  try { return createHash('sha256').update(await readFile(path)).digest('hex'); }
+  catch { return null; }
+}
 const escape = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function fail(status, error, description = error) { throw Object.assign(new Error(description), {status, error}); }
 function validRedirect(value) {
@@ -59,6 +71,35 @@ export async function createBridgeServer(options = {}) {
     statePath: options.preparedDispatchPath
   });
   const observerEventPath = options.observerEventPath ?? null;
+  const gatewayRuntimeVersion = {
+    commit: await gitHead(),
+    server_hash: await fileSha256(gatewaySourcePath),
+    started_at: new Date().toISOString()
+  };
+  let gatewayRepoVersionCache = {at:0,commit:null,server_hash:null};
+  async function gatewayVersionState() {
+    const now=Date.now();
+    if(now-gatewayRepoVersionCache.at>2000) {
+      gatewayRepoVersionCache={
+        at:now,
+        commit:await gitHead(),
+        server_hash:await fileSha256(gatewaySourcePath)
+      };
+    }
+    const repo=gatewayRepoVersionCache;
+    const restartRequired=Boolean(
+      (gatewayRuntimeVersion.commit&&repo.commit&&gatewayRuntimeVersion.commit!==repo.commit) ||
+      (gatewayRuntimeVersion.server_hash&&repo.server_hash&&gatewayRuntimeVersion.server_hash!==repo.server_hash)
+    );
+    return {
+      runtime_commit:gatewayRuntimeVersion.commit,
+      repo_head:repo.commit,
+      runtime_server_hash:gatewayRuntimeVersion.server_hash,
+      disk_server_hash:repo.server_hash,
+      started_at:gatewayRuntimeVersion.started_at,
+      restart_required:restartRequired
+    };
+  }
   const observerSnapshot = options.observerSnapshot ?? (async () => {
     const {stdout} = await execFileAsync('/usr/bin/env',['python3',observerScript,'--json'],{cwd:repoRoot,timeout:4000,maxBuffer:2*1024*1024});
     return JSON.parse(stdout);
@@ -569,7 +610,7 @@ export async function createBridgeServer(options = {}) {
               const manifest=JSON.parse(await readFile(join(repoRoot,'chrome','manifest.json'),'utf8'));
               diskVersion=typeof manifest.version==='string'?manifest.version:null;
             } catch {}
-            return json(res,200,{...snapshot,extension_version:{disk:diskVersion}});
+            return json(res,200,{...snapshot,extension_version:{disk:diskVersion},gateway_version:await gatewayVersionState()});
           }
           catch { fail(503,'observer_unavailable','Observer snapshot is unavailable.'); }
         }

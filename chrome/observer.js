@@ -219,6 +219,7 @@ function renderExtensionVersion(state) {
   const loaded=chrome.runtime.getManifest().version;
   const disk=state?.extension_version?.disk||null;
   const label=$('extension-version');
+  const gateway=$('gateway-version');
   const button=$('reload-version');
   label.textContent='v'+loaded;
   label.title='Loaded extension version '+loaded+(disk?' · disk '+disk:'');
@@ -227,6 +228,15 @@ function renderExtensionVersion(state) {
   button.disabled=false;
   button.textContent=mismatch ? ('Reload '+loaded+' → '+disk) : '';
   button.dataset.targetVersion=mismatch?disk:'';
+
+  const gv=state?.gateway_version||{};
+  const runtime=gv.runtime_commit?String(gv.runtime_commit).slice(0,8):'?';
+  const head=gv.repo_head?String(gv.repo_head).slice(0,8):'?';
+  gateway.className='muted gateway-version'+(gv.restart_required?' restart-required':'');
+  gateway.textContent=gv.restart_required ? ('Gateway restart '+runtime+' → '+head) : ('gw '+runtime);
+  gateway.title='Gateway runtime '+runtime+' · repo HEAD '+head+
+    (gv.started_at?' · started '+gv.started_at:'')+
+    (gv.restart_required?' · restart required':'');
 }
 function appendKeyValues(parent, rows) {
   const frag=document.createDocumentFragment();

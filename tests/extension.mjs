@@ -555,7 +555,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.5');
+  assert.equal(manifest.version,'0.1.6');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -572,7 +572,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.5');
+  assert.equal(pkg.version,'0.1.6');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -610,4 +610,14 @@ test('version mismatch action has a dedicated Side Panel row', async () => {
   assert.match(html,/id="reload-version"/);
   assert.match(css,/\.version-line\s*\{/);
   assert.match(css,/\.version-line \.version-reload/);
+});
+
+
+test('Side Panel exposes gateway runtime vs repository identity and restart warning', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(html,/id="gateway-version"/);
+  assert.match(js,/Gateway restart /);
+  assert.match(js,/gateway_version/);
+  assert.match(js,/restart_required/);
 });

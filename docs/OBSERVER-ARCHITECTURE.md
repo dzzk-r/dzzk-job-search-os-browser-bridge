@@ -423,4 +423,9 @@ It does not make browser focus authoritative, and it does not convert generic RD
 
 ### Extension version / reload contract
 
-Development reload is now version-visible rather than implicit. Package, Chrome and Firefox manifests share semantic version `0.1.5`. The Side Panel compares the loaded extension version with the manifest version on disk; when they differ it shows an explicit `Reload <loaded> → <disk>` control. Gateway restart must not reload the extension. File-change revision is only a signal that a newer build exists; the loaded runtime changes only after explicit user action.
+Development reload is now version-visible rather than implicit. Package, Chrome and Firefox manifests share semantic version `0.1.6`. The Side Panel compares the loaded extension version with the manifest version on disk; when they differ it shows an explicit `Reload <loaded> → <disk>` control. Gateway restart must not reload the extension. File-change revision is only a signal that a newer build exists; the loaded runtime changes only after explicit user action.
+
+
+### Gateway runtime / repository identity
+
+The observer also distinguishes the gateway process actually running from the repository currently on disk. At gateway startup it records the current Git commit and SHA-256 of server/index.mjs. The observer endpoint compares those values with current repo HEAD and the current file hash. A mismatch is shown in the Side Panel as Gateway restart <runtime> → <head>. This catches both committed repository movement and uncommitted server-file changes without automatically restarting the gateway.

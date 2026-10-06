@@ -198,7 +198,7 @@ test('observer snapshot reports disk extension semver without forcing reload',as
   const b=await setup(t);
   const snapshot=await b.extension('observer');
   assert.equal(snapshot.status,200);
-  assert.equal(snapshot.value.extension_version.disk,'0.1.5');
+  assert.equal(snapshot.value.extension_version.disk,'0.1.6');
 });
 
 test('OpenCode-style DCR metadata is accepted without advertising unsupported refresh grants',async t=>{
@@ -261,4 +261,17 @@ test('deny consent and disconnect revoke access; registrations survive restart',
   const batch=await (await fetch(issuer+'/bridge/next?adapter=chrome',{headers:{Authorization:'Bearer '+restarted.pairingToken}})).json();
   await fetch(issuer+'/bridge/consent?adapter=chrome',{method:'POST',headers:{Authorization:'Bearer '+restarted.pairingToken,'Content-Type':'application/json'},body:JSON.stringify({id:batch.consents[0].id,allow:false})});
   const denied=await (await fetch(issuer+statusPath)).json(); assert.equal(new URL(denied.redirect).searchParams.get('error'),'access_denied');
+});
+
+
+test('observer snapshot exposes running gateway identity separately from repo HEAD',async t=>{
+  const b=await setup(t);
+  const snapshot=await b.extension('observer');
+  assert.equal(snapshot.status,200);
+  assert.equal(typeof snapshot.value.gateway_version,'object');
+  assert.match(snapshot.value.gateway_version.runtime_commit,/^[0-9a-f]{40}$/);
+  assert.match(snapshot.value.gateway_version.repo_head,/^[0-9a-f]{40}$/);
+  assert.match(snapshot.value.gateway_version.runtime_server_hash,/^[0-9a-f]{64}$/);
+  assert.match(snapshot.value.gateway_version.disk_server_hash,/^[0-9a-f]{64}$/);
+  assert.equal(snapshot.value.gateway_version.restart_required,false);
 });

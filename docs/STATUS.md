@@ -13,7 +13,7 @@ The local owner workflow is substantially implemented, but the repository is not
 
 ## Current version and test baseline
 
-- Package / Chrome / Firefox version: **0.1.5**
+- Package / Chrome / Firefox version: **0.1.6**
 - Active worktree: `chore/local-execution`
 - Checkpoint base: `f9a5091`; stabilized checkpoint commits follow on `chore/local-execution`
 - Automated suite: **90/90 passing** on 2026-10-06
@@ -37,6 +37,7 @@ The live-acceptance worktree has been classified and stabilized into separate im
 - PID/process descendants can inherit an already-scoped launch after the browser turn lease ends.
 - Versioned extension reload UX is live-accepted: loaded-vs-disk semver mismatch is shown in Side Panel, reload is explicit user action, and the mismatch control disappears after the requested version loads.
 - Gateway restart no longer implies extension reload.
+- Side Panel now compares running gateway identity with repository state: runtime commit + runtime server-file hash vs current repo HEAD + disk server-file hash; a mismatch is surfaced as Gateway restart <old> → <new>.
 - Knowledge plane and project/task context injection for local planning.
 
 ## Important current limitations
@@ -45,7 +46,7 @@ The live-acceptance worktree has been classified and stabilized into separate im
 - Browser-observed attribution is explicitly labeled `browser_observed` / `browser_inferred`; it is not transport authority.
 - Generic MCP operations such as `read_file`, `list_tabs` and `bridge_status` have no PID. PID propagation only helps after a process-producing call such as `start_process` has already been scoped.
 - Unified timeline is still noisy. Raw evidence is literal; semantic compaction of polling/diagnostic repetition remains unfinished.
-- Chrome Side Panel visual containment was repaired again during live acceptance and still needs final visual acceptance on the loaded 0.1.5 build.
+- Chrome Side Panel visual containment was repaired again during live acceptance and still needs final visual acceptance on the loaded 0.1.6 build.
 - PAUSE / BREAK / STOP ALL semantics are not complete.
 - Harness-owned semantic verifier/repair/escalation remains incomplete.
 - This ChatGPT Web session still uses Remote Desktop Commander for repository work; LOC-02 therefore remains open.
