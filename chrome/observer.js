@@ -154,8 +154,8 @@ function renderActors(state,companionAvailable=true) {
   const rdcRecent=Number.isFinite(rdcAge) && rdcAge<=30;
   const defs=[
     ['CHAT',chatActivity?.active?'active':'','ChatGPT browser turn','browser conversation / turn context',null],
-    ['MCP','','Model Context Protocol activity','protocol / connected-client boundary',null],
-    ['RDC',rdcRecent?seconds(rdcAge):'','Remote Desktop Commander','local transport',Number.isFinite(rdcAge)?('last observed '+seconds(rdcAge)+' ago'):null],
+    ['MCP','','Observed MCP transport activity','transport boundary; only instrumented providers are visible',null],
+    ['RDC',rdcRecent?seconds(rdcAge):'','Remote Desktop Commander','provider / tool family',Number.isFinite(rdcAge)?('last observed '+seconds(rdcAge)+' ago'):null],
     ['TERM',(state.rdc?.open_count||0)?String(state.rdc.open_count)+' open':'','Terminal / managed process lifecycle','local process runtime',null],
     ['OC','','OpenCode worker','local executor',null],
     ['QWEN','','Qwen model actor','local model',null],

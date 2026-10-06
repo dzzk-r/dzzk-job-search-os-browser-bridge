@@ -423,7 +423,7 @@ It does not make browser focus authoritative, and it does not convert generic RD
 
 ### Extension version / reload contract
 
-Development reload is now version-visible rather than implicit. Package, Chrome and Firefox manifests share semantic version `0.1.23`. The Side Panel compares the loaded extension version with the manifest version on disk; when they differ it shows an explicit `Reload <loaded> → <disk>` control. Gateway restart must not reload the extension. File-change revision is only a signal that a newer build exists; the loaded runtime changes only after explicit user action.
+Development reload is now version-visible rather than implicit. Package, Chrome and Firefox manifests share semantic version `0.1.24`. The Side Panel compares the loaded extension version with the manifest version on disk; when they differ it shows an explicit `Reload <loaded> → <disk>` control. Gateway restart must not reload the extension. File-change revision is only a signal that a newer build exists; the loaded runtime changes only after explicit user action.
 
 
 ### Gateway runtime / repository identity
@@ -448,3 +448,8 @@ The browser turn detector treats disappearance of a Stop/Cancel control as insuf
 turn-v4 therefore uses completed-response action controls as structural completion evidence. At turn start it records a response-action baseline. TURN_DONE is emitted only after a new completed-response action set appears, the composer is ready for the next user turn, no generation control is present, and that condition remains stable for the quiet window. If completion evidence is unavailable, the detector remains conservative and keeps the turn open until an explicit superseding submit, navigation, pagehide or maximum observation window.
 
 Detector diagnostics expose response-action count/baseline, completion evidence, composer readiness and completion-candidate age without reading assistant message text.
+
+
+### Actor/provider vs transport provenance
+
+Observer actor identity and transport identity are separate dimensions. Remote Desktop Commander history is recorded as provider `RDC` with `transport=mcp`, rather than being mislabeled as a generic MCP actor. The `MCP` chip means recent activity over an MCP transport from providers instrumented by the Harness; it does not claim visibility into every MCP/plugin call inside ChatGPT. `RDC` means recent activity specifically from the Remote Desktop Commander provider. One RDC call can truthfully activate both chips for different reasons. A future GitHub, Gmail, or other instrumented MCP provider may activate MCP without activating RDC.

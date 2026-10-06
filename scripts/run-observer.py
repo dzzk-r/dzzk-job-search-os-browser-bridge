@@ -545,8 +545,9 @@ def parse_mcp_history(path: Path, limit=300):
                 if isinstance(value, int):
                     pid = value
                     process_key = latest_process.get(pid)
-            out.append(ev(ts, "MCP", summarize_mcp(rec),
-                          tool=tool, process_id=pid, process_key=process_key))
+            out.append(ev(ts, "RDC", summarize_mcp(rec),
+                          tool=tool, process_id=pid, process_key=process_key,
+                          transport="mcp", provider="remote_desktop_commander"))
     except OSError:
         pass
     return out, last_ts
@@ -934,12 +935,17 @@ def snapshot(root: Path, repo: Path, commands: Path, mcp: Path):
         "open_count": len(open_background),
     }
     # UI actor activity is a short observation lease, not CPU-level execution truth.
-    # RDC calls are carried over MCP, so one observed Desktop Commander call can
-    # truthfully light both the transport (MCP) and provider (RDC) roles.
-    transport_recent = bool(activity_age is not None and activity_age <= 30)
+    # Actor/provider and transport are separate dimensions. Remote Desktop Commander
+    # history is provider evidence with transport=mcp; any future MCP provider can
+    # therefore light MCP without falsely lighting RDC.
+    rdc_recent = bool(activity_age is not None and activity_age <= 30)
+    mcp_recent = any(
+        item.get("ts") and now - item["ts"] <= 30 and item.get("transport") == "mcp"
+        for item in data["timeline"]
+    )
     data["actor_activity"] = {
-        "MCP": transport_recent,
-        "RDC": transport_recent,
+        "MCP": mcp_recent,
+        "RDC": rdc_recent,
         "TERM": open_term,
         "OC": "OC" in harness_active or local_running or process_actor() == "OC",
         "QWEN": "QWEN" in harness_active,
