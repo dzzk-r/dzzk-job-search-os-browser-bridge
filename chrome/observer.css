@@ -39,10 +39,12 @@ body.observer { max-width:none; padding:0; background:Canvas; color:CanvasText; 
 
 .icon-button { width:24px; height:24px; display:grid; place-items:center; padding:0; border:1px solid #8886; border-radius:50%; background:Canvas; color:CanvasText; cursor:pointer; font:14px/1 system-ui; }
 .icon-button:hover { background:color-mix(in srgb, Canvas 86%, CanvasText 14%); }
-.actor-strip { display:flex; flex-wrap:wrap; gap:5px 9px; margin-top:7px; font:10px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace; opacity:.78; }
+.actor-strip { display:flex; flex-wrap:wrap; gap:5px 9px; margin-top:7px; font:10px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace; }
+.actor-chip:not(.active):not(.unavailable) { opacity:.72; }
 .actor-chip { display:inline-flex; gap:4px; align-items:center; }
 .actor-chip .dot { width:6px; height:6px; border-radius:50%; background:#888; }
-.actor-chip.active .dot { background:#16a34a; animation:observer-blink 1s steps(2,start) infinite; }
+.actor-chip.active { font-weight:700; opacity:1; }
+.actor-chip.active .dot { background:#16a34a; box-shadow:0 0 0 2px color-mix(in srgb, #16a34a 18%, transparent); }
 .actor-chip.unavailable { opacity:.52; }
 .actor-chip.unavailable .dot { background:transparent; border:1px solid #888; box-sizing:border-box; }
 .actor-chip.llama.busy .dot { background:#16a34a; }

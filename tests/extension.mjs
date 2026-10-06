@@ -564,7 +564,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.20');
+  assert.equal(manifest.version,'0.1.21');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -581,7 +581,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.20');
+  assert.equal(pkg.version,'0.1.21');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -636,7 +636,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.20"/);
+  assert.match(html,/data-build-version="0\.1\.21"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -887,7 +887,18 @@ test('CHAT actor uses browser-local detector truth even when companion snapshot 
 
 test('Actor activity maps Desktop Commander evidence to both MCP transport and RDC provider with a 15s lease', async () => {
   const py=await readFile(new URL('../scripts/run-observer.py',import.meta.url),'utf8');
-  assert.match(py,/transport_recent = bool\(activity_age is not None and activity_age <= 15\)/);
+  assert.match(py,/transport_recent = bool\(activity_age is not None and activity_age <= 30\)/);
   assert.match(py,/"MCP": transport_recent/);
   assert.match(py,/"RDC": transport_recent/);
+});
+
+
+test('Actor activity remains human-readable long enough for visual acceptance', async () => {
+  const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
+  const py=await readFile(new URL('../scripts/run-observer.py',import.meta.url),'utf8');
+  assert.match(py,/activity_age is not None and activity_age <= 30/);
+  assert.match(py,/now - recent\["GIT"\] <= 30/);
+  assert.match(css,/\.actor-chip\.active \{ font-weight:700; opacity:1; \}/);
+  assert.match(css,/\.actor-chip\.active \.dot \{ background:#16a34a; box-shadow:/);
+  assert.doesNotMatch(css,/\.actor-chip\.active \.dot \{[^}]*animation:observer-blink/s);
 });

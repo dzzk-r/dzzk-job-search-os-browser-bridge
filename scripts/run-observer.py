@@ -936,7 +936,7 @@ def snapshot(root: Path, repo: Path, commands: Path, mcp: Path):
     # UI actor activity is a short observation lease, not CPU-level execution truth.
     # RDC calls are carried over MCP, so one observed Desktop Commander call can
     # truthfully light both the transport (MCP) and provider (RDC) roles.
-    transport_recent = bool(activity_age is not None and activity_age <= 15)
+    transport_recent = bool(activity_age is not None and activity_age <= 30)
     data["actor_activity"] = {
         "MCP": transport_recent,
         "RDC": transport_recent,
@@ -944,7 +944,7 @@ def snapshot(root: Path, repo: Path, commands: Path, mcp: Path):
         "OC": "OC" in harness_active or local_running or process_actor() == "OC",
         "QWEN": "QWEN" in harness_active,
         "LLAMA": "LLAMA" in harness_active,
-        "GIT": bool(recent.get("GIT") and now - recent["GIT"] <= 15),
+        "GIT": bool(recent.get("GIT") and now - recent["GIT"] <= 30),
     }
     data["harness_spans"] = sorted(harness_spans.values(), key=lambda x:x.get("started") or 0)
     return data
