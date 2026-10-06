@@ -458,3 +458,6 @@ Observer actor identity and transport identity are separate dimensions. Remote D
 ### Browser turn activity states (turn-v5)
 
 The existence of an open browser turn is not itself evidence that ChatGPT is actively executing. The browser detector exposes four states: `active` when there is positive generation or recent assistant-DOM activity evidence; `waiting_user` when the open turn is blocked by a structurally observed modal/approval gate; `pending` when the turn remains open but no positive activity evidence is currently visible; and `idle` when no turn is open. Side Panel actor styling must render these states distinctly and must not infer `active` from `active_turn_id != null`. Approval detection is structural (`dialog`/`alertdialog` plus interactive controls) and does not inspect message text.
+
+
+Gateway rule: an open browser-turn lease proves only that the turn has not been closed. It MUST NOT be converted into `CHAT active`. The observer preserves detector `activity_state`; when a lease exists but no fresh detector state is available, the conservative fallback is `pending`, never `active`.

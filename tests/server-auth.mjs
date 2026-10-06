@@ -315,12 +315,51 @@ test('observer snapshot exposes active browser CHAT turn independently of extern
   const now=new Date().toISOString();
   const binding={binding:{conversation_id:'chat-turn-actor-123',url:'https://chatgpt.com/c/chat-turn-actor-123',title:'Actor chat',source_quality:'browser_observed',observed_at:now}};
   assert.equal((await b.extension('conversation-active',binding)).status,200);
-  assert.equal((await b.extension('chat-detector-status',{detector_version:'turn-v4',conversation_id:'chat-turn-actor-123',url:'https://chatgpt.com/c/chat-turn-actor-123',title:'Actor chat',observed_at:now,user_count:1,assistant_count:1,generating:true,active_turn_id:'turn:chat-turn-actor-123:1234567890',structural_counts:{},tab_id:42})).status,200);
+  assert.equal((await b.extension('chat-detector-status',{detector_version:'turn-v5',conversation_id:'chat-turn-actor-123',url:'https://chatgpt.com/c/chat-turn-actor-123',title:'Actor chat',observed_at:now,user_count:1,assistant_count:1,generating:true,activity_state:'active',waiting_user:false,active_turn_id:'turn:chat-turn-actor-123:1234567890',structural_counts:{},tab_id:42})).status,200);
   assert.equal((await b.extension('turn-observed',{phase:'START',conversation_id:'chat-turn-actor-123',turn_id:'turn:chat-turn-actor-123:1234567890',url:'https://chatgpt.com/c/chat-turn-actor-123',title:'Actor chat',observed_at:now})).status,200);
   const snapshot=await b.extension('observer');
   assert.equal(snapshot.status,200);
+  assert.equal(snapshot.value.chat_activity.state,'active');
   assert.equal(snapshot.value.chat_activity.active,true);
+  assert.equal(snapshot.value.chat_activity.waiting_user,false);
+  assert.equal(snapshot.value.chat_activity.pending,false);
   assert.equal(snapshot.value.chat_activity.conversation_id,'chat-turn-actor-123');
   assert.equal(snapshot.value.chat_activity.turn_id,'turn:chat-turn-actor-123:1234567890');
   assert.equal(snapshot.value.chat_activity.source_quality,'browser_observed');
+});
+
+
+test('observer snapshot does not infer CHAT active from an open browser turn',async t=>{
+  const b=await setup(t);
+  const now=new Date().toISOString();
+  const conversation_id='chat-turn-pending-123';
+  const turn_id='turn:chat-turn-pending-123:1234567890';
+  const url='https://chatgpt.com/c/'+conversation_id;
+  assert.equal((await b.extension('conversation-active',{binding:{conversation_id,url,title:'Pending chat',source_quality:'browser_observed',observed_at:now}})).status,200);
+  assert.equal((await b.extension('turn-observed',{phase:'START',conversation_id,turn_id,url,title:'Pending chat',observed_at:now})).status,200);
+  assert.equal((await b.extension('chat-detector-status',{detector_version:'turn-v5',conversation_id,url,title:'Pending chat',observed_at:now,user_count:1,assistant_count:1,generating:false,activity_state:'pending',waiting_user:false,active_turn_id:turn_id,structural_counts:{},tab_id:43})).status,200);
+  const snapshot=await b.extension('observer');
+  assert.equal(snapshot.status,200);
+  assert.equal(snapshot.value.chat_activity.state,'pending');
+  assert.equal(snapshot.value.chat_activity.active,false);
+  assert.equal(snapshot.value.chat_activity.pending,true);
+  assert.equal(snapshot.value.chat_activity.turn_id,turn_id);
+});
+
+test('chat detector diagnostics preserve waiting_user state end to end',async t=>{
+  const b=await setup(t);
+  const now=new Date().toISOString();
+  const conversation_id='chat-turn-waiting-123';
+  const turn_id='turn:chat-turn-waiting-123:1234567890';
+  const url='https://chatgpt.com/c/'+conversation_id;
+  assert.equal((await b.extension('conversation-active',{binding:{conversation_id,url,title:'Waiting chat',source_quality:'browser_observed',observed_at:now}})).status,200);
+  assert.equal((await b.extension('chat-detector-status',{detector_version:'turn-v5',conversation_id,url,title:'Waiting chat',observed_at:now,user_count:1,assistant_count:1,generating:false,activity_state:'waiting_user',waiting_user:true,active_turn_id:turn_id,structural_counts:{dialog:1},tab_id:44})).status,200);
+  const detectors=await fetch(b.issuer+'/dev/chat-detectors').then(r=>r.json());
+  const detector=detectors.detectors.find(x=>x.conversation_id===conversation_id);
+  assert.equal(detector.activity_state,'waiting_user');
+  assert.equal(detector.waiting_user,true);
+  const snapshot=await b.extension('observer');
+  assert.equal(snapshot.value.chat_activity.state,'waiting_user');
+  assert.equal(snapshot.value.chat_activity.active,false);
+  assert.equal(snapshot.value.chat_activity.waiting_user,true);
 });

@@ -496,6 +496,8 @@ export async function createBridgeServer(options = {}) {
             user_count:Number.isInteger(data.user_count)?data.user_count:null,
             assistant_count:Number.isInteger(data.assistant_count)?data.assistant_count:null,
             generating:data.generating===true,
+            activity_state:['active','waiting_user','pending','idle'].includes(data.activity_state)?data.activity_state:'idle',
+            waiting_user:data.waiting_user===true,
             active_turn_id:typeof data.active_turn_id==='string'?data.active_turn_id:null,
             structural_counts:data.structural_counts&&typeof data.structural_counts==='object'&&!Array.isArray(data.structural_counts)?data.structural_counts:null,
             tab_id:Number.isInteger(data.tab_id)?data.tab_id:null
@@ -647,7 +649,7 @@ export async function createBridgeServer(options = {}) {
             } catch {}
             const now=Date.now();
             const binding=activeBrowserConversations.get(adapter);
-            let chatActivity={active:false,generating:false,conversation_id:null,turn_id:null,source_quality:'browser_observed'};
+            let chatActivity={state:'idle',active:false,waiting_user:false,pending:false,generating:false,conversation_id:null,turn_id:null,source_quality:'browser_observed'};
             if(binding && now-binding.observedAtMs<=15000) {
               const turns=[...activeBrowserTurns.values()]
                 .filter(turn=>turn.conversation_id===binding.conversation_id && Date.parse(turn.lease_until||0)>now)
@@ -656,8 +658,12 @@ export async function createBridgeServer(options = {}) {
                 .filter(status=>status.conversation_id===binding.conversation_id && now-Date.parse(status.observed_at||0)<=15000)
                 .sort((a,b)=>Date.parse(b.observed_at||0)-Date.parse(a.observed_at||0))[0]||null;
               const turn=turns[0]||null;
+              const state=detector?.activity_state || (turn?'pending':'idle');
               chatActivity={
-                active:Boolean(turn || detector?.generating || detector?.active_turn_id),
+                state,
+                active:state==='active',
+                waiting_user:state==='waiting_user',
+                pending:state==='pending',
                 generating:detector?.generating===true,
                 conversation_id:binding.conversation_id,
                 turn_id:turn?.turn_id||detector?.active_turn_id||null,
