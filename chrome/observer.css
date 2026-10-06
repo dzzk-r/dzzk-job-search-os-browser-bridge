@@ -23,7 +23,7 @@ body.observer { max-width:none; padding:0; background:Canvas; color:CanvasText; 
 .span-main { min-width:0; }
 .span-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:650; }
 .span-meta { opacity:.64; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.timeline { border:1px solid #8886; border-radius:6px; overflow:auto; height:min(66vh,760px); background:color-mix(in srgb, Canvas 94%, CanvasText 6%); font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace; }
+.timeline { border:1px solid #8886; border-radius:6px; overflow:auto; height:min(34vh,320px); min-height:170px; background:color-mix(in srgb, Canvas 94%, CanvasText 6%); font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace; }
 .event { display:grid; grid-template-columns:62px 42px minmax(0,1fr); gap:6px; padding:3px 7px; border-bottom:1px solid #8882; cursor:pointer; align-items:baseline; }
 .event:last-child { border-bottom:0; }
 .event:hover { background:color-mix(in srgb, Canvas 88%, CanvasText 12%); }

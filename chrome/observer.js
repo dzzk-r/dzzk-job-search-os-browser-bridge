@@ -793,10 +793,12 @@ function renderTimeline(state) {
   const unchanged=Array.isArray(renderedKeys) && keys.length===renderedKeys.length && keys.every((key,i)=>key===renderedKeys[i]);
   if(!unchanged) {
     for(const row of box.querySelectorAll('.event.expanded')) expandedKeys.add(row.dataset.key);
-    const nearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<24;
+    const nearTop=box.scrollTop<24;
+    const displayEvents=[...compacted].reverse();
+    const displayKeys=[...keys].reverse();
     const frag=document.createDocumentFragment();
-    for(let i=0;i<compacted.length;i++) {
-      const event=compacted[i], key=keys[i]||eventKey(event);
+    for(let i=0;i<displayEvents.length;i++) {
+      const event=displayEvents[i], key=displayKeys[i]||eventKey(event);
       const row=document.createElement('div'); row.className='event'; row.dataset.key=key; row.tabIndex=0;
       if(expandedKeys.has(key)) row.classList.add('expanded');
       const time=document.createElement('span'); time.textContent=new Date((event.ts||0)*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
@@ -841,7 +843,7 @@ function renderTimeline(state) {
     }
     box.replaceChildren(frag);
     renderedKeys=keys;
-    if(follow || nearBottom) { box.scrollTop=box.scrollHeight; follow=true; }
+    if(follow || nearTop) { box.scrollTop=0; follow=true; }
   }
   const current=currentConversationBinding?.conversation_id;
   $('current-conversation').textContent=current ? 'chat '+String(current).slice(-8) : (timelineScope==='unscoped'?'without chat identity':'');
@@ -932,7 +934,7 @@ must('reload-version').addEventListener('click',async()=>{
 });
 must('timeline').addEventListener('scroll',()=>{
   const box=must('timeline');
-  follow=box.scrollHeight-box.scrollTop-box.clientHeight<24;
+  follow=box.scrollTop<24;
 });
 must('timeline-scope').addEventListener('change',event=>{
   timelineScope=event.target.value;

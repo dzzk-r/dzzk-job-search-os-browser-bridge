@@ -564,7 +564,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.26');
+  assert.equal(manifest.version,'0.1.27');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -581,7 +581,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.26');
+  assert.equal(pkg.version,'0.1.27');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -636,7 +636,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.26"/);
+  assert.match(html,/data-build-version="0\.1\.27"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -689,6 +689,20 @@ test('UI-01 first viewport prioritizes actors, operator status, work summaries a
   assert.match(html,/<h2>Diagnostics<\/h2>/);
   assert.match(js,/versionLine\.hidden=!gv\.restart_required/);
   assert.match(js,/Recent 2-minute work attribution/);
+});
+
+
+test('Unified timeline is the first main evidence block and renders newest events first', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  const mainIndex=html.indexOf('<main>');
+  const timelineIndex=html.indexOf('id="timeline-section"',mainIndex);
+  const taskIndex=html.indexOf('id="task-lifecycle-section"',mainIndex);
+  assert.ok(timelineIndex>mainIndex && taskIndex>timelineIndex);
+  assert.match(js,/const displayEvents=\[\.\.\.compacted\]\.reverse\(\)/);
+  assert.match(js,/const displayKeys=\[\.\.\.keys\]\.reverse\(\)/);
+  assert.match(js,/follow=box\.scrollTop<24/);
+  assert.match(js,/box\.scrollTop=0/);
 });
 
 

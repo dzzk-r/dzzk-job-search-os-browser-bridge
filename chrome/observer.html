@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build-version="0.1.26">
+<html lang="en" data-build-version="0.1.27">
 <head>
   <meta charset="utf-8">
   <title>Execution Delivery Harness — Observer</title>
@@ -87,6 +87,19 @@
   </aside>
 
   <main>
+    <section id="timeline-section" class="evidence-section">
+      <div class="section-head">
+        <h2>Unified timeline</h2>
+        <select id="timeline-scope" aria-label="Timeline scope">
+          <option value="all">All activity</option>
+          <option value="unscoped">Unscoped</option>
+        </select>
+        <span id="current-conversation" class="muted"></span>
+        <span id="position" class="muted"></span>
+      </div>
+      <div id="timeline" class="timeline" role="log" aria-live="polite"></div>
+    </section>
+
     <details id="task-lifecycle-section" class="panel-section" open>
       <summary class="panel-summary" title="Open current task details: goal, state, progress, control and budget">
         <span class="panel-summary-copy">
@@ -171,18 +184,6 @@
       <div class="panel-body"><div id="trace" class="trace"></div></div>
     </details>
 
-    <section id="timeline-section" class="evidence-section">
-      <div class="section-head">
-        <h2>Unified timeline</h2>
-        <select id="timeline-scope" aria-label="Timeline scope">
-          <option value="all">All activity</option>
-          <option value="unscoped">Unscoped</option>
-        </select>
-        <span id="current-conversation" class="muted"></span>
-        <span id="position" class="muted"></span>
-      </div>
-      <div id="timeline" class="timeline" role="log" aria-live="polite"></div>
-    </section>
     <p id="error" role="alert"></p>
   </main>
   <script src="observer.js"></script>
