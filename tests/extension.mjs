@@ -564,7 +564,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.15');
+  assert.equal(manifest.version,'0.1.16');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -581,7 +581,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.15');
+  assert.equal(pkg.version,'0.1.16');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -636,7 +636,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.15"/);
+  assert.match(html,/data-build-version="0\.1\.16"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -700,13 +700,10 @@ test('Task and Run summaries expose visible disclosure affordance and human-read
   assert.match(html,/id="task-preview"/);
   assert.match(html,/id="run-state"/);
   assert.match(html,/id="run-preview"/);
-  assert.match(html,/class="panel-chevron"/);
   assert.match(html,/Open current task details: goal, state, progress, control and budget/);
   assert.match(html,/Open run details: current execution, prepared handoff and last result/);
   assert.match(css,/\.panel-section \{/);
   assert.match(css,/\.panel-summary:hover/);
-  assert.match(css,/\.panel-chevron::before \{ content:'▸'; \}/);
-  assert.match(css,/\.panel-section\[open\].*content:'▾'/s);
   assert.match(js,/preview\.textContent='Last prepared handoff'/);
   assert.match(js,/stateLabel\.textContent='ACTION REQUIRED'/);
 });
@@ -799,4 +796,27 @@ test('Chat attribution status names the attributed thing and distinguishes idle 
   assert.match(js,/idle state, not a failure/);
   assert.match(js,/Chat attribution · healthy/);
   assert.match(js,/Chat attribution · degraded/);
+});
+
+
+test('Task disclosure uses card/hover affordance without reserving chevron space', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
+  assert.doesNotMatch(html,/panel-chevron/);
+  assert.doesNotMatch(css,/\.panel-chevron/);
+  assert.match(css,/grid-template-columns:minmax\(0,1fr\) auto/);
+  assert.match(css,/\.panel-summary:hover/);
+});
+
+test('Task field help is quiet by default and emphasized only on hover or focus', async () => {
+  const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
+  const start=css.indexOf('.run-summary .key.has-help,\n.runtime-grid .key.has-help {');
+  const hover=css.indexOf('.run-summary .key.has-help:hover',start);
+  assert.ok(start>=0 && hover>start);
+  const base=css.slice(start,hover);
+  assert.match(base,/cursor:help/);
+  assert.doesNotMatch(base,/text-decoration:underline dotted/);
+  const interactive=css.slice(hover,css.indexOf('#task-preview',hover));
+  assert.match(interactive,/text-decoration:underline dotted/);
+  assert.match(css,/\.detail-group \+ \.detail-group \{ margin-top:13px; \}/);
 });

@@ -1,6 +1,6 @@
 {
   "name": "execution-delivery-harness",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "Controlled delivery of agent actions into user-owned browser and local execution environments.",
   "scripts": {
     "start": "node server/index.mjs",
