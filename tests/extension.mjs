@@ -564,7 +564,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.17');
+  assert.equal(manifest.version,'0.1.18');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -581,7 +581,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.17');
+  assert.equal(pkg.version,'0.1.18');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -636,7 +636,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.17"/);
+  assert.match(html,/data-build-version="0\.1\.18"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -846,4 +846,16 @@ test('Run summary preview exposes full text and prepared Dispatch remains inside
   assert.match(js,/preview\.title=preview\.textContent/);
   assert.match(js,/Start this prepared task as a Harness-owned run/);
   assert.match(js,/function updateRunDetailGroups\(\)/);
+});
+
+
+test('Help explains macro/micro lifecycle boundaries and Project is not Chat', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  assert.match(html,/Conversation is context\. Project is delivery scope/);
+  assert.match(html,/Project → Task → Prepared task → Dispatch → Run → Span → Event/);
+  assert.match(html,/Project readiness.*not.*progress of the current ChatGPT conversation/s);
+  assert.match(html,/one conversation may touch multiple Projects/i);
+  assert.match(html,/Prepared task.*validated execution envelope/s);
+  assert.match(html,/Dispatch.*Harness-owned execution/s);
+  assert.match(html,/future label such as <strong>Execution<\/strong> or <strong>Execution cycle<\/strong>/);
 });

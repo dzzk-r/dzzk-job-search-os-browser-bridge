@@ -89,3 +89,5 @@ Remaining repository work is to keep the checkpoint branch pushed and review int
 See `TODO.md` for authoritative task state and `project/readiness.json` for milestone definitions.
 
 Side Panel semantic/UI design baseline: `docs/SIDE-PANEL-INFORMATION-ARCHITECTURE.md`.
+
+Canonical macro/micro execution lifecycle model: `docs/EXECUTION-LIFECYCLES.md`.

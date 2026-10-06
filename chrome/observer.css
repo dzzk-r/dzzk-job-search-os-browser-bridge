@@ -464,3 +464,15 @@ html, body.observer { width:100%; max-width:100%; overflow-x:hidden; box-sizing:
   outline:none;
 }
 #task-preview { cursor:help; }
+
+
+.help-diagram {
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  margin:8px 0 10px;
+  padding:8px;
+  border:1px solid #8884;
+  border-radius:6px;
+  background:color-mix(in srgb, Canvas 97%, CanvasText 3%);
+  font:10.5px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;
+}

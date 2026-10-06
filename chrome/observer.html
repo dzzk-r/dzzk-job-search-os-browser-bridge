@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build-version="0.1.17">
+<html lang="en" data-build-version="0.1.18">
 <head>
   <meta charset="utf-8">
   <title>Execution Delivery Harness — Observer</title>
@@ -40,8 +40,15 @@
     <div class="overlay-head"><strong>Observer help</strong><button id="help-close" class="icon-button" aria-label="Close help">×</button></div>
     <section class="help-section">
       <h2>Concepts</h2>
-      <p><strong>Actors</strong> are tools and runtimes observed by the Harness. <strong>Task</strong> is the current goal. <strong>Run</strong> is a durable execution instance. <strong>Span</strong> is one causally scoped operation. <strong>Unified timeline</strong> is the raw evidence stream.</p>
-      <p><strong>Attribution</strong> links evidence to a ChatGPT conversation/turn. <strong>browser_inferred</strong> means the identity was conservatively inferred from one active browser turn; it is not authoritative transport identity.</p>
+      <p><strong>Conversation is context. Project is delivery scope. Task is intended work. Dispatch is a handoff. Run is one execution attempt. Span is one operation. Event is evidence.</strong></p>
+      <pre class="help-diagram">Project → Task → Prepared task → Dispatch → Run → Span → Event
+             ↑                         ↓
+       not a Run yet             result / artifacts</pre>
+      <p><strong>Current task</strong> answers: what intended work is the Harness orchestrating, and where is that task in its lifecycle?</p>
+      <p><strong>Run</strong> currently shows a wider execution cycle: pre-run handoff, the strict Run execution, and post-run result. A future label such as <strong>Execution</strong> or <strong>Execution cycle</strong> may be more precise.</p>
+      <p><strong>Project readiness</strong> is progress for one selected Harness Project. It is <strong>not</strong> progress of the current ChatGPT conversation. One conversation may touch multiple Projects, and one Project may continue across multiple conversations, devices and executors.</p>
+      <p><strong>Prepared task</strong> is a validated execution envelope waiting to start. <strong>Dispatch</strong> transfers it into Harness-owned execution and creates/starts a Run. Dispatch does not continue an existing Run and does not accept a result.</p>
+      <p><strong>Actors</strong> are tools, transports, models and runtimes observed by the Harness. <strong>Attribution</strong> links evidence to a conversation/turn. <strong>browser_inferred</strong> means the chat identity was conservatively inferred from one active browser turn; it is not authoritative transport identity.</p>
     </section>
     <section class="help-section">
       <h2>Controls</h2>

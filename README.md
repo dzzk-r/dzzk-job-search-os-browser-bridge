@@ -13,6 +13,8 @@ Opera.
 
 Side Panel semantic/UI design baseline: `docs/SIDE-PANEL-INFORMATION-ARCHITECTURE.md`.
 
+Execution lifecycle model: `docs/EXECUTION-LIFECYCLES.md`.
+
 ## Current development status
 
 The project currently has three working surfaces around one MCP boundary:
