@@ -198,7 +198,7 @@ test('observer snapshot reports disk extension semver without forcing reload',as
   const b=await setup(t);
   const snapshot=await b.extension('observer');
   assert.equal(snapshot.status,200);
-  assert.equal(snapshot.value.extension_version.disk,'0.1.22');
+  assert.equal(snapshot.value.extension_version.disk,'0.1.23');
 });
 
 test('OpenCode-style DCR metadata is accepted without advertising unsupported refresh grants',async t=>{
@@ -315,7 +315,7 @@ test('observer snapshot exposes active browser CHAT turn independently of extern
   const now=new Date().toISOString();
   const binding={binding:{conversation_id:'chat-turn-actor-123',url:'https://chatgpt.com/c/chat-turn-actor-123',title:'Actor chat',source_quality:'browser_observed',observed_at:now}};
   assert.equal((await b.extension('conversation-active',binding)).status,200);
-  assert.equal((await b.extension('chat-detector-status',{detector_version:'turn-v3',conversation_id:'chat-turn-actor-123',url:'https://chatgpt.com/c/chat-turn-actor-123',title:'Actor chat',observed_at:now,user_count:1,assistant_count:1,generating:true,active_turn_id:'turn:chat-turn-actor-123:1234567890',structural_counts:{},tab_id:42})).status,200);
+  assert.equal((await b.extension('chat-detector-status',{detector_version:'turn-v4',conversation_id:'chat-turn-actor-123',url:'https://chatgpt.com/c/chat-turn-actor-123',title:'Actor chat',observed_at:now,user_count:1,assistant_count:1,generating:true,active_turn_id:'turn:chat-turn-actor-123:1234567890',structural_counts:{},tab_id:42})).status,200);
   assert.equal((await b.extension('turn-observed',{phase:'START',conversation_id:'chat-turn-actor-123',turn_id:'turn:chat-turn-actor-123:1234567890',url:'https://chatgpt.com/c/chat-turn-actor-123',title:'Actor chat',observed_at:now})).status,200);
   const snapshot=await b.extension('observer');
   assert.equal(snapshot.status,200);

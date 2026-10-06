@@ -553,7 +553,7 @@ test('ChatGPT turn detector uses composer lifecycle without reading message text
   assert.match(script,/composer-submit/);
   assert.match(script,/generating-control-present/);
   assert.match(script,/type:'chat-turn-observed'/);
-  assert.match(script,/detector_version:'turn-v3'/);
+  assert.match(script,/detector_version:'turn-v4'/);
   assert.doesNotMatch(script,/.innerText/);
   assert.doesNotMatch(script,/.textContent/);
 });
@@ -564,7 +564,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.22');
+  assert.equal(manifest.version,'0.1.23');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -581,7 +581,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.22');
+  assert.equal(pkg.version,'0.1.23');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -636,7 +636,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.22"/);
+  assert.match(html,/data-build-version="0\.1\.23"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -885,7 +885,7 @@ test('CHAT actor uses browser-local detector truth even when companion snapshot 
   assert.match(css,/\.actor-chip\.unavailable/);
 });
 
-test('Actor activity maps Desktop Commander evidence to both MCP transport and RDC provider with a 15s lease', async () => {
+test('Actor activity maps Desktop Commander evidence to both MCP transport and RDC provider with a 30s lease', async () => {
   const py=await readFile(new URL('../scripts/run-observer.py',import.meta.url),'utf8');
   assert.match(py,/transport_recent = bool\(activity_age is not None and activity_age <= 30\)/);
   assert.match(py,/"MCP": transport_recent/);
@@ -909,4 +909,26 @@ test('RDC age is shown inline only inside the recent-activity window', async () 
   assert.match(js,/const rdcRecent=Number\.isFinite\(rdcAge\) && rdcAge<=30/);
   assert.match(js,/\['RDC',rdcRecent\?seconds\(rdcAge\):''/);
   assert.match(js,/last observed '\+seconds\(rdcAge\)\+' ago/);
+});
+
+test('turn-v4 does not close a ChatGPT turn merely because Stop/Cancel disappears', async () => {
+  const script=await readFile(new URL('../chrome/chat-context.js',import.meta.url),'utf8');
+  assert.match(script,/__EDH_CHAT_CONTEXT_V4__/);
+  assert.match(script,/RESPONSE_ACTION_SELECTOR/);
+  assert.match(script,/responseActionBaseline:responseActionCount\(\)/);
+  assert.match(script,/const completionEvidence=responseActionCount\(\)>activeTurn\.responseActionBaseline/);
+  assert.match(script,/completed-response-actions-stable/);
+  assert.doesNotMatch(script,/generating-control-cleared/);
+  assert.doesNotMatch(script,/const generationSettled=/);
+});
+
+test('turn-v4 diagnostics expose completion evidence without reading assistant message text', async () => {
+  const script=await readFile(new URL('../chrome/chat-context.js',import.meta.url),'utf8');
+  assert.match(script,/response_action_controls/);
+  assert.match(script,/response_action_baseline/);
+  assert.match(script,/completion_evidence/);
+  assert.match(script,/completion_candidate_ms/);
+  assert.match(script,/ready:composerReady\(\)/);
+  assert.doesNotMatch(script,/\.innerText\b/);
+  assert.doesNotMatch(script,/\.textContent\b/);
 });

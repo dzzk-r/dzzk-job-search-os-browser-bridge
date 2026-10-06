@@ -1,6 +1,6 @@
 (() => {
-  if (globalThis.__EDH_CHAT_CONTEXT_V3__) return;
-  globalThis.__EDH_CHAT_CONTEXT_V3__=true;
+  if (globalThis.__EDH_CHAT_CONTEXT_V4__) return;
+  globalThis.__EDH_CHAT_CONTEXT_V4__=true;
 
   const USER='[data-message-author-role="user"]';
   const ASSISTANT='[data-message-author-role="assistant"]';
@@ -23,6 +23,21 @@
   const generating=()=>Boolean(
     document.querySelector('button[data-testid*="stop"],button[aria-label*="Stop"],button[aria-label*="stop"],button[aria-label*="Cancel"],button[aria-label*="cancel"]')
   );
+  const RESPONSE_ACTION_SELECTOR=[
+    'button[aria-label*="Good response" i]',
+    'button[aria-label*="Bad response" i]',
+    'button[aria-label*="Read aloud" i]',
+    'button[aria-label*="Regenerate" i]',
+    'button[data-testid*="good-response" i]',
+    'button[data-testid*="bad-response" i]'
+  ].join(',');
+  const responseActionCount=()=>document.querySelectorAll(RESPONSE_ACTION_SELECTOR).length;
+  function composerReady() {
+    const editor=document.querySelector('[contenteditable="true"]');
+    const form=editor?.closest?.('form')||null;
+    const submit=form?.querySelector('button[type="submit"]')||null;
+    return Boolean(editor && form && submit && submit.disabled!==true && submit.getAttribute('aria-disabled')!=='true');
+  }
   const send=message=>chrome.runtime.sendMessage(message).catch(()=>{});
 
   let contextSignature='';
@@ -60,7 +75,7 @@
     if(!activeTurn || !conversationId) return;
     send({
       type:'chat-turn-observed',
-      detector_version:'turn-v3',
+      detector_version:'turn-v4',
       phase,
       conversation_id:conversationId,
       turn_id:activeTurn.id,
@@ -83,7 +98,9 @@
       sawGenerating:false,
       lastGeneratingAt:0,
       lastAssistantMutationAt:now,
-      lastHeartbeatAt:0
+      lastHeartbeatAt:0,
+      responseActionBaseline:responseActionCount(),
+      completionCandidateSince:0
     };
     lastUserCount=userCount;
     lastAssistantCount=assistantCount;
@@ -113,6 +130,7 @@
     const composer={
       has_editor:Boolean(editor),
       has_form:Boolean(form),
+      ready:composerReady(),
       form_buttons:form ? [...form.querySelectorAll('button')].slice(0,20).map(b=>({
         type:b.getAttribute('type'),
         aria_label:b.getAttribute('aria-label'),
@@ -120,7 +138,7 @@
         disabled:b.disabled===true
       })) : []
     };
-    return {testids,roles,composer};
+    return {testids,roles,composer,response_action_controls:responseActionCount()};
   }
 
   function publishDetectorStatus(now,userCount,assistantCount) {
@@ -130,7 +148,7 @@
     const structure=structuralNames();
     send({
       type:'chat-detector-status',
-      detector_version:'turn-v3',
+      detector_version:'turn-v4',
       conversation_id:conversationId,
       url:location.href,
       title:document.title||'',
@@ -155,7 +173,11 @@
         button:count('button'),
         testids:structure.testids,
         roles:structure.roles,
-        composer:structure.composer
+        composer:structure.composer,
+        response_action_controls:structure.response_action_controls,
+        response_action_baseline:activeTurn?.responseActionBaseline??null,
+        completion_evidence:Boolean(activeTurn && structure.response_action_controls>activeTurn.responseActionBaseline),
+        completion_candidate_ms:activeTurn?.completionCandidateSince?Math.max(0,now-activeTurn.completionCandidateSince):0
       }
     });
   }
@@ -218,12 +240,17 @@
       sendTurn('HEARTBEAT');
     }
 
-    const generationSettled=activeTurn.sawGenerating && !isGenerating && now-activeTurn.lastGeneratingAt>=DONE_QUIET_MS;
-    const assistantSettled=!activeTurn.sawGenerating && activeTurn.assistantSeen && !isGenerating && now-activeTurn.lastAssistantMutationAt>=DONE_QUIET_MS;
-    if(generationSettled || assistantSettled) {
-      sendTurn('DONE',generationSettled?'generating-control-cleared':'assistant-settled-fallback');
-      activeTurn=null;
-      return;
+    const completionEvidence=responseActionCount()>activeTurn.responseActionBaseline;
+    const readyForNextTurn=composerReady();
+    if(completionEvidence && !isGenerating && readyForNextTurn) {
+      if(!activeTurn.completionCandidateSince) activeTurn.completionCandidateSince=now;
+      if(now-activeTurn.completionCandidateSince>=DONE_QUIET_MS) {
+        sendTurn('DONE','completed-response-actions-stable');
+        activeTurn=null;
+        return;
+      }
+    } else {
+      activeTurn.completionCandidateSince=0;
     }
     if(now-activeTurn.startedAt>=MAX_TURN_MS) {
       sendTurn('DONE','max-observation-window');

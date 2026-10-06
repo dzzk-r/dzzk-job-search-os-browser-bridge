@@ -248,7 +248,7 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
       return {ok:true,binding};
     }
     case 'chat-detector-status': {
-      if(m.detector_version!=='turn-v3') return {ok:true,ignored:true};
+      if(m.detector_version!=='turn-v4') return {ok:true,ignored:true};
       const tab=sender.tab;
       if(!tab || !Number.isInteger(tab.id)) throw new Error('Chat detector status requires a browser tab.');
       const localActivity={
@@ -277,7 +277,7 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
       return {ok:true,local:true};
     }
     case 'chat-turn-observed': {
-      if(m.detector_version!=='turn-v3') return {ok:true,ignored:true};
+      if(m.detector_version!=='turn-v4') return {ok:true,ignored:true};
       const tab=sender.tab;
       if(!tab || !Number.isInteger(tab.id)) throw new Error('Chat turn observation requires a browser tab.');
       const binding=conversations.getByTab({...tab,url:m.url||tab.url,title:m.title||tab.title||''});
