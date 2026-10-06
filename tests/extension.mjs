@@ -564,7 +564,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.11');
+  assert.equal(manifest.version,'0.1.12');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -581,7 +581,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.11');
+  assert.equal(pkg.version,'0.1.12');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -636,7 +636,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.11"/);
+  assert.match(html,/data-build-version="0\.1\.12"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -689,4 +689,38 @@ test('UI-01 first viewport prioritizes actors, operator status, work summaries a
   assert.match(html,/<h2>Diagnostics<\/h2>/);
   assert.match(js,/versionLine\.hidden=!\(mismatch\|\|gv\.restart_required\)/);
   assert.match(js,/Recent 2-minute work attribution/);
+});
+
+
+test('Task and Run summaries expose visible disclosure affordance and human-readable previews', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(html,/id="task-state"/);
+  assert.match(html,/id="task-preview"/);
+  assert.match(html,/id="run-state"/);
+  assert.match(html,/id="run-preview"/);
+  assert.match(html,/class="panel-chevron"/);
+  assert.match(html,/Open current task details: goal, state, progress, control and budget/);
+  assert.match(html,/Open run details: current execution, prepared handoff and last result/);
+  assert.match(css,/\.panel-section \{/);
+  assert.match(css,/\.panel-summary:hover/);
+  assert.match(css,/\.panel-chevron::before \{ content:'▸'; \}/);
+  assert.match(css,/\.panel-section\[open\].*content:'▾'/s);
+  assert.match(js,/preview\.textContent='Last prepared handoff'/);
+  assert.match(js,/stateLabel\.textContent='ACTION REQUIRED'/);
+});
+
+test('Prepared dispatch action disappears when companion reports no task is ready', async () => {
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(js,/no prepared Harness task is ready/i);
+  assert.match(js,/box\.hidden=true/);
+  assert.match(js,/renderRunMeta\(lastState\)/);
+});
+
+test('Actor strip keeps MCP and RDC as distinct semantic actors', async () => {
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(js,/\['MCP','','Model Context Protocol'\]/);
+  assert.match(js,/\['RDC',state\.rdc\?\.last_activity_seconds/);
+  assert.doesNotMatch(js,/\['MCP',state\.rdc\?\.last_activity_seconds/);
 });

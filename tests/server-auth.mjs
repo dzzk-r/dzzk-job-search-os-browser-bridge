@@ -198,7 +198,7 @@ test('observer snapshot reports disk extension semver without forcing reload',as
   const b=await setup(t);
   const snapshot=await b.extension('observer');
   assert.equal(snapshot.status,200);
-  assert.equal(snapshot.value.extension_version.disk,'0.1.11');
+  assert.equal(snapshot.value.extension_version.disk,'0.1.12');
 });
 
 test('OpenCode-style DCR metadata is accepted without advertising unsupported refresh grants',async t=>{

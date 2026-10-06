@@ -149,7 +149,7 @@ function activeChain(state) {
 function renderActors(state) {
   const activity=state.actor_activity||{};
   const defs=[
-    ['MCP',state.rdc?.last_activity_seconds!=null?'RDC '+seconds(state.rdc.last_activity_seconds):'','Model Context Protocol'],
+    ['MCP','','Model Context Protocol'],
     ['RDC',state.rdc?.last_activity_seconds!=null?seconds(state.rdc.last_activity_seconds):'','Remote Desktop Commander'],
     ['TERM',(state.rdc?.open_count||0)?String(state.rdc.open_count)+' open':'','Terminal / managed process lifecycle'],
     ['OC','','OpenCode worker'],
@@ -337,31 +337,53 @@ function renderAttributionHealth(state) {
 function renderRunMeta(state) {
   const section=$('run-section');
   const meta=$('run-meta');
+  const stateLabel=$('run-state');
+  const preview=$('run-preview');
   const run=detachedRunHealth(state);
   const prepared=state.prepared_dispatch;
   const ready=!$('prepared-dispatch')?.hidden;
-  if(run) {
-    const terminal=['DONE','ERROR','CANCELED'].includes(String(run.status||'').toUpperCase());
-    meta.textContent=String(run.status||'?')+(run.phase?' · '+run.phase:'');
-    setDisclosureDefault(section,!terminal);
-    section.hidden=false;
-    return;
-  }
-  if(prepared) {
-    meta.textContent=(prepared.result||prepared.run_status||prepared.status||'?')+(prepared.seconds!=null?' · '+seconds(prepared.seconds):'');
-    setDisclosureDefault(section,false);
-    section.hidden=false;
-    return;
-  }
-  if(ready) {
-    meta.textContent='prepared task ready';
-    setDisclosureDefault(section,true);
-    section.hidden=false;
-    return;
-  }
-  meta.textContent='no active run';
-  setDisclosureDefault(section,false);
+  const runStatus=String(run?.status||'').toUpperCase();
+  const runActive=Boolean(run && !['DONE','ERROR','CANCELED'].includes(runStatus));
+
   section.hidden=false;
+
+  if(runActive) {
+    stateLabel.textContent=runStatus||'RUNNING';
+    meta.textContent=run.phase||'active';
+    preview.textContent='Harness-owned execution is active'+(run.safe_to_interrupt?' · interrupt '+run.safe_to_interrupt:'');
+    setDisclosureDefault(section,true);
+    return;
+  }
+
+  if(ready) {
+    stateLabel.textContent='ACTION REQUIRED';
+    meta.textContent='Dispatch available';
+    preview.textContent='Prepared Harness task is ready to start';
+    setDisclosureDefault(section,true);
+    return;
+  }
+
+  if(prepared) {
+    const result=String(prepared.result||prepared.run_status||prepared.status||'?').toUpperCase();
+    stateLabel.textContent=result;
+    meta.textContent=prepared.seconds!=null?seconds(prepared.seconds):'last result';
+    preview.textContent='Last prepared handoff'+(prepared.task_id?' · '+prepared.task_id:'');
+    setDisclosureDefault(section,false);
+    return;
+  }
+
+  if(run) {
+    stateLabel.textContent=runStatus||'DONE';
+    meta.textContent=run.phase||'finished';
+    preview.textContent='Last Harness-owned run'+(run.ended_at?' · finished':'');
+    setDisclosureDefault(section,false);
+    return;
+  }
+
+  stateLabel.textContent='IDLE';
+  meta.textContent='';
+  preview.textContent='No active or recent run';
+  setDisclosureDefault(section,false);
 }
 
 function appendKeyValues(parent, rows) {
@@ -445,7 +467,10 @@ function renderTaskLifecycle(state) {
   const section=$('task-lifecycle-section');
   section.hidden=false;
   if(!task) {
-    $('task-safety').textContent='safe to interrupt: unknown';
+    $('task-state').textContent='NO DATA';
+    $('task-preview').textContent='No lifecycle task received';
+    $('task-safety').textContent='interrupt unknown';
+    $('task-safety').title='The Harness has not received enough task lifecycle state to judge interruption safety.';
     appendKeyValues($('task-lifecycle-summary'),[
       ['Task','No lifecycle task received'],
       ['Status','NO DATA'],
@@ -457,7 +482,17 @@ function renderTaskLifecycle(state) {
   const terminal=['DONE','ERROR','CANCELED'].includes(String(task.status||'').toUpperCase());
   setDisclosureDefault(section,!terminal);
   $('task-lifecycle-title').textContent=terminal?'Last task':'Current task';
-  $('task-safety').textContent='safe to interrupt: '+String(task.safe_to_interrupt||'?');
+  $('task-state').textContent=String(task.phase||task.status||'?').toUpperCase();
+  const previewParts=[];
+  if(task.task_id) previewParts.push(task.task_id);
+  if(task.current) previewParts.push(task.current);
+  else if(task.goal) previewParts.push(task.goal);
+  $('task-preview').textContent=previewParts.join(' · ')||'Task lifecycle details';
+  const safe=String(task.safe_to_interrupt||'?');
+  $('task-safety').textContent=safe==='yes'||safe==='true'||safe==='after_checkpoint' ? 'safe to interrupt' : ('interrupt '+safe);
+  $('task-safety').title=safe==='after_checkpoint'
+    ? 'The owning run declares that stopping after the current durable checkpoint should preserve accepted progress.'
+    : 'Interruption safety reported by the owning Harness task/run.';
   appendKeyValues($('task-lifecycle-summary'),[
     ['Task',task.task_id||'-'],
     ['Status',task.status||'-'],
@@ -893,7 +928,15 @@ must('dispatch-prepared').addEventListener('click',async()=>{
     await refreshPreparedDispatch();
     await refresh();
   } catch(e) {
-    status.textContent=String(e?.message||e);
+    const message=String(e?.message||e);
+    status.textContent=message;
     button.disabled=false;
+    if(/no prepared Harness task is ready/i.test(message)) {
+      const box=$('prepared-dispatch');
+      box.hidden=true;
+      status.textContent='';
+      button.disabled=false;
+      if(lastState) renderRunMeta(lastState);
+    }
   }
 });

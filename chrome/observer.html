@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build-version="0.1.11">
+<html lang="en" data-build-version="0.1.12">
 <head>
   <meta charset="utf-8">
   <title>Execution Delivery Harness — Observer</title>
@@ -70,19 +70,33 @@
 
   <main>
     <details id="task-lifecycle-section" class="panel-section" open>
-      <summary class="panel-summary">
-        <span id="task-lifecycle-title" class="panel-title">Current task</span>
-        <span id="task-safety" class="panel-meta muted"></span>
+      <summary class="panel-summary" title="Open current task details: goal, state, progress, control and budget">
+        <span class="panel-chevron" aria-hidden="true"></span>
+        <span class="panel-summary-copy">
+          <span class="panel-heading-line"><span id="task-lifecycle-title" class="panel-title">Current task</span><span id="task-state" class="panel-state"></span></span>
+          <span id="task-preview" class="panel-preview muted">No task details yet</span>
+        </span>
+        <span id="task-safety" class="panel-meta panel-badge muted"></span>
       </summary>
       <div class="panel-body">
-        <div id="task-lifecycle-summary" class="run-summary"></div>
-        <div id="task-lifecycle-work" class="artifact-list"></div>
+        <section class="detail-group">
+          <h3>Goal &amp; state</h3>
+          <div id="task-lifecycle-summary" class="run-summary"></div>
+        </section>
+        <section class="detail-group">
+          <h3>Progress &amp; budget</h3>
+          <div id="task-lifecycle-work" class="artifact-list"></div>
+        </section>
       </div>
     </details>
 
     <details id="run-section" class="panel-section" open>
-      <summary class="panel-summary">
-        <span class="panel-title">Run</span>
+      <summary class="panel-summary" title="Open run details: current execution, prepared handoff and last result">
+        <span class="panel-chevron" aria-hidden="true"></span>
+        <span class="panel-summary-copy">
+          <span class="panel-heading-line"><span class="panel-title">Run</span><span id="run-state" class="panel-state"></span></span>
+          <span id="run-preview" class="panel-preview muted">No run details yet</span>
+        </span>
         <span id="run-meta" class="panel-meta muted"></span>
       </summary>
       <div class="panel-body">
