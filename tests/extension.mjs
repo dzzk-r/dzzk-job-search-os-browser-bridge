@@ -400,8 +400,8 @@ test('Observer exposes recent attribution health instead of a permanent gateway-
   assert.match(html,/id="attribution-health"/);
   assert.doesNotMatch(html,/Gap: ChatGPT turn → Harness gateway/);
   assert.match(js,/function recentAttributionHealth\(state/);
-  assert.match(js,/Attribution healthy/);
-  assert.match(js,/Attribution degraded/);
+  assert.match(js,/Chat attribution · healthy/);
+  assert.match(js,/Chat attribution · degraded/);
   assert.match(js,/attribution-health.*addEventListener/s);
 });
 
@@ -564,7 +564,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.14');
+  assert.equal(manifest.version,'0.1.15');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -581,7 +581,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.14');
+  assert.equal(pkg.version,'0.1.15');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -636,7 +636,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.14"/);
+  assert.match(html,/data-build-version="0\.1\.15"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -751,7 +751,7 @@ test('Actor strip scales horizontally and explicitly distinguishes Harness obser
   assert.match(css,/\.actor-strip-primary \{[\s\S]*flex-wrap:nowrap/);
   assert.match(css,/overflow-x:auto/);
   assert.match(css,/scrollbar-width:none/);
-  assert.match(js,/Harness observation does not imply native ChatGPT integration/);
+  assert.match(js,/protocol \/ connected-client boundary/);
   assert.match(js,/local executor/);
   assert.match(js,/repository state/);
 });
@@ -761,9 +761,42 @@ test('Attribution health is non-actionable unless recent attribution is degraded
   const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
   assert.match(js,/button\.disabled=true/);
   assert.match(js,/button\.setAttribute\('aria-disabled','true'\)/);
-  assert.match(js,/Attribution · no recent work/);
-  assert.match(js,/Attribution healthy/);
+  assert.match(js,/Chat attribution · idle/);
+  assert.match(js,/Chat attribution · healthy/);
   assert.match(js,/button\.disabled=false/);
-  assert.match(js,/Attribution degraded.*Inspect/);
+  assert.match(js,/Chat attribution · degraded.*Inspect/);
   assert.match(css,/\.attribution-health:disabled/);
+});
+
+
+test('Current task uses one key-value grammar with per-field semantic help', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(html,/id="task-lifecycle-work" class="run-summary"/);
+  assert.match(js,/function appendKeyValues\(parent, rows\)/);
+  assert.match(js,/k\.classList\.add\('has-help'\)/);
+  assert.match(js,/Stable Harness task identifier/);
+  assert.match(js,/Current orchestration phase inside the task lifecycle/);
+  assert.match(js,/Latest durable progress marker/);
+  assert.match(js,/Lifecycle steps already completed/);
+  assert.match(js,/Execution limits allocated to this task/);
+  assert.match(js,/Observed consumption of the allocated task budget/);
+  assert.match(js,/task-preview.*title/s);
+});
+
+test('Task interruption badge explains safety semantics and is not itself an action', async () => {
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(js,/Orchestration safety status/);
+  assert.match(js,/This badge is informational/);
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  assert.match(html,/id="task-safety" class="panel-meta panel-badge muted"/);
+  assert.doesNotMatch(html,/id="task-safety"[^>]*<(button|a)/);
+});
+
+test('Chat attribution status names the attributed thing and distinguishes idle from failure', async () => {
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(js,/Chat attribution · idle/);
+  assert.match(js,/idle state, not a failure/);
+  assert.match(js,/Chat attribution · healthy/);
+  assert.match(js,/Chat attribution · degraded/);
 });

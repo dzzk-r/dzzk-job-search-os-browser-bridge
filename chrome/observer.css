@@ -453,3 +453,17 @@ html, body.observer { width:100%; max-width:100%; overflow-x:hidden; box-sizing:
 .detail-group > h3 { margin-bottom:4px; }
 .inline-action { margin:2px 0 5px; padding:5px 6px; gap:5px; }
 .evidence-section { margin-top:4px; padding-top:7px; }
+
+
+.run-summary .key.has-help,
+.runtime-grid .key.has-help {
+  text-decoration:underline dotted;
+  text-underline-offset:2px;
+  cursor:help;
+}
+.run-summary .key.has-help:focus,
+.runtime-grid .key.has-help:focus {
+  outline:1px dotted currentColor;
+  outline-offset:2px;
+}
+#task-preview { cursor:help; }

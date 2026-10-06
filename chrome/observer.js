@@ -162,7 +162,11 @@ function renderActors(state) {
     const isActive=activity[name]===true;
     const chip=document.createElement('span');
     chip.className='actor-chip '+name.toLowerCase()+(isActive?' active':'');
-    chip.title=fullName+' · '+origin+' · '+(isActive?'confirmed current activity':'known/idle')+'. Harness observation does not imply native ChatGPT integration.';
+    const titleParts=[];
+    if(origin) titleParts.push(origin);
+    if(detail) titleParts.push(detail);
+    if(isActive) titleParts.push('active now');
+    chip.title=titleParts.join(' · ');
     const dot=document.createElement('span'); dot.className='dot';
     const label=document.createElement('span'); label.textContent=name;
     chip.append(dot,label);
@@ -324,19 +328,19 @@ function renderAttributionHealth(state) {
   button.disabled=true;
   button.setAttribute('aria-disabled','true');
   if(!health.total) {
-    label.textContent='Attribution · no recent work';
-    button.title='No MCP/TERM/action/model work evidence was observed in the last 2 minutes.';
+    label.textContent='Chat attribution · idle';
+    button.title='No recent work events need chat attribution. This is an idle state, not a failure.';
     return health;
   }
   const healthy=health.rate>=90;
   button.classList.add(healthy?'healthy':'degraded');
   if(healthy) {
-    label.textContent='Attribution healthy · '+health.rate+'% · '+health.scoped+'/'+health.total+' recent';
+    label.textContent='Chat attribution · healthy · '+health.rate+'% · '+health.scoped+'/'+health.total;
     button.title='Recent 2-minute work attribution: '+health.scoped+' scoped, '+health.unscoped+' unscoped.';
   } else {
     button.disabled=false;
     button.setAttribute('aria-disabled','false');
-    label.textContent='Attribution degraded · '+health.rate+'% · '+health.scoped+'/'+health.total+' recent · Inspect';
+    label.textContent='Chat attribution · degraded · '+health.unscoped+'/'+health.total+' unscoped · Inspect';
     button.title='Recent 2-minute work attribution is degraded. Click to inspect causal diagnostics.';
     setDisclosureDefault($('trace-section'),true);
   }
@@ -397,8 +401,16 @@ function renderRunMeta(state) {
 
 function appendKeyValues(parent, rows) {
   const frag=document.createDocumentFragment();
-  for(const [key,value,cls] of rows) {
-    const k=document.createElement('span'); k.className='key'; k.textContent=key;
+  for(const [key,value,cls,help] of rows) {
+    const k=document.createElement('span');
+    k.className='key';
+    k.textContent=key;
+    if(help) {
+      k.title=help;
+      k.classList.add('has-help');
+      k.tabIndex=0;
+      k.setAttribute('aria-label',key+': '+help);
+    }
     const val=document.createElement('span'); val.className='value'+(cls?' '+cls:''); val.textContent=value??'-';
     frag.append(k,val);
   }
@@ -496,30 +508,29 @@ function renderTaskLifecycle(state) {
   if(task.task_id) previewParts.push(task.task_id);
   if(task.current) previewParts.push(task.current);
   else if(task.goal) previewParts.push(task.goal);
-  $('task-preview').textContent=previewParts.join(' · ')||'Task lifecycle details';
+  const previewText=previewParts.join(' · ')||'Task lifecycle details';
+  $('task-preview').textContent=previewText;
+  $('task-preview').title=previewText;
   const safe=String(task.safe_to_interrupt||'?');
   $('task-safety').textContent=safe==='yes'||safe==='true'||safe==='after_checkpoint' ? 'safe to interrupt' : ('interrupt '+safe);
   $('task-safety').title=safe==='after_checkpoint'
-    ? 'The owning run declares that stopping after the current durable checkpoint should preserve accepted progress.'
-    : 'Interruption safety reported by the owning Harness task/run.';
+    ? 'Orchestration safety status: stopping after the current durable checkpoint should preserve accepted progress. This badge is informational; use the owning run/control to actually stop work.'
+    : 'Orchestration safety status reported by the owning Harness task/run. This badge does not stop anything by itself.';
   appendKeyValues($('task-lifecycle-summary'),[
-    ['Task',task.task_id||'-'],
-    ['Status',task.status||'-'],
-    ['Phase',task.phase||'-'],
-    ['Goal',task.goal||'-'],
-    ['Waiting',task.waiting_reason||'-'],
-    ['Checkpoint',task.last_durable_checkpoint||'-']
+    ['Task',task.task_id||'-','', 'Stable Harness task identifier used to correlate lifecycle state and evidence.'],
+    ['Status',task.status||'-','', 'High-level task lifecycle status, for example WAITING, RUNNING, DONE or ERROR.'],
+    ['Phase',task.phase||'-','', 'Current orchestration phase inside the task lifecycle, such as VERIFYING.'],
+    ['Goal',task.goal||'-','', 'Requested outcome the task is expected to produce.'],
+    ['Waiting',task.waiting_reason||'-','', 'Why the task cannot advance right now, if it is waiting.'],
+    ['Checkpoint',task.last_durable_checkpoint||'-','', 'Latest durable progress marker that can survive interruption or resume.']
   ]);
-  const frag=document.createDocumentFragment();
-  const rows=[
-    ['Completed',(task.completed||[]).join(' · ')||'none'],
-    ['Current',task.current||'none'],
-    ['Pending',(task.pending||[]).join(' · ')||'none'],
-    ['Budget',JSON.stringify(task.budget||{})],
-    ['Budget used',JSON.stringify(task.budget_used||{})]
-  ];
-  for(const [name,value] of rows){const row=document.createElement('div');row.className='artifact-row';const strong=document.createElement('strong');strong.textContent=name+': ';const span=document.createElement('span');span.textContent=value;row.append(strong,span);frag.append(row);}
-  $('task-lifecycle-work').replaceChildren(frag);
+  appendKeyValues($('task-lifecycle-work'),[
+    ['Completed',(task.completed||[]).join(' · ')||'none','', 'Lifecycle steps already completed for this task.'],
+    ['Current',task.current||'none','', 'The work step the Harness currently considers in progress.'],
+    ['Pending',(task.pending||[]).join(' · ')||'none','', 'Known lifecycle steps still required before the task can finish.'],
+    ['Budget',JSON.stringify(task.budget||{}),'', 'Execution limits allocated to this task, such as deadline, agent steps, output tokens and repairs.'],
+    ['Budget used',JSON.stringify(task.budget_used||{}),'', 'Observed consumption of the allocated task budget. Empty means no usage metrics were reported.']
+  ]);
 }
 
 function renderRunInspection(state) {
