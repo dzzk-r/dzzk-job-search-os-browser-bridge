@@ -51,3 +51,19 @@ A useful future repro is:
 A subsequent Google Play screenshot at approximately 13:00 shows **ChatGPT — 863 MB — Updated yesterday** in the device's recently-updated apps list.
 
 This weakens the explanation that the observed list/thread divergence was simply caused by a long-stale Android ChatGPT installation. It does **not** establish the exact installed version/build, and it does not by itself prove that no newer update is currently pending because the screenshot is from the recently-updated view rather than an expanded ChatGPT entry under `Updates available`.
+
+## Exact Android client version — 13:02
+
+A subsequent Android App info screenshot identifies the installed ChatGPT application as:
+
+- **Version:** `1.2026.272`
+- **Storage footprint shown:** `863 MB`
+- **Network data usage shown:** `455.2 MB`
+- **Battery usage shown:** `65.8%`
+- **Pause app activity if unused:** enabled
+
+The exact installed app version is therefore known. This further weakens a generic "very stale client" explanation for the observed conversation-list / opened-thread freshness divergence.
+
+The `Pause app activity if unused` setting is present, but the same screen shows substantial recent network and battery usage, so there is no evidence here that the app was merely dormant or unused when the divergence occurred.
+
+ADB was not connected at the time of this check, so Android package-manager `versionCode` and update timestamps were not independently captured from `dumpsys package`.
