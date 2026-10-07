@@ -104,7 +104,11 @@ def project_status(repo: Path, timeline):
     eta_high=sum(t['eta_high_hours'] for t in remaining)
     critical=[next((t for t in tasks if t['id']==tid),None) for tid in ('GW-01','GW-02')]
     critical=[t for t in critical if t]
-    readiness=load_json(repo/'project/readiness.json') or {}
+    readiness_path=repo/'project/readiness.json'
+    task_catalog_path=repo/'TODO.md'
+    readiness=load_json(readiness_path) or {}
+    project_id=str(readiness.get('project') or repo.name)
+    project_name='Execution Delivery Harness' if project_id=='execution-delivery-harness' else project_id
     next_milestone=None
     for m in readiness.get('milestones',[]):
         support=[next((t for t in tasks if t['id']==tid),None) for tid in m.get('supporting_tasks',[])]
@@ -118,13 +122,31 @@ def project_status(repo: Path, timeline):
     for a,b in zip(todays,todays[1:]):
         gap=max(0,b-a)
         active+=min(gap,120.0)
-    return {'task_count':len(tasks),'complete_count':complete,'average_percent':average,'remaining_eta_low_hours':round(eta_low,1),'remaining_eta_high_hours':round(eta_high,1),'critical_path':critical,'next_milestone':next_milestone,'observed_today_window_seconds':round(window),'observed_today_active_seconds':round(active),'observed_event_count_today':len(todays),'time_semantics':'active is heuristic: event gaps capped at 120s; window is first-to-last observed event today'}
+    try: todo_mtime=task_catalog_path.stat().st_mtime
+    except OSError: todo_mtime=None
+    try: readiness_mtime=readiness_path.stat().st_mtime
+    except OSError: readiness_mtime=None
+    return {
+        'project_id':project_id,'project_name':project_name,
+        'task_count':len(tasks),'complete_count':complete,'average_percent':average,
+        'remaining_eta_low_hours':round(eta_low,1),'remaining_eta_high_hours':round(eta_high,1),
+        'critical_path':critical,'next_milestone':next_milestone,
+        'observed_today_window_seconds':round(window),'observed_today_active_seconds':round(active),
+        'observed_event_count_today':len(todays),
+        'time_semantics':'active is heuristic: event gaps capped at 120s; window is first-to-last observed event today',
+        'task_catalog_path':str(task_catalog_path),
+        'readiness_path':str(readiness_path),
+        'task_catalog_updated_at':datetime.fromtimestamp(todo_mtime).astimezone().isoformat() if todo_mtime else None,
+        'readiness_updated_at':datetime.fromtimestamp(readiness_mtime).astimezone().isoformat() if readiness_mtime else None,
+        'calculation_protocol':'todo-percent-average-v1',
+        'refresh_semantics':'Observer recomputes automatically from files on every snapshot; task percentages themselves change only when TODO.md is edited.'
+    }
 
 
 def prepared_dispatch_summary():
     state=load_json(PREPARED_DISPATCH_STATE)
     if not isinstance(state,dict): return None
-    result={'status':state.get('status'),'label':state.get('label'),'goal':state.get('goal'),'task_id':state.get('task_id'),'controller_id':state.get('controller_id'),'run_dir':state.get('run_dir')}
+    result={'status':state.get('status'),'label':state.get('label'),'goal':state.get('goal'),'task_id':state.get('task_id'),'controller_id':state.get('controller_id'),'run_dir':state.get('run_dir'),'prepared_at':state.get('prepared_at'),'dispatched_at':state.get('dispatched_at'),'task_path':state.get('task_path'),'context_path':state.get('context_path')}
     run_dir=Path(state['run_dir']) if state.get('run_dir') else None
     if not run_dir: return result
     detached=load_json(run_dir/'detached-state.json') or {}
@@ -133,7 +155,7 @@ def prepared_dispatch_summary():
     reports=sorted((run_dir/'agent-runs').glob('*/report.json')) if (run_dir/'agent-runs').exists() else []
     if reports: latest_report=load_json(reports[-1]) or {}
     report=latest_report or worker
-    result.update({'run_status':detached.get('status'),'phase':detached.get('phase'),'worker_status':worker.get('status'),'correlation_id':worker.get('correlation_id') or report.get('correlation_id'),'seconds':report.get('seconds'),'model':report.get('model'),'opencode_version':report.get('opencode_version'),'changed_files':report.get('changed_files') or report.get('touched_files') or [],'outcome_reason':report.get('outcome_reason')})
+    result.update({'run_status':detached.get('status'),'phase':detached.get('phase'),'worker_status':worker.get('status'),'correlation_id':worker.get('correlation_id') or report.get('correlation_id'),'seconds':report.get('seconds'),'model':report.get('model'),'opencode_version':report.get('opencode_version'),'changed_files':report.get('changed_files') or report.get('touched_files') or [],'outcome_reason':report.get('outcome_reason'),'started_at':detached.get('started_at'),'ended_at':detached.get('ended_at')})
     if detached.get('status')=='DONE' and report.get('outcome_reason')=='acceptance_passed': result['result']='PASS'
     elif detached.get('status') in ('ERROR','FAILED') or report.get('outcome_reason') in ('acceptance_failed','worker_failed'): result['result']='FAIL'
     else: result['result']='RUNNING' if detached.get('status') in ('STARTING','RUNNING') else 'PENDING'

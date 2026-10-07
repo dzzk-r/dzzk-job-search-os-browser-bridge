@@ -15,6 +15,8 @@ Side Panel semantic/UI design baseline: `docs/SIDE-PANEL-INFORMATION-ARCHITECTUR
 
 Execution lifecycle model: `docs/EXECUTION-LIFECYCLES.md`.
 
+Local companion/control-observation plane: `docs/LOCAL-CONTROL-OBSERVATION-PLANE.md`.
+
 ## Current development status
 
 The project currently has three working surfaces around one MCP boundary:

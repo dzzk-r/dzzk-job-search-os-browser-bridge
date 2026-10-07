@@ -29,9 +29,11 @@
   </ol>
 
   <form id="form">
+    <label for="companion-port">Local control / observation plane port</label>
+    <input id="companion-port" type="number" min="1" max="65535" step="1" value="43119" required>
+    <p><small>Default: <code>43119</code>. The extension connects to <code>http://127.0.0.1:&lt;port&gt;</code>. If the local companion is started with a custom <code>EDH_COMPANION_PORT</code> (including from project <code>.env</code>), enter the same port here.</small></p>
     <label for="token">Extension pairing token</label>
     <input id="token" type="password" autocomplete="off" required minlength="43" maxlength="43">
-    <p>Companion address: <code>http://127.0.0.1:43119</code></p>
     <label><input id="consent" type="checkbox" style="width:auto" required> I understand that text, titles and URLs from pages I explicitly share pass through the local companion to the MCP client I authorize. They can contain recruiter messages and personal information.</label>
     <button class="primary" type="submit">Connect companion</button>
   </form>

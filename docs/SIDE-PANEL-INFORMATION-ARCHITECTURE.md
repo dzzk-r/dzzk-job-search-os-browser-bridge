@@ -487,6 +487,44 @@ This preserves all information while changing its default cost from multiple scr
 9. Tooltips define; expanded details explain; Help teaches.
 10. The first viewport is for decisions, not forensic detail.
 
+## Attribution diagnostics visibility contract
+
+Attribution is infrastructure, not a permanent top-level card. The Observer keeps healthy attribution quiet and surfaces diagnostics only when there is an operator-relevant provenance break.
+
+Current contract:
+
+- inspect recent work evidence in the same short health window used by the header;
+- work sources include MCP, RDC, TERM, ACTION, OC, QWEN and LLAMA;
+- if every recent work event has a trustworthy `conversation_id`, the top-level `Attribution diagnostics` section is hidden;
+- if any recent work event lacks `conversation_id`, the section becomes visible and lists those recent unscoped breakpoints;
+- severe degradation (below 90% scoped in the window) may auto-open; a smaller anomaly is visible but may remain collapsed;
+- the header `Attribution coverage` line remains the compact always-available summary.
+
+A causal trace is useful evidence, but it is not itself an attribution anomaly. Trace/span drill-down belongs on a selected timeline event or execution span rather than occupying a permanent top-level section.
+
+The multi-project contract will extend the same rule beyond conversation identity. Future anomalies may include missing or ambiguous `project_id`, task/run ownership conflicts, orphan span parentage, or cross-project trace conflicts. Those checks must follow explicit provenance contracts rather than browser focus or recency heuristics.
+
+## UI-01 closure / live-acceptance contract
+
+UI-01 is not complete when the cards merely look cleaner. It reaches the 90–100% range only when the operator can answer the following without reading source code:
+
+1. **Scope identity** — every macro projection states which durable object it describes. `Project readiness` must show the selected Project identity; conversation scope and project scope remain separate.
+2. **Lifecycle placement** — `Current task`, `Execution/Run`, `Execution spans`, `Transports & background`, `Attribution diagnostics` and `Unified timeline` each answer one documented question from `EXECUTION-LIFECYCLES.md`.
+3. **Semantic field help** — non-obvious key/value labels use the shared tooltip/help contract, with a subtle hover affordance rather than permanent visual noise.
+4. **Evidence-first diagnostics** — the newest evidence is visible immediately; timeline scope/filter/statistics remain one stable control row and user controls are not recreated by polling.
+5. **No decorative duplication** — spans do not need card borders per row; transport details use the same compact key/value grammar as task/run details; raw provenance metadata moves to disclosure/tooltips rather than fighting the heading.
+6. **Truthful attribution** — current-chat scope must be validated against the raw timeline, and `Unscoped` must mean evidence truly lacks trustworthy conversation identity rather than merely missing an early enrichment pass.
+7. **Narrow-width acceptance** — no summary metadata overlaps a wrapping title; truncated previews expose their full meaning on hover/focus.
+8. **Contextual Help** — Help teaches the canonical lifecycle and local control/observation plane instead of duplicating arbitrary runtime dumps.
+
+### Remaining UI-01 review order
+
+- Project readiness: selected Project identity + shared key/value tooltips.
+- Execution spans: borderless rows + semantic field help + correct completed-span age semantics.
+- Transports & background: shared key/value grammar + tooltips; distinguish process presence from recent activity.
+- Attribution diagnostics: stable compact heading, provenance vocabulary/help, and validation against scoped/unscoped raw evidence.
+- Final Help/lifecycle pass and narrow Side Panel visual acceptance.
+
 ## Proposed implementation sequence
 
 1. Freeze semantic names and top-level zones from this document.

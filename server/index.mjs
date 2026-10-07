@@ -60,7 +60,14 @@ async function body(req, limit = 131072) {
 
 /** A single-user loopback companion. Page content is never persisted. */
 export async function createBridgeServer(options = {}) {
-  const port = options.port ?? 43119;
+  let port;
+  if (options.port !== undefined) {
+    port=Number(options.port);
+    if (!Number.isInteger(port) || port<0 || port>65535) throw new Error('options.port must be an integer from 0 to 65535.');
+  } else {
+    port=Number.parseInt(process.env.EDH_COMPANION_PORT||'43119',10);
+    if (!Number.isInteger(port) || port<1 || port>65535) throw new Error('EDH_COMPANION_PORT must be an integer from 1 to 65535.');
+  }
   const configDir = options.configDir ?? join(homedir(), '.config', 'dzzk-jso-bridge');
   const localExecutor = options.localExecutor ?? await createLocalExecutor({
     allowedRoots: options.allowedRoots
@@ -851,7 +858,7 @@ export async function createBridgeServer(options = {}) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const instance = await createBridgeServer();
-  console.log('Execution Delivery Harness Browser Bridge listening on http://127.0.0.1:43119');
+  console.log('Execution Delivery Harness Browser Bridge listening on '+instance.issuer);
   console.log('Extension pairing token file: ~/.config/dzzk-jso-bridge/pairing-token');
   console.log('Show token: cat ~/.config/dzzk-jso-bridge/pairing-token');
   console.log('Copy token on macOS without printing it: pbcopy < ~/.config/dzzk-jso-bridge/pairing-token');

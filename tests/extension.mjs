@@ -52,7 +52,7 @@ test('grants accept normal HTTP(S), keep tab IDs private, expire and invalidate 
   assert.throws(() => grants.get(second, 1802000), /expired/);
 });
 
-test('UI is restricted to the extension, loaded active tabs and a fixed pairing endpoint', async () => {
+test('UI is restricted to the extension, loaded active tabs and a loopback pairing endpoint', async () => {
   const h = await harness();
   await assert.rejects(h.send({type:'share',tabId:7}), /Connect the companion/);
   h.connect();
@@ -66,6 +66,7 @@ test('UI is restricted to the extension, loaded active tabs and a fixed pairing 
   for (const endpoint of ['https://example.org', 'http://localhost:43119', 'http://127.0.0.1:43119/path', 'http://user@127.0.0.1:43119', 'http://127.0.0.1:43119/?x=1']) {
     await assert.rejects(h.send({type:'configure',config:{enabled:false,endpoint,token}}), /Companion address/);
   }
+  await assert.doesNotReject(h.send({type:'configure',config:{enabled:false,endpoint:'http://127.0.0.1:43120',token}}));
   await assert.rejects(h.send({type:'configure',config:{enabled:false,endpoint:'http://127.0.0.1:43119',token:'bad'}}), /43-character/);
 });
 
@@ -370,15 +371,17 @@ test('Observer distinguishes degraded snapshot failure from companion offline', 
 });
 
 
-test('Observer folds unscoped external activity into attribution diagnostics while preserving recent trace evidence', async () => {
+test('Attribution diagnostics is anomaly-driven instead of a permanent recent-trace card', async () => {
   const html = await readFile(new URL('../chrome/observer.html', import.meta.url), 'utf8');
   const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
-  assert.match(html,/id="trace-title"/);
-  assert.match(html,/Attribution \/ causal trace/);
-  assert.match(js,/function currentExternalActivity\(state\)/);
-  assert.match(js,/Attribution diagnostics/);
-  assert.match(js,/Recent correlated trace /);
-  assert.match(js,/awaiting authoritative gateway/);
+  assert.match(html,/Shown only when recent work contains an attribution anomaly/);
+  assert.match(js,/const workSources=new Set\(\['MCP','RDC','TERM','ACTION','OC','QWEN','LLAMA'\]\)/);
+  assert.match(js,/const healthy=health\.unscoped===0/);
+  assert.match(js,/if\(!health\.total \|\| health\.unscoped===0\)/);
+  assert.match(js,/section\.hidden=true/);
+  assert.match(js,/problem=missing conversation_id/);
+  assert.match(js,/health\.issues\.slice\(-12\)\.reverse\(\)/);
+  assert.match(js,/health\.rate<90/);
 });
 
 
@@ -567,7 +570,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.29');
+  assert.equal(manifest.version,'0.1.32');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -584,7 +587,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.29');
+  assert.equal(pkg.version,'0.1.32');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -654,7 +657,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.29"/);
+  assert.match(html,/data-build-version="0\.1\.32"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -736,7 +739,7 @@ test('Task and Run summaries expose visible disclosure affordance and human-read
   assert.match(html,/Open run details: current execution, prepared handoff and last result/);
   assert.match(css,/\.panel-section \{/);
   assert.match(css,/\.panel-summary:hover/);
-  assert.match(js,/preview\.textContent='Last prepared handoff'/);
+  assert.match(js,/preview\.textContent='Last dispatched handoff \/ run result'/);
   assert.match(js,/stateLabel\.textContent='ACTION REQUIRED'/);
 });
 
@@ -876,7 +879,7 @@ test('Run summary preview exposes full text and prepared Dispatch remains inside
   const dispatch=html.indexOf('id="prepared-dispatch"');
   assert.ok(handoff>=0 && dispatch>handoff);
   assert.match(js,/preview\.title=preview\.textContent/);
-  assert.match(js,/Start this prepared task as a Harness-owned run/);
+  assert.match(js,/Dispatch is available only while the handoff state is READY/);
   assert.match(js,/function updateRunDetailGroups\(\)/);
 });
 
@@ -884,11 +887,11 @@ test('Run summary preview exposes full text and prepared Dispatch remains inside
 test('Help explains macro/micro lifecycle boundaries and Project is not Chat', async () => {
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   assert.match(html,/Conversation is context\. Project is delivery scope/);
-  assert.match(html,/Project → Task → Prepared task → Dispatch → Run → Span → Event/);
+  assert.match(html,/Project → Task → Ready handoff → Dispatch → Run → Span → Event/);
   assert.match(html,/Project readiness.*not.*progress of the current ChatGPT conversation/s);
   assert.match(html,/one conversation may touch multiple Projects/i);
-  assert.match(html,/Prepared task.*validated execution envelope/s);
-  assert.match(html,/Dispatch.*Harness-owned execution/s);
+  assert.match(html,/Ready handoff.*validated execution envelope/s);
+  assert.match(html,/Dispatch.*one-way transition/s);
   assert.match(html,/future label such as <strong>Execution<\/strong> or <strong>Execution cycle<\/strong>/);
 });
 

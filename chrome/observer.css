@@ -15,7 +15,8 @@ body.observer { max-width:none; padding:0; background:Canvas; color:CanvasText; 
 .section-head h2 { margin:0 0 7px; font-size:14px; }
 .muted { opacity:.58; font:11px ui-monospace,SFMono-Regular,Menlo,monospace; }
 .spans { display:grid; gap:5px; margin-bottom:12px; }
-.span-row { display:grid; grid-template-columns:64px 82px minmax(0,1fr); gap:6px; padding:5px 7px; border:1px solid #8884; border-radius:5px; font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace; }
+.span-row { display:grid; grid-template-columns:64px 82px minmax(0,1fr); gap:6px; padding:5px 2px; border:0; border-bottom:1px solid #8883; border-radius:0; font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace; }
+.span-row:last-child { border-bottom:0; }
 .span-status { font-weight:800; }
 .span-row.running .span-status { color:#16a34a; }
 .span-row.waiting .span-status,.span-row.exited .span-status { color:#ca8a04; }
@@ -268,7 +269,6 @@ html, body.observer { width:100%; max-width:100%; overflow-x:hidden; box-sizing:
 }
 .evidence-section {
   margin-top:6px;
-  border-top:1px solid #8884;
   padding-top:9px;
 }
 #timeline-section .section-head h2 {
@@ -473,6 +473,11 @@ html, body.observer { width:100%; max-width:100%; overflow-x:hidden; box-sizing:
 #task-preview { cursor:help; }
 
 
+.section-explainer {
+  margin:7px 0 8px;
+  font:10.5px/1.4 system-ui,sans-serif;
+  opacity:.72;
+}
 .help-diagram {
   white-space:pre-wrap;
   overflow-wrap:anywhere;

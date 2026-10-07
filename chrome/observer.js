@@ -231,10 +231,12 @@ async function refreshPreparedDispatch() {
     const s=await send({type:'dispatch-state'});
     if(!s?.ready) { box.hidden=true; status.textContent=''; button.disabled=false; updateRunDetailGroups(); return; }
     box.hidden=false;
-    label.textContent=(s.label||s.task_id||'Prepared task')+(s.goal?' — '+s.goal:'');
+    const preparedAt=s.prepared_at?Date.parse(s.prepared_at)/1000:null;
+    const preparedAge=Number.isFinite(preparedAt)?seconds(Math.max(0,Date.now()/1000-preparedAt))+' old':'age unknown';
+    label.textContent=(s.label||s.task_id||'Ready handoff')+(s.goal?' — '+s.goal:'')+' · prepared '+preparedAge;
     label.title=label.textContent;
-    button.title='Start this prepared task as a Harness-owned run.';
-    status.textContent='READY';
+    button.title='Dispatch is available only while the handoff state is READY. It starts a new Harness-owned run; completed/PASS handoffs cannot be dispatched again.';
+    status.textContent='READY · not yet dispatched';
     button.disabled=false;
     updateRunDetailGroups();
   } catch(e) {
@@ -328,14 +330,15 @@ function setDisclosureDefault(section, open) {
 
 function recentAttributionHealth(state, windowSeconds=120) {
   const now=Date.now()/1000;
-  const workSources=new Set(['MCP','TERM','ACTION','OC','QWEN','LLAMA']);
+  const workSources=new Set(['MCP','RDC','TERM','ACTION','OC','QWEN','LLAMA']);
   const events=(state.timeline||[]).filter(event=>
     workSources.has(String(event.source||'')) &&
     Number.isFinite(Number(event.ts)) &&
     now-Number(event.ts)<=windowSeconds
   );
   const scoped=events.filter(event=>Boolean(event.correlation?.conversation_id)).length;
-  return {total:events.length,scoped,unscoped:events.length-scoped,rate:events.length?Math.round(scoped*100/events.length):null,windowSeconds};
+  const issues=events.filter(event=>!event.correlation?.conversation_id);
+  return {total:events.length,scoped,unscoped:issues.length,issues,rate:events.length?Math.round(scoped*100/events.length):null,windowSeconds};
 }
 
 function renderAttributionHealth(state) {
@@ -350,17 +353,17 @@ function renderAttributionHealth(state) {
     button.title='No recent work events require conversation attribution in the current 2-minute window.';
     return health;
   }
-  const healthy=health.rate>=90;
+  const healthy=health.unscoped===0;
   button.classList.add(healthy?'healthy':'degraded');
   if(healthy) {
-    label.textContent='Attribution coverage · healthy · '+health.rate+'% · '+health.scoped+'/'+health.total;
-    button.title='Recent 2-minute work attribution: '+health.scoped+' scoped, '+health.unscoped+' unscoped.';
+    label.textContent='Attribution coverage · healthy · 100% · '+health.scoped+'/'+health.total;
+    button.title='Recent 2-minute work attribution: every observed work event is scoped to a conversation.';
   } else {
     button.disabled=false;
     button.setAttribute('aria-disabled','false');
     label.textContent='Attribution coverage · degraded · '+health.unscoped+'/'+health.total+' unscoped · Inspect';
-    button.title='Recent 2-minute work attribution is degraded. Click to inspect causal diagnostics.';
-    setDisclosureDefault($('trace-section'),true);
+    button.title='Recent work contains events with no trustworthy conversation identity. Click to inspect the attribution breakpoints.';
+    if(health.rate<90) setDisclosureDefault($('trace-section'),true);
   }
   return health;
 }
@@ -409,9 +412,9 @@ function renderRunMeta(state) {
     const result=String(prepared.result||prepared.run_status||prepared.status||'?').toUpperCase();
     stateLabel.textContent=result;
     meta.textContent=prepared.seconds!=null?seconds(prepared.seconds):'last result';
-    preview.textContent='Last prepared handoff'+(prepared.task_id?' · '+prepared.task_id:'');
+    preview.textContent='Last dispatched handoff / run result'+(prepared.task_id?' · '+prepared.task_id:'');
     preview.title=preview.textContent;
-    meta.title='Elapsed runtime reported for the latest prepared handoff.';
+    meta.title='Historical result of the last dispatched handoff. A PASS result is terminal evidence and is not dispatchable again.';
     setDisclosureDefault(section,false);
     return;
   }
@@ -458,9 +461,19 @@ function renderPreparedResult(state) {
   section.hidden=false;
   const corr=p.correlation_id?correlationShort(p.correlation_id):'-';
   const files=Array.isArray(p.changed_files)?p.changed_files:[];
+  const preparedTs=p.prepared_at?Date.parse(p.prepared_at)/1000:null;
+  const dispatchedTs=p.dispatched_at?Date.parse(p.dispatched_at)/1000:null;
+  const endedTs=p.ended_at?Date.parse(p.ended_at)/1000:null;
+  const nowTs=Date.now()/1000;
   const rows=[
-    ['Result',p.result||p.run_status||p.status||'?','', 'Final result reported for this prepared handoff/run.'],
+    ['Result',p.result||p.run_status||p.status||'?','', 'Terminal result of the run created from this handoff. PASS means acceptance succeeded; it is historical evidence, not a task waiting for Dispatch.'],
+    ['Handoff state',p.status||'-','', 'READY means Dispatch may start a new run. DISPATCHED means that transition already happened and the same handoff must not be dispatched again.'],
     ['Task',p.task_id||'-','', 'Harness task identifier associated with this prepared handoff.'],
+    ['Prepared',p.prepared_at?new Date(p.prepared_at).toLocaleString():'-','', 'When the execution envelope was prepared.'],
+    ['Prepared age',Number.isFinite(preparedTs)?seconds(Math.max(0,nowTs-preparedTs)):'-','', 'How long ago this execution envelope was prepared.'],
+    ['Dispatched',p.dispatched_at?new Date(p.dispatched_at).toLocaleString():'-','', 'When READY crossed into a Harness-owned Run.'],
+    ['Finished',p.ended_at?new Date(p.ended_at).toLocaleString():'-','', 'When the resulting run reached its terminal state.'],
+    ['Result age',Number.isFinite(endedTs)?seconds(Math.max(0,nowTs-endedTs)):(Number.isFinite(dispatchedTs)?seconds(Math.max(0,nowTs-dispatchedTs)):'-'),'', 'Age of the terminal run result, or dispatch age when no finish timestamp is available.'],
     ['Correlation',corr,'', 'Short correlation identifier linking this run result to its causal trace and evidence.'],
     ['Runtime',p.seconds!=null?seconds(p.seconds):'-','', 'Elapsed execution time reported for the prepared handoff.'],
     ['Executor',p.opencode_version?'OpenCode '+p.opencode_version:'-','', 'Executor runtime and version that performed the work.'],
@@ -485,14 +498,24 @@ function renderProjectStatus(state) {
   const critical=(p.critical_path||[]).map(t=>t.id+' '+t.percent+'%').join(' · ')||'-';
   const milestone=p.next_milestone;
   const rows=[
-    ['Overall',String(p.average_percent??0)+'% average across '+String(p.task_count??0)+' tracked tasks'],
-    ['Completed',String(p.complete_count??0)+' / '+String(p.task_count??0)],
-    ['Critical path',critical],
-    ['Next milestone',milestone?(milestone.id+' · '+milestone.title):'all configured milestones ready'],
-    ['Remaining ETA',hoursRange(p.remaining_eta_low_hours,p.remaining_eta_high_hours)+' backlog sum; not calendar time'],
-    ['Observed today',seconds(p.observed_today_active_seconds||0)+' active heuristic · '+seconds(p.observed_today_window_seconds||0)+' first→last event window']
+    ['Project',p.project_name||p.project_id||'-','', 'Selected Harness Project whose task graph is being projected here. It is independent of the current ChatGPT conversation.'],
+    ['Project ID',p.project_id||'-','', 'Stable project identity used by readiness configuration and future project selection.'],
+    ['Task catalog',compactMessage(p.task_catalog_path||'TODO.md'),'','Percentages and task rows are read from this TODO catalog.'],
+    ['Milestones',compactMessage(p.readiness_path||'project/readiness.json'),'','Milestone gates and supporting-task relationships are read from this readiness file.'],
+    ['Calculation',p.calculation_protocol||'todo-percent-average-v1','','Overall is recomputed from the explicit percentages stored in TODO.md; the Observer does not ask an LLM to estimate these percentages.'],
+    ['Catalog updated',p.task_catalog_updated_at?new Date(p.task_catalog_updated_at).toLocaleString():'unknown','','Filesystem modification time of TODO.md. This tells you when the inputs last changed, not when the Observer last refreshed.'],
+    ['Refresh','automatic on Observer snapshot','','The Observer rereads the files automatically. The values stay unchanged until TODO.md or readiness configuration changes.'],
+    ['Overall',String(p.average_percent??0)+'% average across '+String(p.task_count??0)+' tracked tasks','', 'Arithmetic average of tracked task percentages from TODO.md. Informative only; milestone readiness remains gate-based.'],
+    ['Completed',String(p.complete_count??0)+' / '+String(p.task_count??0),'', 'Tracked tasks whose completion value is 100%.'],
+    ['Critical path',critical,'', 'Configured unfinished tasks that currently gate the next delivery milestone.'],
+    ['Next milestone',milestone?(milestone.id+' · '+milestone.title):'all configured milestones ready','', 'First configured milestone whose supporting tasks are not all complete.'],
+    ['Remaining ETA',hoursRange(p.remaining_eta_low_hours,p.remaining_eta_high_hours)+' backlog sum; not calendar time','', 'Sum of remaining task effort estimates. This is backlog effort, not a delivery-date prediction.'],
+    ['Observed today',seconds(p.observed_today_active_seconds||0)+' active heuristic · '+seconds(p.observed_today_window_seconds||0)+' first→last event window','', 'Observed event activity today. Active time is a heuristic with event gaps capped; window is first-to-last observed event.']
   ];
   appendKeyValues($('project-status-summary'),rows);
+  const projectLabel=p.project_name||p.project_id||'Project identity unavailable';
+  $('project-status-project').textContent=projectLabel;
+  $('project-status-project').title='Selected Project: '+projectLabel+'. Project scope is independent of the current ChatGPT conversation.';
   $('project-status-meta').textContent=String(p.average_percent??0)+'% · '+String(p.complete_count??0)+'/'+String(p.task_count??0)+' done';
 }
 
@@ -606,7 +629,9 @@ function renderHeader(state) {
   const status=derivedStatus(state);
   $('state-label').textContent=status.label;
   $('state-age').textContent=status.age==null?'':seconds(status.age);
-  $('active-chain').textContent=activeChain(state);
+  const chain=activeChain(state);
+  $('active-chain').textContent=chain;
+  $('active-chain').title=chain;
   $('state-dot').className='state-dot '+status.cls;
 
   const v=state.versions||{};
@@ -635,13 +660,17 @@ function renderSpans(state) {
   for(const span of spans) {
     const row=document.createElement('div');
     row.className='span-row '+String(span.status||'').toLowerCase();
-    const status=document.createElement('span'); status.className='span-status'; status.textContent=span.status||'?';
-    const actor=document.createElement('span'); actor.textContent=(span.actor||'?')+(span.pid?' #'+span.pid:'');
+    const status=document.createElement('span'); status.className='span-status has-help'; status.textContent=span.status||'?'; status.title='Span lifecycle status: running/open, waiting, done, error, canceled or exited.';
+    const actor=document.createElement('span'); actor.className='has-help'; actor.textContent=(span.actor||'?')+(span.pid?' #'+span.pid:''); actor.title='Observed actor/provider that owns this bounded operation. PID is shown when the span maps to a local process.';
     const main=document.createElement('div'); main.className='span-main';
-    const label=document.createElement('div'); label.className='span-label'; label.textContent=compactMessage(span.label||span.id||'operation');
+    const label=document.createElement('div'); label.className='span-label has-help'; label.textContent=compactMessage(span.label||span.id||'operation'); label.title='Operation represented by this causally scoped execution span.';
     const updateAge=span.ended ? Math.max(0,Math.floor(Date.now()/1000-(span.updated||span.ended))) : Math.max(0,Math.floor(Date.now()/1000-(span.updated||span.started||Date.now()/1000)));
     const meta=document.createElement('div'); meta.className='span-meta';
-    meta.textContent='elapsed '+seconds(span.age_seconds||0)+' · last update '+seconds(updateAge)+' ago · '+(span.detail||'');
+    const terminalDetail=String(span.detail||'').trim();
+    const statusText=String(span.status||'').trim().toUpperCase();
+    const detailText=terminalDetail && terminalDetail.toUpperCase()!==statusText ? ' · '+terminalDetail : '';
+    meta.textContent='elapsed '+seconds(span.age_seconds||0)+' · last update '+seconds(updateAge)+' ago'+detailText;
+    meta.title='Elapsed is the span duration. Last update is observation freshness. A terminal event identical to the Status column is intentionally not repeated here.';
     main.append(label,meta);
     row.append(status,actor,main);
     frag.append(row);
@@ -657,23 +686,17 @@ function renderRdc(state) {
   const box=$('rdc-activity'), meta=$('rdc-meta');
   const rows=[];
   if(rdc.last_tool) {
-    rows.push(['Last RDC',String(rdc.last_summary||rdc.last_tool)]);
-    rows.push(['Age',seconds(rdc.last_activity_seconds??0)+' ago']);
+    rows.push(['Transport','Remote Desktop Commander','', 'Observed transport/provider carrying remote filesystem, search or process-control operations.']);
+    rows.push(['Last operation',String(rdc.last_summary||rdc.last_tool),'', 'Most recent RDC operation observed by the Harness.']);
+    rows.push(['Last activity',seconds(rdc.last_activity_seconds??0)+' ago','', 'Age of the most recent observed RDC event; this is not the duration of current work.']);
   }
   for(const proc of (rdc.open_processes||[])) {
-    rows.push(['PID '+String(proc.pid||'?')+' '+String(proc.status||'?'),compactMessage(proc.label||'process')]);
+    rows.push(['Process '+String(proc.pid||'?'),String(proc.status||'?')+' · '+compactMessage(proc.label||'process'),'', 'Background process currently known to the transport. Process presence is durable state; it does not by itself imply current activity.']);
   }
   if(!rows.length) {
     $('rdc-section').hidden=true; box.replaceChildren(); meta.textContent=''; return;
   }
-  const frag=document.createDocumentFragment();
-  for(const [name,value] of rows) {
-    const row=document.createElement('div'); row.className='artifact-row';
-    const strong=document.createElement('strong'); strong.textContent=name+': ';
-    const span=document.createElement('span'); span.textContent=value;
-    row.append(strong,span); frag.append(row);
-  }
-  box.replaceChildren(frag);
+  appendKeyValues(box,rows);
   meta.textContent=(rdc.last_activity_seconds!=null?'RDC '+seconds(rdc.last_activity_seconds)+' ago · ':'')+String(rdc.open_count||0)+' process'+((rdc.open_count||0)===1?'':'es');
   const section=$('rdc-section');
   section.hidden=false;
@@ -720,50 +743,47 @@ function traceDepth(spanId,parents) {
   return depth;
 }
 function renderTrace(state) {
-  const corr=chooseTraceCorrelation(state);
-  const external=currentExternalActivity(state);
-  const box=$('trace'), meta=$('trace-meta');
-  const title=$('trace-title');
-  if(external) {
-    title.textContent='Attribution diagnostics';
-  } else {
-    title.textContent='Attribution / causal trace';
-  }
-  if(!corr) {
+  const health=recentAttributionHealth(state);
+  const section=$('trace-section'), box=$('trace'), meta=$('trace-meta'), title=$('trace-title');
+  title.textContent='Attribution diagnostics';
+
+  if(!health.total || health.unscoped===0) {
+    section.hidden=true;
     box.replaceChildren();
-    meta.textContent=external?'awaiting authoritative gateway':'no correlated trace';
-    $('trace-section').hidden=!external;
+    meta.textContent='';
+    section.open=false;
     return;
   }
-  const events=(state.timeline||[]).filter(e=>e.correlation?.correlation_id===corr);
-  const parents=new Map();
-  for(const event of events) {
-    const c=event.correlation||{};
-    if(c.span_id && c.parent_span_id) parents.set(c.span_id,c.parent_span_id);
-  }
+
+  section.hidden=false;
+  const severe=health.rate<90;
+  meta.textContent=health.unscoped+' unscoped · '+health.total+' work events · last '+health.windowSeconds+'s';
+  meta.title='Recent attribution coverage: '+health.scoped+' scoped, '+health.unscoped+' unscoped.';
+
   const frag=document.createDocumentFragment();
-  for(const event of events.slice(-40)) {
+  for(const event of health.issues.slice(-12).reverse()) {
     const c=event.correlation||{};
-    const row=document.createElement('div'); row.className='trace-row';
-    const depth=traceDepth(c.span_id,parents); row.style.setProperty('--depth',String(depth));
+    const row=document.createElement('div'); row.className='trace-row attribution-issue';
+    const branch=document.createElement('span'); branch.className='trace-branch'; branch.textContent='!';
     const actor=document.createElement('span'); actor.className='trace-actor'; actor.textContent=event.source||'?';
-    const branch=document.createElement('span'); branch.className='trace-branch'; branch.textContent=depth?'↳':'•';
     const msg=document.createElement('span'); msg.className='trace-msg'; msg.textContent=compactMessage(event.message||'');
     row.title=[
-      'correlation='+corr,
-      c.run_id?'run='+c.run_id:null,
-      c.task_id?'task='+c.task_id:null,
-      c.span_id?'span='+c.span_id:null,
-      c.parent_span_id?'parent='+c.parent_span_id:null,
-      'source_quality='+(c.source_quality||'unknown')
-    ].filter(Boolean).join('\n');
+      'problem=missing conversation_id',
+      c.correlation_id?'correlation='+c.correlation_id:'correlation=unknown',
+      c.turn_id?'turn='+c.turn_id:'turn=unknown',
+      c.source_quality?'source_quality='+c.source_quality:'source_quality=unknown'
+    ].join('\n');
     row.append(branch,actor,msg); frag.append(row);
   }
   box.replaceChildren(frag);
-  const sourceQuality=events.map(e=>e.correlation?.source_quality).find(Boolean)||'unknown';
-  meta.textContent=(external?'Recent correlated trace ':'')+'['+correlationShort(corr)+'] · '+events.length+' events · '+sourceQuality;
-  meta.title=corr;
-  $('trace-section').hidden=false;
+
+  if(severe) {
+    section.open=true;
+    section.dataset.disclosureInitialized='true';
+  } else if(section.dataset.disclosureInitialized!=='true') {
+    section.open=false;
+    section.dataset.disclosureInitialized='true';
+  }
 }
 
 function compactPollingEvents(events) {
@@ -909,6 +929,7 @@ async function refresh() {
     renderAttributionHealth(state);
     renderPreparedResult(state);
     renderDetachedRun(state);
+    await refreshPreparedDispatch();
     renderRunMeta(state);
     renderTaskLifecycle(state);
     renderProjectStatus(state);
@@ -917,7 +938,6 @@ async function refresh() {
     renderTrace(state);
     renderTimeline(state);
     await refreshConnectionRequests();
-    await refreshPreparedDispatch();
   } catch(e) {
     const message=String(e?.message||e);
     const degraded=message.includes('observer_unavailable')||message.includes('Observer snapshot is unavailable');

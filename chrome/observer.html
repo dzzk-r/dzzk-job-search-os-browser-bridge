@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build-version="0.1.29">
+<html lang="en" data-build-version="0.1.32">
 <head>
   <meta charset="utf-8">
   <title>Execution Delivery Harness — Observer</title>
@@ -41,13 +41,13 @@
     <section class="help-section">
       <h2>Concepts</h2>
       <p><strong>Conversation is context. Project is delivery scope. Task is intended work. Dispatch is a handoff. Run is one execution attempt. Span is one operation. Event is evidence.</strong></p>
-      <pre class="help-diagram">Project → Task → Prepared task → Dispatch → Run → Span → Event
+      <pre class="help-diagram">Project → Task → Ready handoff → Dispatch → Run → Span → Event
              ↑                         ↓
        not a Run yet             result / artifacts</pre>
       <p><strong>Current task</strong> answers: what intended work is the Harness orchestrating, and where is that task in its lifecycle?</p>
       <p><strong>Run</strong> currently shows a wider execution cycle: pre-run handoff, the strict Run execution, and post-run result. A future label such as <strong>Execution</strong> or <strong>Execution cycle</strong> may be more precise.</p>
       <p><strong>Project readiness</strong> is progress for one selected Harness Project. It is <strong>not</strong> progress of the current ChatGPT conversation. One conversation may touch multiple Projects, and one Project may continue across multiple conversations, devices and executors.</p>
-      <p><strong>Prepared task</strong> is a validated execution envelope waiting to start. <strong>Dispatch</strong> transfers it into Harness-owned execution and creates/starts a Run. Dispatch does not continue an existing Run and does not accept a result.</p>
+      <p><strong>Ready handoff</strong> is a validated execution envelope that has not yet crossed into a Run. <strong>Dispatch</strong> performs that one-way transition. A historical <strong>PASS</strong> result means the dispatched Run already satisfied acceptance and must not show a Dispatch action.</p>
       <pre class="help-diagram">Conversation / Turn
   → Current task
   → Prepared → Dispatch → Run
@@ -138,7 +138,7 @@
         <section id="run-handoff-group" class="detail-group" hidden>
           <h3>Handoff &amp; result <span id="prepared-result-meta" class="muted"></span></h3>
           <div id="prepared-dispatch" class="inline-action" hidden>
-            <strong>Prepared task</strong>
+            <strong>Ready handoff</strong>
             <span id="prepared-dispatch-label"></span>
             <button id="dispatch-prepared" class="primary">Dispatch</button>
             <span id="prepared-dispatch-status" class="muted"></span>
@@ -151,8 +151,11 @@
     </details>
 
     <details id="project-status-section" class="panel-section">
-      <summary class="panel-summary" title="Project-level delivery progress from the tracked TODO catalog">
-        <span class="panel-title">Project readiness</span>
+      <summary class="panel-summary" title="Delivery progress for the explicitly selected Harness Project; this is not chat progress">
+        <span class="panel-summary-copy">
+          <span class="panel-heading-line"><span class="panel-title">Project readiness</span></span>
+          <span id="project-status-project" class="panel-preview muted">Project identity unavailable</span>
+        </span>
         <span id="project-status-meta" class="panel-meta muted"></span>
       </summary>
       <div class="panel-body">
@@ -173,15 +176,20 @@
         <span class="panel-title">Transports &amp; background</span>
         <span id="rdc-meta" class="panel-meta muted"></span>
       </summary>
-      <div class="panel-body"><div id="rdc-activity" class="artifact-list"></div></div>
+      <div class="panel-body"><div id="rdc-activity" class="run-summary transport-summary"></div></div>
     </details>
 
     <details id="trace-section" class="panel-section">
-      <summary class="panel-summary" title="Current attribution and causal-trace diagnostics">
-        <span id="trace-title" class="panel-title">Attribution / causal trace</span>
-        <span id="trace-meta" class="panel-meta muted"></span>
+      <summary class="panel-summary" title="Inspect provenance quality and the latest correlated causal trace">
+        <span class="panel-summary-copy">
+          <span class="panel-heading-line"><span id="trace-title" class="panel-title">Attribution diagnostics</span></span>
+          <span id="trace-meta" class="panel-preview muted"></span>
+        </span>
       </summary>
-      <div class="panel-body"><div id="trace" class="trace"></div></div>
+      <div class="panel-body">
+        <p class="section-explainer">Shown only when recent work contains an attribution anomaly. Each row is evidence that currently lacks a trustworthy conversation identity; healthy attribution stays out of the main panel.</p>
+        <div id="trace" class="trace"></div>
+      </div>
     </details>
 
     <p id="error" role="alert"></p>

@@ -20,7 +20,8 @@ async function clearAccess() {
 }
 function validateConfig(value) {
   const url = new URL(value.endpoint);
-  if (url.origin !== 'http://127.0.0.1:43119' || url.pathname !== '/' || url.search || url.hash || url.username || url.password) throw new Error('Companion address must be http://127.0.0.1:43119');
+  const port=Number(url.port || (url.protocol==='http:'?80:0));
+  if (url.protocol!=='http:' || url.hostname!=='127.0.0.1' || url.pathname!=='/' || url.search || url.hash || url.username || url.password || !Number.isInteger(port) || port<1 || port>65535) throw new Error('Companion address must be loopback HTTP, for example http://127.0.0.1:43119');
   if (!/^[A-Za-z0-9_-]{43}$/.test(value.token)) throw new Error('Paste the 43-character extension pairing token from the companion.');
   return { enabled:Boolean(value.enabled), endpoint:url.origin, token:value.token };
 }
@@ -221,7 +222,7 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
   const isChatObservation = ['chat-context-observed','chat-turn-observed','chat-detector-status'].includes(m?.type) && sender.id===chrome.runtime.id && sender.tab;
   if (!isChatObservation && !trustedUi) throw new Error('Only extension UI can change access.');
   switch (m.type) {
-    case 'state': return {status,enabled:config.enabled,paused:isPaused(),grants:grants.list(),consents,clients,actions,pendingReloadRevision,loadedVersion:chrome.runtime.getManifest().version};
+    case 'state': return {status,enabled:config.enabled,endpoint:config.endpoint,paused:isPaused(),grants:grants.list(),consents,clients,actions,pendingReloadRevision,loadedVersion:chrome.runtime.getManifest().version};
     case 'chat-context-observed': {
       const tab=sender.tab;
       if(!tab || !Number.isInteger(tab.id)) throw new Error('Chat context observation requires a browser tab.');

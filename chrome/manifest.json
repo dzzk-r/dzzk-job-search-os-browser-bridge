@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Execution Delivery Harness Browser Bridge",
-  "version": "0.1.29",
+  "version": "0.1.32",
   "description": "Share selected browser pages with an authorized MCP client through a local companion, with a live experimental Observer side panel.",
   "permissions": [
     "activeTab",
@@ -32,7 +32,7 @@
     "open_in_tab": true
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'none'; connect-src http://127.0.0.1:43119"
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src http://127.0.0.1:*"
   },
   "icons": {
     "48": "icon.svg",

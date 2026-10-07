@@ -438,8 +438,35 @@ It should use the shared key/value table grammar with semantic help for transpor
 
 ### Attribution diagnostics in the loop
 
-`Attribution diagnostics` is the proof boundary between observed evidence and its claimed owner. It answers: how confidently can evidence be assigned to Conversation/Turn, Task, Run and causal span?
+Attribution is part of the evidence model even when nothing is wrong. It therefore has three UI levels:
 
-Required concepts/help: Correlation, Conversation, Turn, Task, Run, Span/parent span, Source quality, `browser_inferred`, `browser_observed`, `transport_observed`, and Unscoped.
+- **health summary** — compact attribution coverage in the header;
+- **anomaly diagnostics** — a top-level block shown only when recent work has a provenance break;
+- **causal trace drill-down** — an on-demand trace/span view for a selected event or execution span.
 
-Attribution diagnostics do not execute work; they explain provenance quality of evidence already observed.
+The current anomaly rule is deliberately narrow: a recent work event from MCP, RDC, TERM, ACTION, OC, QWEN or LLAMA that lacks a trustworthy `conversation_id` is an attribution breakpoint. If all recent work is scoped, the top-level diagnostics block stays hidden. If coverage falls below 90% in the short health window, the block may auto-open.
+
+This is independent of terminal execution status. `DONE` and `ERROR` describe execution outcome; attribution quality describes provenance. Neither implies the other.
+
+Required concepts/help: Correlation/trace, Conversation, Turn, Task, Run, Span/parent span, Source quality, `browser_inferred`, `browser_observed`, `transport_observed`, and Unscoped.
+
+When the multi-project contract exists, Project ownership becomes another domain attribute on this chain and may introduce additional anomaly classes such as missing/ambiguous Project, task/run ownership conflict, orphan span parentage, or a trace crossing incompatible Projects.
+
+## Local control / observation plane boundary
+
+The owner-local listener on `127.0.0.1:43119` sits **under** these lifecycle projections. It transports and normalizes evidence/control between browser adapters, MCP surfaces, local execution and the Observer, but it is not another lifecycle actor and is not an autonomous agent.
+
+```text
+Conversation / Project / Task / Run semantics
+                  |
+                  v
+        evidence + control contracts
+                  |
+                  v
+     Local control / observation plane
+           127.0.0.1:43119
+          /       |           browser     MCP/local    Observer
+   telemetry   execution    projection
+```
+
+See `docs/LOCAL-CONTROL-OBSERVATION-PLANE.md` for process ownership, endpoint configuration and product-boundary details.
