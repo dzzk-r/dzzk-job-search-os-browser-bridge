@@ -45,3 +45,9 @@ A useful future repro is:
 3. compare the newest rendered message/branch state against the list preview;
 4. record app version, timestamp and whether a manual refresh/app restart changes the opened-thread state.
 
+
+## Additional app-freshness evidence — 13:00
+
+A subsequent Google Play screenshot at approximately 13:00 shows **ChatGPT — 863 MB — Updated yesterday** in the device's recently-updated apps list.
+
+This weakens the explanation that the observed list/thread divergence was simply caused by a long-stale Android ChatGPT installation. It does **not** establish the exact installed version/build, and it does not by itself prove that no newer update is currently pending because the screenshot is from the recently-updated view rather than an expanded ChatGPT entry under `Updates available`.
