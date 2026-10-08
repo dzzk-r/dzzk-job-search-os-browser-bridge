@@ -13,10 +13,12 @@ let renderedKeys=null;
 let lastState=null;
 let browserLocalChatActivity=null;
 let timelineScope='all';
+let timelineView='raw';
 let currentConversationBinding=null;
 let knownConversationBindings=[];
 let timelineScopeOptionsFingerprint='';
 const expandedKeys=new Set();
+const rawRevealKeys=new Set();
 
 function eventKey(event) { const c=event.correlation||{}; return [event.ts||0,event.source||'',event.message||'',c.correlation_id||'',c.span_id||'',c.conversation_id||'',c.turn_id||'',c.source_quality||'',event.attribution||''].join('|'); }
 
@@ -787,8 +789,7 @@ function renderTrace(state) {
 }
 
 function compactPollingEvents(events) {
-  // Raw timeline must stay literal until semantic grouping can explain itself.
-  // Opaque ×N compaction made operator state harder, not easier, to understand.
+  // Raw timeline stays literal and lossless. Grouped/Semantic are projections only.
   return events.map(event=>({...event,repeat_count:1}));
 }
 function timelineConversationId(event) {
@@ -804,70 +805,293 @@ function timelineEventsForScope(events,scope,binding) {
   }
   return [...events];
 }
+function sourceEventRef(event) {
+  return event.event_id||event.id||eventKey(event);
+}
+function rawEventProvenance(event) {
+  const c=event.correlation||{};
+  return [
+    event.message||'',
+    c.correlation_id ? 'correlation='+c.correlation_id : 'correlation=unknown',
+    c.run_id ? 'run='+c.run_id : null,
+    c.task_id ? 'task='+c.task_id : null,
+    c.plan_id ? 'plan='+c.plan_id : null,
+    c.span_id ? 'span='+c.span_id : null,
+    c.client ? 'client='+c.client : null,
+    c.conversation_id ? 'conversation='+c.conversation_id : null,
+    c.turn_id ? 'turn='+c.turn_id : null,
+    c.message_id ? 'message='+c.message_id : null,
+    c.action_id ? 'action='+c.action_id : null,
+    c.action_label ? 'action_label='+c.action_label : null,
+    event.process_key ? 'process_key='+event.process_key : null,
+    event.process_id!=null ? 'pid='+event.process_id : null,
+    'source_quality='+(c.source_quality||'unknown')
+  ].filter(Boolean);
+}
+function firstCorrelation(events) {
+  for(const event of events) {
+    const c=event.correlation||{};
+    if(Object.values(c).some(Boolean)) return {...c};
+  }
+  return {};
+}
+function messagePhase(event) {
+  const text=String(event?.message||'').toUpperCase();
+  if(/^ERROR\b/.test(text)||/\bREQUEST_ERROR\b/.test(text)) return 'ERROR';
+  if(/^DONE\b/.test(text)||/^TURN_DONE\b/.test(text)||/\bREQUEST_DONE\b/.test(text)) return 'DONE';
+  if(/^CANCELED\b/.test(text)||/^CANCELLED\b/.test(text)) return 'CANCELED';
+  if(/^EXITED\b/.test(text)) return 'ENDED_UNKNOWN';
+  if(/^TURN_ACTIVE\b/.test(text)) return 'ACTIVE';
+  if(/^TURN_START\b/.test(text)||/^START\b/.test(text)||/\bREQUEST_START\b/.test(text)) return 'RUNNING';
+  return null;
+}
+function groupedStatus(kind,events) {
+  const phases=events.map(messagePhase).filter(Boolean);
+  if(kind==='chat') {
+    if(phases.includes('DONE')) return 'DONE';
+    if(phases.includes('ACTIVE')) return 'ACTIVE';
+    return 'RUNNING';
+  }
+  for(const phase of [...phases].reverse()) {
+    if(['ERROR','CANCELED','ENDED_UNKNOWN','DONE'].includes(phase)) return phase;
+  }
+  return phases.includes('RUNNING')?'RUNNING':'OBSERVED';
+}
+function humanStatus(status) {
+  return ({
+    DONE:'done', ERROR:'error', CANCELED:'canceled', ENDED_UNKNOWN:'ended · outcome unknown',
+    ACTIVE:'active', RUNNING:'running', OBSERVED:'observed'
+  })[status]||String(status||'observed').toLowerCase();
+}
+function mcpToolName(events) {
+  for(const event of events) {
+    const c=event.correlation||{};
+    if(c.action_label) return String(c.action_label);
+    const m=String(event.message||'').match(/\btool\s+([A-Za-z0-9_.:-]+)/i);
+    if(m) return m[1];
+  }
+  return 'tool call';
+}
+function processPid(events) {
+  for(const event of events) if(event.process_id!=null) return event.process_id;
+  for(const event of events) {
+    const m=String(event.message||'').match(/\bpid=(\d+)/i);
+    if(m) return Number(m[1]);
+  }
+  return null;
+}
+function makeGroupedItem(kind,key,events,firstIndex) {
+  const sorted=[...events].sort((a,b)=>(a.ts||0)-(b.ts||0));
+  const status=groupedStatus(kind,sorted);
+  const latest=sorted.at(-1)||{};
+  const correlation=firstCorrelation(sorted);
+  let source=latest.source||'?';
+  let message='Observed activity · '+humanStatus(status);
+  if(kind==='mcp') {
+    source='MCP';
+    const tool=mcpToolName(sorted);
+    let outcome=humanStatus(status);
+    const terminal=String([...sorted].reverse().find(event=>['ERROR','DONE','CANCELED'].includes(messagePhase(event)))?.message||'');
+    if(status==='ERROR' && /denied|blocked|paused/i.test(terminal)) outcome='blocked';
+    else if(status==='ERROR' && /cancel/i.test(terminal)) outcome='canceled';
+    message=tool+' · '+outcome;
+  } else if(kind==='chat') {
+    source='CHAT';
+    message='ChatGPT turn · '+humanStatus(status);
+  } else if(kind==='process') {
+    source='TERM';
+    const pid=processPid(sorted);
+    message=(pid!=null?'Process '+pid:'Process execution')+' · '+humanStatus(status);
+  }
+  return {
+    ts:Math.max(...sorted.map(event=>Number(event.ts)||0)),
+    source,message,correlation,
+    _derived:true,_projection:'grouped',_ruleset:'timeline-grouped-v1',_groupKind:kind,_groupKey:key,
+    _status:status,_rawEvents:sorted,_derivedFrom:sorted.map(sourceEventRef),_firstIndex:firstIndex
+  };
+}
+function groupedTimelineEvents(events) {
+  const groups=new Map();
+  const singles=[];
+  events.forEach((event,index)=>{
+    const c=event.correlation||{};
+    let kind=null,key=null;
+    if(event.source==='CHAT' && (c.turn_id||c.run_id||c.span_id)) {
+      kind='chat'; key='chat:'+(c.turn_id||c.run_id||c.span_id);
+    } else if(event.source==='MCP' && (c.correlation_id||c.span_id)) {
+      kind='mcp'; key='mcp:'+(c.correlation_id||c.span_id);
+    } else if((event.source==='RDC'||event.source==='TERM') && event.process_key) {
+      kind='process'; key='process:'+event.process_key;
+    }
+    if(!key) {
+      singles.push({_firstIndex:index,item:{...event,_derived:false,_projection:'raw'}});
+      return;
+    }
+    if(!groups.has(key)) groups.set(key,{kind,key,events:[],firstIndex:index});
+    groups.get(key).events.push(event);
+  });
+  const projected=[...singles];
+  for(const group of groups.values()) projected.push({_firstIndex:group.firstIndex,item:makeGroupedItem(group.kind,group.key,group.events,group.firstIndex)});
+  projected.sort((a,b)=>a._firstIndex-b._firstIndex);
+  return projected.map(entry=>entry.item);
+}
+function processCommand(events) {
+  for(const event of events) {
+    if(event.source!=='RDC') continue;
+    const text=String(event.message||'');
+    const marker='start_process:';
+    const at=text.indexOf(marker);
+    if(at>=0) return text.slice(at+marker.length).trim();
+  }
+  return '';
+}
+function semanticCommandLabel(command) {
+  const c=String(command||'');
+  if(/\bnpm\s+test\b|\bnode\s+--test\b/.test(c)) return 'Run automated tests';
+  if(/\bgit\s+(diff|status|log|show)\b/.test(c) && !/\bgit\s+(add|commit|push)\b/.test(c)) return 'Inspect repository state';
+  if(/\bgit\s+commit\b/.test(c) && /\bgit\s+push\b/.test(c)) return 'Checkpoint and publish changes';
+  if(/\bgit\s+(add|commit|push)\b/.test(c)) return 'Update Git checkpoint';
+  if(/python3?\s+-\s+<<|Path\([^)]*\)\.write_text|\.replace\(/.test(c)) return 'Modify source or test files';
+  if(/\b(grep|sed|find|cat)\b/.test(c)) return 'Inspect repository files';
+  return 'Run local command';
+}
+function semanticTimelineEvents(events) {
+  return groupedTimelineEvents(events).map(item=>{
+    if(!item._derived) {
+      return {
+        ...item,
+        _derived:true,_projection:'semantic',_ruleset:'timeline-semantic-v1',_groupKind:'event',
+        _status:messagePhase(item)||'OBSERVED',_rawEvents:[{...item,_derived:undefined,_projection:undefined}],_derivedFrom:[sourceEventRef(item)],
+        message:compactMessage(item.message||'')
+      };
+    }
+    let source=item.source, message=item.message;
+    if(item._groupKind==='process') {
+      source='EXEC';
+      message=semanticCommandLabel(processCommand(item._rawEvents))+' · '+humanStatus(item._status);
+    } else if(item._groupKind==='mcp') {
+      message='Tool '+mcpToolName(item._rawEvents)+' · '+humanStatus(item._status);
+      const terminal=String([...item._rawEvents].reverse().find(event=>messagePhase(event)==='ERROR')?.message||'');
+      if(item._status==='ERROR' && /denied|blocked|paused/i.test(terminal)) message='Tool '+mcpToolName(item._rawEvents)+' · blocked';
+      else if(item._status==='ERROR' && /cancel/i.test(terminal)) message='Tool '+mcpToolName(item._rawEvents)+' · canceled';
+    } else if(item._groupKind==='chat') {
+      message='ChatGPT turn · '+humanStatus(item._status);
+    }
+    return {...item,source,message,_projection:'semantic',_ruleset:'timeline-semantic-v1'};
+  });
+}
+function projectTimeline(events,view) {
+  const raw=compactPollingEvents(events);
+  if(view==='grouped') return groupedTimelineEvents(raw);
+  if(view==='semantic') return semanticTimelineEvents(raw);
+  return raw.map(event=>({...event,_derived:false,_projection:'raw'}));
+}
+function projectedEventKey(event) {
+  if(!event._derived) return 'raw|'+eventKey(event);
+  return [event._projection,event._ruleset,event._groupKey||event._groupKind||'',...(event._derivedFrom||[])].join('|');
+}
+function appendSourceChatButton(full,conversationId) {
+  if(!conversationId) return;
+  const nav=document.createElement('button');
+  nav.className='source-chat-button';
+  nav.textContent='Open source chat';
+  nav.title='Activate the ChatGPT conversation that owns this event';
+  nav.addEventListener('click',async e=>{
+    e.stopPropagation();
+    nav.disabled=true;
+    const idleLabel='Open source chat';
+    try {
+      const result=await send({type:'conversation-open',conversation_id:conversationId});
+      $('error').textContent='';
+      nav.textContent=result?.opened==='current'?'Source chat is current':'Opened source chat';
+      nav.title=result?.opened==='current'?'This event belongs to the ChatGPT conversation already active in this window.':'The ChatGPT conversation that owns this event was activated.';
+      setTimeout(()=>{ nav.textContent=idleLabel; nav.title='Activate the ChatGPT conversation that owns this event'; nav.disabled=false; },1600);
+    } catch(err) {
+      $('error').textContent=String(err?.message||err);
+      nav.textContent='Open failed · retry';
+      nav.title='Source chat could not be opened. Click to retry.';
+      nav.disabled=false;
+    }
+  });
+  full.append(document.createElement('br'),nav);
+}
+function appendRawEventDrilldown(full,event,key) {
+  const rawEvents=event._rawEvents||[];
+  if(!event._derived || !rawEvents.length) return;
+  const button=document.createElement('button');
+  button.className='source-chat-button raw-events-button';
+  const rawBox=document.createElement('div');
+  rawBox.className='raw-event-list';
+  const revealed=rawRevealKeys.has(key);
+  rawBox.hidden=!revealed;
+  const label=()=>((rawBox.hidden?'Show ':'Hide ')+rawEvents.length+' raw event'+(rawEvents.length===1?'':'s'));
+  button.textContent=label();
+  button.title='Reveal the exact source ledger events used to derive this row';
+  for(const raw of rawEvents) {
+    const item=document.createElement('div'); item.className='raw-event-item';
+    const head=document.createElement('div'); head.className='raw-event-head';
+    head.textContent=new Date((raw.ts||0)*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})+'  '+String(raw.source||'?')+'  '+String(raw.message||'');
+    const detail=document.createElement('pre'); detail.textContent=rawEventProvenance(raw).slice(1).join('\n');
+    item.append(head,detail); rawBox.append(item);
+  }
+  button.addEventListener('click',e=>{
+    e.stopPropagation();
+    rawBox.hidden=!rawBox.hidden;
+    if(rawBox.hidden) rawRevealKeys.delete(key); else rawRevealKeys.add(key);
+    button.textContent=label();
+  });
+  full.append(document.createElement('br'),button,rawBox);
+}
+function renderTimelineLive(state,rawCount,totalCount,displayCount) {
+  const live=activeSpans(state).length>0 || ['active','pending'].includes(browserLocalChatActivity?.state);
+  const cluster=$('position');
+  cluster.classList.toggle('active',live);
+  const total=Number.isFinite(totalCount)?totalCount:rawCount;
+  $('timeline-window-summary').textContent='Latest '+rawCount.toLocaleString()+' of '+total.toLocaleString()+' raw events in the selected scope.';
+  const viewName=timelineView[0].toUpperCase()+timelineView.slice(1);
+  $('timeline-view-summary').textContent=viewName+' view · '+displayCount.toLocaleString()+' visible row'+(displayCount===1?'':'s')+'. Raw evidence is unchanged.';
+  $('timeline-live-trigger').title=live?'Live timeline · observed work is active':'Live timeline · feed is idle';
+}
 function renderTimeline(state) {
   const box=$('timeline');
   const allEvents=state.timeline||[];
   const scoped=state.timeline_scopes?.[timelineScope];
   const events=Array.isArray(scoped)?scoped:timelineEventsForScope(allEvents,timelineScope,currentConversationBinding);
-  const compacted=compactPollingEvents(events);
-  const keys=events.map(eventKey);
+  const projected=projectTimeline(events,timelineView);
+  const keys=projected.map(projectedEventKey);
   const unchanged=Array.isArray(renderedKeys) && keys.length===renderedKeys.length && keys.every((key,i)=>key===renderedKeys[i]);
   if(!unchanged) {
     for(const row of box.querySelectorAll('.event.expanded')) expandedKeys.add(row.dataset.key);
     const nearTop=box.scrollTop<24;
-    const displayEvents=[...compacted].reverse();
+    const displayEvents=[...projected].reverse();
     const displayKeys=[...keys].reverse();
     const frag=document.createDocumentFragment();
     for(let i=0;i<displayEvents.length;i++) {
-      const event=displayEvents[i], key=displayKeys[i]||eventKey(event);
-      const row=document.createElement('div'); row.className='event'; row.dataset.key=key; row.tabIndex=0;
+      const event=displayEvents[i], key=displayKeys[i]||projectedEventKey(event);
+      const row=document.createElement('div'); row.className='event'+(event._derived?' derived-event':''); row.dataset.key=key; row.tabIndex=0;
       if(expandedKeys.has(key)) row.classList.add('expanded');
       const time=document.createElement('span'); time.textContent=new Date((event.ts||0)*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
       const src=document.createElement('span'); src.className='src'; src.textContent=event.source;
       const c=event.correlation||{};
-      const prefix=c.correlation_id?'['+correlationShort(c.correlation_id)+'] '+(c.parent_span_id?'↳ ':''):'';
+      const prefix=!event._derived && c.correlation_id?'['+correlationShort(c.correlation_id)+'] '+(c.parent_span_id?'↳ ':''):'';
       const msg=document.createElement('span'); msg.className='msg'; msg.textContent=prefix+compactMessage(event.message||''); msg.title=event.message||'';
       const full=document.createElement('div'); full.className='event-full';
-      const provenance=[
-        event.message||'',
-        c.correlation_id ? 'correlation='+c.correlation_id : 'correlation=unknown',
-        c.run_id ? 'run='+c.run_id : null,
-        c.task_id ? 'task='+c.task_id : null,
-        c.plan_id ? 'plan='+c.plan_id : null,
-        c.span_id ? 'span='+c.span_id : null,
-        c.client ? 'client='+c.client : null,
-        c.conversation_id ? 'conversation='+c.conversation_id : null,
-        c.turn_id ? 'turn='+c.turn_id : null,
-        c.message_id ? 'message='+c.message_id : null,
-        c.action_id ? 'action='+c.action_id : null,
-        c.action_label ? 'action_label='+c.action_label : null,
-        'source_quality='+(c.source_quality||'unknown')
-      ].filter(Boolean);
-      full.textContent=provenance.join('\n');
-      if(c.conversation_id) {
-        const nav=document.createElement('button');
-        nav.className='source-chat-button';
-        nav.textContent='Open source chat';
-        nav.title='Activate the ChatGPT conversation that owns this event';
-        nav.addEventListener('click',async e=>{
-          e.stopPropagation();
-          nav.disabled=true;
-          const idleLabel='Open source chat';
-          try {
-            const result=await send({type:'conversation-open',conversation_id:c.conversation_id});
-            $('error').textContent='';
-            nav.textContent=result?.opened==='current'?'Source chat is current':'Opened source chat';
-            nav.title=result?.opened==='current'?'This event belongs to the ChatGPT conversation already active in this window.':'The ChatGPT conversation that owns this event was activated.';
-            setTimeout(()=>{ nav.textContent=idleLabel; nav.title='Activate the ChatGPT conversation that owns this event'; nav.disabled=false; },1600);
-          } catch(err) {
-            $('error').textContent=String(err?.message||err);
-            nav.textContent='Open failed · retry';
-            nav.title='Source chat could not be opened. Click to retry.';
-            nav.disabled=false;
-          }
-        });
-        full.append(document.createElement('br'),nav);
+      if(event._derived) {
+        const metadata=[
+          'projection='+event._ruleset,
+          'derived_from='+(event._derivedFrom||[]).length+' raw event'+((event._derivedFrom||[]).length===1?'':'s'),
+          event._status?'status='+event._status:null,
+          c.correlation_id?'correlation='+c.correlation_id:'correlation=unknown',
+          c.conversation_id?'conversation='+c.conversation_id:null,
+          c.turn_id?'turn='+c.turn_id:null,
+          'source_quality='+(c.source_quality||'unknown')
+        ].filter(Boolean);
+        full.textContent=metadata.join('\n');
+        appendRawEventDrilldown(full,event,key);
+      } else {
+        full.textContent=rawEventProvenance(event).join('\n');
       }
+      appendSourceChatButton(full,c.conversation_id);
       const toggle=()=>{ row.classList.toggle('expanded'); if(row.classList.contains('expanded')) expandedKeys.add(key); else expandedKeys.delete(key); };
       row.addEventListener('click',toggle);
       row.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); }});
@@ -880,8 +1104,9 @@ function renderTimeline(state) {
   const current=currentConversationBinding?.conversation_id;
   $('current-conversation').textContent=current ? 'chat '+String(current).slice(-8) : (timelineScope==='unscoped'?'without chat identity':'');
   const scopeTotal=Number(state.timeline_scope_totals?.[timelineScope]);
-  $('position').textContent='LIVE '+events.length+'/'+(Number.isFinite(scopeTotal)?scopeTotal:allEvents.length);
+  renderTimelineLive(state,events.length,Number.isFinite(scopeTotal)?scopeTotal:allEvents.length,projected.length);
 }
+
 async function refresh() {
   let currentConversationState=null;
   try {
@@ -974,6 +1199,16 @@ must('timeline-scope').addEventListener('change',event=>{
   currentConversationBinding=timelineScope.startsWith('chat:')
     ? knownConversationBindings.find(x=>x.conversation_id===timelineScope.slice(5))||null
     : null;
+  renderedKeys=null;
+  if(lastState) renderTimeline(lastState);
+});
+must('timeline-view').addEventListener('click',event=>{
+  const button=event.target.closest('button[data-view]');
+  if(!button) return;
+  const next=button.dataset.view;
+  if(!['raw','grouped','semantic'].includes(next) || next===timelineView) return;
+  timelineView=next;
+  for(const candidate of must('timeline-view').querySelectorAll('button[data-view]')) candidate.setAttribute('aria-pressed',String(candidate===button));
   renderedKeys=null;
   if(lastState) renderTimeline(lastState);
 });

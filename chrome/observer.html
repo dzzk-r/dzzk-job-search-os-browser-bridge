@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build-version="0.1.33">
+<html lang="en" data-build-version="0.1.34">
 <head>
   <meta charset="utf-8">
   <title>Execution Delivery Harness — Observer</title>
@@ -94,8 +94,24 @@
           <option value="all">All activity</option>
           <option value="unscoped">Unscoped</option>
         </select>
+        <div id="timeline-view" class="timeline-view-control" role="group" aria-label="Timeline view">
+          <span class="timeline-view-label">View</span>
+          <button type="button" data-view="raw" aria-pressed="true">Raw</button>
+          <button type="button" data-view="grouped" aria-pressed="false">Grouped</button>
+          <button type="button" data-view="semantic" aria-pressed="false">Semantic</button>
+        </div>
         <span id="current-conversation" class="muted"></span>
-        <span id="position" class="muted"></span>
+        <div id="position" class="timeline-live-cluster">
+          <button id="timeline-live-trigger" class="timeline-live-trigger" type="button" aria-label="Live timeline status">
+            <span id="timeline-live-dot" class="timeline-live-dot" aria-hidden="true"></span><span>LIVE</span>
+          </button>
+          <div id="timeline-live-popover" class="timeline-live-popover" role="tooltip">
+            <strong>Live timeline</strong>
+            <div id="timeline-window-summary">Waiting for timeline data…</div>
+            <div id="timeline-view-summary" class="muted">Raw evidence view</div>
+            <div class="muted">Green pulse = observed work is active. Gray = the live feed is idle.</div>
+          </div>
+        </div>
       </div>
       <div id="timeline" class="timeline" role="log" aria-live="polite"></div>
     </section>
