@@ -67,3 +67,34 @@ The exact installed app version is therefore known. This further weakens a gener
 The `Pause app activity if unused` setting is present, but the same screen shows substantial recent network and battery usage, so there is no evidence here that the app was merely dormant or unused when the divergence occurred.
 
 ADB was not connected at the time of this check, so Android package-manager `versionCode` and update timestamps were not independently captured from `dumpsys package`.
+
+## Package-manager confirmation via active Wireless ADB — 2026-10-08
+
+Mac-to-phone Wireless ADB was already active through Android's modern mDNS/TLS transport. `adb devices -l` showed the Xiaomi 12T Pro as an attached device:
+
+- product: `ditingp_global`
+- model: `22081212UG`
+- device: `diting`
+- transport: `_adb-tls-connect._tcp`
+
+Using that active connection, Android package-manager metadata for `com.openai.chatgpt` was read directly from the phone:
+
+- `versionName=1.2026.272`
+- `versionCode=2627220`
+- `firstInstallTime=2023-08-01 01:29:49`
+- `lastUpdateTime=2026-10-06 04:42:34`
+
+The user explicitly states that they did not manually update ChatGPT yesterday or during the preceding week. The package-manager timestamp therefore strongly supports that the installed ChatGPT package was updated automatically/background-managed rather than by a manual update action immediately before the observed divergence.
+
+This materially strengthens the evidence chain around the conversation-list / opened-thread freshness divergence:
+
+1. the Android client was not broadly stale;
+2. its exact installed build is known (`1.2026.272`, versionCode `2627220`);
+3. that package was updated on 2026-10-06 at 04:42:34;
+4. the list/thread divergence was observed shortly after that update window.
+
+This does **not** prove that `1.2026.272` caused the divergence. It makes a client regression, cache/schema migration issue, branch-state migration issue, or post-update hydration inconsistency more plausible classes of explanation that deserve targeted reproduction.
+
+### Wireless ADB transport note
+
+Android's Wireless debugging UI showed a dynamic endpoint (`192.168.88.216:41879`) and paired Mac entries marked `Currently connected`. A direct `adb connect 192.168.88.216:41879` attempt returned `Connection refused`, while the existing `_adb-tls-connect._tcp` device session remained attached and usable. This is consistent with modern Wireless ADB service discovery / rotating dynamic endpoints and should not be interpreted as loss of the existing paired transport.
