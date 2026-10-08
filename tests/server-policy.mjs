@@ -8,7 +8,8 @@ import {createBridgeServer} from '../server/index.mjs';
 
 async function setup(t) {
   const configDir=await mkdtemp(join(tmpdir(),'dzzk-policy-test-')), instances=[];
-  let bridge=await createBridgeServer({port:0,configDir}); instances.push(bridge);
+  const observerEventPath=join(configDir,'observer-events.jsonl');
+  let bridge=await createBridgeServer({port:0,configDir,observerEventPath}); instances.push(bridge);
   t.after(async()=>{for(const instance of instances)await instance.close();await rm(configDir,{recursive:true,force:true});});
   const call=async(path,data,token)=>{
     const response=await fetch(bridge.issuer+path,{method:data?'POST':'GET',headers:{...(data?{'Content-Type':'application/json'}:{}),...(token?{Authorization:'Bearer '+token}:{})},...(data?{body:JSON.stringify(data)}:{})});
@@ -30,9 +31,9 @@ async function setup(t) {
     return {status:response.status,value:await response.json()};
   };
   const waitBatch=async predicate=>{for(let i=0;i<50;i++){const batch=(await extension('next')).value;if(predicate(batch))return batch;await new Promise(r=>setTimeout(r,5));}assert.fail('Command or action did not arrive.');};
-  const restart=async()=>{await bridge.close();bridge=await createBridgeServer({port:0,configDir});instances.push(bridge);};
+  const restart=async()=>{await bridge.close();bridge=await createBridgeServer({port:0,configDir,observerEventPath});instances.push(bridge);};
   const client=await register(),access=await authorize(client);
-  return {client,access,extension,call,authorize,tool:toolCall,waitBatch,restart,configDir};
+  return {client,access,extension,call,authorize,tool:toolCall,waitBatch,restart,configDir,observerEventPath};
 }
 
 test('global pause cancels in-flight returns, discards late data, and never restores canceled calls',async t=>{

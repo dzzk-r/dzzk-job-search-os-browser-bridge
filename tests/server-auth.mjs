@@ -198,7 +198,7 @@ test('observer snapshot reports disk extension semver without forcing reload',as
   const b=await setup(t);
   const snapshot=await b.extension('observer');
   assert.equal(snapshot.status,200);
-  assert.equal(snapshot.value.extension_version.disk,'0.1.34');
+  assert.equal(snapshot.value.extension_version.disk,'0.1.35');
 });
 
 test('OpenCode-style DCR metadata is accepted without advertising unsupported refresh grants',async t=>{
@@ -253,7 +253,7 @@ test('deny consent and disconnect revoke access; registrations survive restart',
   const b=await setup(t), client=await b.register(), grant=await b.authorize(client), access=(await b.tokenRequest(client,grant)).value.access_token;
   await b.extension('disconnect',{}); assert.equal((await b.mcp(access,'tools/list')).status,401);
   await b.close();
-  const restarted=await createBridgeServer({port:0,configDir:b.configDir}); t.after(()=>restarted.close());
+  const restarted=await createBridgeServer({port:0,configDir:b.configDir,observerEventPath:b.observerEventPath,browserTurnStatePath:b.browserTurnStatePath}); t.after(()=>restarted.close());
   assert.equal(restarted.pairingToken,b.pairingToken);
   const issuer=restarted.issuer;
   const q=new URLSearchParams({client_id:client.client_id,redirect_uri:client.redirect_uris[0],response_type:'code',code_challenge_method:'S256',code_challenge:createHash('sha256').update('v'.repeat(43)).digest('base64url'),resource:restarted.resource,scope:'browser.read'});
