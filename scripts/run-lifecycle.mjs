@@ -79,7 +79,12 @@ export async function updateLifecycle(runDir,patch,{type='PROGRESS',message,stat
   const current=await readJson(path);
   if(!current) throw new Error('checkpoint.json is missing for '+runDir);
   const ts=nowIso();
-  const next={...current,...patch,run_dir:runDir,updated_at:ts};
+  const next={
+    ...current,
+    ...patch,
+    ...(patch.budget_used?{budget_used:{...(current.budget_used||{}),...patch.budget_used}}:{}),
+    run_dir:runDir,updated_at:ts
+  };
   await atomicJson(path,next);
   await appendEvent(runDir,{
     schema_version:'1.0',ts,type,run_id:next.run_id,plan_id:next.plan_id,

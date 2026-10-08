@@ -48,12 +48,17 @@ test('planner cannot emit an invalid task contract',async()=>{
 
 test('planner keeps current task context separate from retrieved knowledge',async()=>{
   const originalFetch=globalThis.fetch;
-  let sent;
+  let sent, usageSeen;
   globalThis.fetch=async (_url,options)=>{
     sent=JSON.parse(options.body);
     return {
       ok:true,
-      json:async()=>({choices:[{message:{content:JSON.stringify(proposal)}}]})
+      json:async()=>({
+        model:'qwen3.8-27b',
+        choices:[{message:{content:JSON.stringify(proposal)}}],
+        usage:{prompt_tokens:100,completion_tokens:25,total_tokens:125,prompt_tokens_details:{cached_tokens:20}},
+        timings:{predicted_per_second:12.5}
+      })
     };
   };
   const root=await mkdtemp(join(tmpdir(),'edh-planner-events-'));
@@ -62,12 +67,18 @@ test('planner keeps current task context separate from retrieved knowledge',asyn
       currentTaskContext:{task:{task_id:'task-1'},repo:{head:'abc'}},
       knowledgeContext:{records:[{id:'lesson-1'}]},
       timeoutMs:1000,
-      observerEventPath:join(root,'observer-events.jsonl')
+      observerEventPath:join(root,'observer-events.jsonl'),
+      onUsage:usage=>{usageSeen=usage;}
     });
     const payload=JSON.parse(sent.messages[1].content);
     assert.equal(payload.current_task_context.task.task_id,'task-1');
     assert.equal(payload.retrieved_knowledge.records[0].id,'lesson-1');
     assert.deepEqual(payload.scope,request.scope);
+    assert.equal(usageSeen.input_tokens.value,100);
+    assert.equal(usageSeen.input_tokens.quality,'exact');
+    assert.equal(usageSeen.cache_read_tokens.value,20);
+    assert.equal(usageSeen.output_tokens_per_second.value,12.5);
+    assert.equal(usageSeen.cost.status,'not_metered');
   }finally{
     globalThis.fetch=originalFetch;
     await rm(root,{recursive:true,force:true});

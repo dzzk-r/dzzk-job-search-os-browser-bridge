@@ -460,6 +460,21 @@ test('Raw timeline remains literal while Grouped and Semantic are reversible pro
   assert.doesNotMatch(js,/rep\.textContent='×'/);
 });
 
+test('Observer renders provenance-labeled model usage without inventing unavailable cost', async () => {
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  const observer=await readFile(new URL('../scripts/run-observer.py',import.meta.url),'utf8');
+  assert.match(js,/function modelUsageRows\(usage,profile=\{\}\)/);
+  assert.match(js,/Input tokens/);
+  assert.match(js,/Cache read/);
+  assert.match(js,/Cache write/);
+  assert.match(js,/Throughput/);
+  assert.match(js,/not metered · local runtime/);
+  const usage=await readFile(new URL('../scripts/usage-telemetry.mjs',import.meta.url),'utf8');
+  assert.match(usage,/provider_reported/);
+  assert.match(usage,/local_estimator/);
+  assert.match(observer,/["\']usage["\']:\s*\(report or \{\}\)\.get\(["\']usage["\']\)/);
+});
+
 test('timeline LIVE indicator separates feed state from presentation-window counts', async () => {
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
@@ -591,7 +606,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.35');
+  assert.equal(manifest.version,'0.1.36');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -608,7 +623,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.35');
+  assert.equal(pkg.version,'0.1.36');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -678,7 +693,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.35"/);
+  assert.match(html,/data-build-version="0\.1\.36"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);

@@ -7,6 +7,7 @@ import { startLifecycle, updateLifecycle } from './run-lifecycle.mjs';
 import { buildKnowledgeContext } from './knowledge.mjs';
 import { buildCurrentTaskContext } from './project-context.mjs';
 import { appendObserverEvent, newCorrelationId } from './observer-events.mjs';
+import { normalizeUsageTelemetry } from './usage-telemetry.mjs';
 
 const SYSTEM_PROMPT = `You are the local planner inside Execution Delivery Harness.
 Choose exactly one next bounded worker task from the supplied goal, evidence and constraints.
@@ -59,7 +60,7 @@ function parseJsonContent(content) {
   return JSON.parse(text);
 }
 
-export async function planOneTask(request,{endpoint='http://127.0.0.1:8080/v1',model='qwen3.8-27b',timeoutMs=120000,onProgress=null,knowledgeContext=null,currentTaskContext=null,correlationId=null,observerEventPath=null}={}) {
+export async function planOneTask(request,{endpoint='http://127.0.0.1:8080/v1',model='qwen3.8-27b',timeoutMs=120000,onProgress=null,onUsage=null,pricing=null,knowledgeContext=null,currentTaskContext=null,correlationId=null,observerEventPath=null}={}) {
   assertRequest(request);
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),timeoutMs);
@@ -79,31 +80,38 @@ export async function planOneTask(request,{endpoint='http://127.0.0.1:8080/v1',m
     meta:{model,endpoint}
   },observerOptions);
   try {
+    const messages=[
+      {role:'system',content:SYSTEM_PROMPT},
+      {role:'user',content:JSON.stringify({
+        goal:request.goal,
+        evidence:request.evidence,
+        scope:request.scope,
+        constraints:request.constraints,
+        non_goals:request.non_goals||[],
+        current_task_context:currentTaskContext||null,
+        retrieved_knowledge:knowledgeContext||null
+      })}
+    ];
+    const inferenceStarted=Date.now();
     const response=await fetch(endpoint.replace(/\/$/,'')+'/chat/completions',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       signal:controller.signal,
-      body:JSON.stringify({
-        model,
-        temperature:0,
-        max_tokens:1200,
-        messages:[
-          {role:'system',content:SYSTEM_PROMPT},
-          {role:'user',content:JSON.stringify({
-            goal:request.goal,
-            evidence:request.evidence,
-            scope:request.scope,
-            constraints:request.constraints,
-            non_goals:request.non_goals||[],
-            current_task_context:currentTaskContext||null,
-            retrieved_knowledge:knowledgeContext||null
-          })}
-        ]
-      })
+      body:JSON.stringify({model,temperature:0,max_tokens:1200,messages})
     });
     if(!response.ok) throw new Error('planner HTTP '+response.status);
     const raw=await response.json();
-    const proposal=parseJsonContent(raw?.choices?.[0]?.message?.content);
+    const outputText=String(raw?.choices?.[0]?.message?.content||'');
+    const usageTelemetry=normalizeUsageTelemetry(raw,{
+      provider:request.execution_profile?.provider||'llamacpp',
+      model:request.execution_profile?.model||model,
+      inputText:messages.map(message=>message.content).join('\n'),
+      outputText,
+      elapsedSeconds:(Date.now()-inferenceStarted)/1000,
+      pricing
+    });
+    if(onUsage) await onUsage(usageTelemetry);
+    const proposal=parseJsonContent(outputText);
     await appendObserverEvent({
       actor:'LLAMA',event:'REQUEST_DONE',correlation_id,run_id:runId,plan_id:request.plan_id,task_id:request.task_id,
       span_id:llamaSpan,parent_span_id:qwenSpan,message:'llama.cpp inference request completed',source:request.source,
@@ -117,7 +125,7 @@ export async function planOneTask(request,{endpoint='http://127.0.0.1:8080/v1',m
     if(onProgress) await onProgress({phase:'VALIDATING',completed:['proposal_generated'],current:'Validate bounded task envelope',pending:[],waiting_reason:null,safe_to_interrupt:'after_checkpoint'});
     const envelope=assembleTaskEnvelope(request,proposal);
     await validatePlanningDocument('task',envelope);
-    return {envelope,raw,correlationId:correlation_id};
+    return {envelope,raw,usageTelemetry,correlationId:correlation_id};
   } catch(error) {
     if(!inferenceCompleted) {
       await appendObserverEvent({
@@ -194,11 +202,12 @@ async function main() {
     };
     await writeFile(output+'/planning-context.json',JSON.stringify(planningContext,null,2)+'\n');
     await writeFile(output+'/knowledge-context.json',JSON.stringify(knowledgeContext,null,2)+'\n');
-    const {envelope,raw}=await planOneTask(request,{
+    const {envelope,raw,usageTelemetry}=await planOneTask(request,{
       currentTaskContext,
       knowledgeContext,
       correlationId,
-      onProgress:patch=>updateLifecycle(output,patch,{type:'PROGRESS'})
+      onProgress:patch=>updateLifecycle(output,patch,{type:'PROGRESS'}),
+      onUsage:usage=>updateLifecycle(output,{budget_used:{model_usage:usage}},{type:'PROGRESS',message:'model usage recorded'})
     });
     await writeFile(output+'/planner-response.json',JSON.stringify(raw,null,2)+'\n');
     await writeFile(output+'/task.json',JSON.stringify(envelope,null,2)+'\n');
@@ -206,7 +215,7 @@ async function main() {
       status:'DONE',phase:'TASK_READY',completed:['proposal_generated','task_validated','task_persisted'],current:null,pending:[],
       safe_to_interrupt:'yes',last_durable_checkpoint:'task.json'
     },{type:'DONE',message:'validated task envelope is ready'});
-    const report={status:'task_ready',plan_id:envelope.plan_id,task_id:envelope.task_id,seconds:(Date.now()-started)/1000};
+    const report={status:'task_ready',plan_id:envelope.plan_id,task_id:envelope.task_id,seconds:(Date.now()-started)/1000,provider:request.execution_profile?.provider||null,model:request.execution_profile?.model||raw?.model||null,usage:usageTelemetry};
     await writeFile(output+'/planner-report.json',JSON.stringify(report,null,2)+'\n');
     process.stdout.write(JSON.stringify(report)+'\n');
   } catch(error) {

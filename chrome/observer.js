@@ -439,6 +439,40 @@ function renderRunMeta(state) {
   setDisclosureDefault(section,false);
 }
 
+function usageMetricText(metric,{unit='tokens',digits=0}={}) {
+  if(!metric || metric.value==null) return 'not reported';
+  const value=Number(metric.value);
+  const formatted=Number.isFinite(value) ? value.toLocaleString(undefined,{maximumFractionDigits:digits,minimumFractionDigits:digits}) : String(metric.value);
+  const quality=metric.quality||'unknown';
+  const source=metric.source||'unknown';
+  const estimator=metric.estimator?' · '+metric.estimator:'';
+  return formatted+(unit?' '+unit:'')+' · '+quality+' · '+source+estimator;
+}
+function usageCostText(cost) {
+  if(!cost) return 'not available';
+  if(cost.value_usd!=null) {
+    const value=Number(cost.value_usd);
+    return '$'+(Number.isFinite(value)?value.toFixed(value<0.01?6:4):String(cost.value_usd))+' · '+(cost.quality||'unknown')+' · '+(cost.source||'unknown');
+  }
+  if(cost.status==='not_metered') return 'not metered · local runtime';
+  return 'not available'+(cost.source?' · '+cost.source:'');
+}
+function modelUsageRows(usage,profile={}) {
+  if(!usage || typeof usage!=='object') return [];
+  return [
+    ['Provider',usage.provider||profile.provider||'-','', 'Model provider/runtime family associated with this usage record.'],
+    ['Model',usage.model||profile.model||'-','', 'Model identity associated with this usage record.'],
+    ['Input tokens',usageMetricText(usage.input_tokens),'', 'Exact means provider/runtime reported. Estimated means a local heuristic; estimates are never billing truth.'],
+    ['Output tokens',usageMetricText(usage.output_tokens),'', 'Generated token count. Exact/estimated and source are shown explicitly.'],
+    ['Total tokens',usageMetricText(usage.total_tokens),'', 'Total normalized token count for this model request.'],
+    ['Cache read',usageMetricText(usage.cache_read_tokens),'', 'Prompt/input tokens reported as read from provider/runtime cache, when exposed.'],
+    ['Cache write',usageMetricText(usage.cache_write_tokens),'', 'Tokens written/created in provider/runtime cache, when exposed.'],
+    ['Throughput',usageMetricText(usage.output_tokens_per_second,{unit:'tok/s',digits:2}),'', 'Output generation throughput. Source states whether the runtime reported it or EDH derived it from output tokens and elapsed time.'],
+    ['Cost',usageCostText(usage.cost),'', 'API/provider billing cost only when reported or backed by pricing metadata. Local runtime is marked not metered rather than $0.'],
+    ['Usage truth',usage.semantics||'Exact/provider reported where available; local estimates are labeled.','','Accounting provenance rule for this usage record.']
+  ];
+}
+
 function appendKeyValues(parent, rows) {
   const frag=document.createDocumentFragment();
   for(const [key,value,cls,help] of rows) {
@@ -586,13 +620,16 @@ function renderTaskLifecycle(state) {
     ['Waiting',task.waiting_reason||'-','', 'Why the task cannot advance right now, if it is waiting.'],
     ['Checkpoint',task.last_durable_checkpoint||'-','', 'Latest durable progress marker that can survive interruption or resume.']
   ]);
-  appendKeyValues($('task-lifecycle-work'),[
+  const usage=task.budget_used?.model_usage||null;
+  const workRows=[
     ['Completed',(task.completed||[]).join(' · ')||'none','', 'Lifecycle steps already completed for this task.'],
     ['Current',task.current||'none','', 'The work step the Harness currently considers in progress.'],
     ['Pending',(task.pending||[]).join(' · ')||'none','', 'Known lifecycle steps still required before the task can finish.'],
     ['Budget',JSON.stringify(task.budget||{}),'', 'Execution limits allocated to this task, such as deadline, agent steps, output tokens and repairs.'],
-    ['Budget used',JSON.stringify(task.budget_used||{}),'', 'Observed consumption of the allocated task budget. Empty means no usage metrics were reported.']
-  ]);
+    ['Budget used',JSON.stringify(task.budget_used||{}),'', 'Observed consumption of the allocated task budget. Raw lifecycle data is preserved here; structured model usage is expanded below when available.']
+  ];
+  workRows.push(...modelUsageRows(usage,task.execution_profile||{}));
+  appendKeyValues($('task-lifecycle-work'),workRows);
 }
 
 function renderRunInspection(state) {
@@ -603,7 +640,7 @@ function renderRunInspection(state) {
     $('run-artifacts').replaceChildren();
     return;
   }
-  appendKeyValues($('run-summary'),[
+  const runRows=[
     ['Run',run.id],
     ['Result',String(run.status||'?').toUpperCase()],
     ['Reason',run.reason||'-','failure-reason'],
@@ -615,7 +652,9 @@ function renderRunInspection(state) {
     ['Expected',run.expected||'-'],
     ['Changed',(run.changed_files||[]).join(', ')||'none'],
     ['Run dir',run.run_dir||'-']
-  ]);
+  ];
+  runRows.push(...modelUsageRows(run.usage, {provider:run.provider,model:run.model}));
+  appendKeyValues($('run-summary'),runRows);
   $('run-task').textContent=run.task||'(task text unavailable)';
   const frag=document.createDocumentFragment();
   for(const [name,path] of Object.entries(run.artifacts||{})) {

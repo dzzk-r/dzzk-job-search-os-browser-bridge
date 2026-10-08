@@ -18,6 +18,8 @@ test('run lifecycle keeps JSON snapshot and append-only JSONL transitions', asyn
       phase:'VALIDATING',completed:['proposal_generated'],current:'Validate task',
       pending:['Persist'],safe_to_interrupt:'after_checkpoint'
     },{type:'PROGRESS',stateFile:state});
+    await updateLifecycle(run,{budget_used:{steps:1}},{type:'PROGRESS',stateFile:state});
+    await updateLifecycle(run,{budget_used:{model_usage:{input_tokens:{value:100,quality:'exact',source:'provider_reported'}}}},{type:'PROGRESS',stateFile:state});
     await updateLifecycle(run,{
       status:'DONE',phase:'TASK_READY',completed:['proposal_generated','task_validated','task_persisted'],
       current:null,pending:[],safe_to_interrupt:'yes',last_durable_checkpoint:'task.json'
@@ -28,9 +30,11 @@ test('run lifecycle keeps JSON snapshot and append-only JSONL transitions', asyn
     assert.equal(snapshot.safe_to_interrupt,'yes');
     assert.deepEqual(snapshot.pending,[]);
     assert.equal(snapshot.last_durable_checkpoint,'task.json');
+    assert.equal(snapshot.budget_used.steps,1);
+    assert.equal(snapshot.budget_used.model_usage.input_tokens.value,100);
 
     const lines=(await readFile(join(run,'lifecycle.jsonl'),'utf8')).trim().split('\n').map(JSON.parse);
-    assert.deepEqual(lines.map(x=>x.type),['START','PROGRESS','DONE']);
+    assert.deepEqual(lines.map(x=>x.type),['START','PROGRESS','PROGRESS','PROGRESS','DONE']);
     assert.ok(lines.every(x=>x.run_id==='run-1'&&x.task_id==='task-1'));
 
     const pointer=JSON.parse(await readFile(state,'utf8'));

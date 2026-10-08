@@ -812,6 +812,8 @@ def run_inspection(run: Path, report, local_agent):
         "reason": reason,
         "task": task,
         "model": model,
+        "provider": (report or {}).get("provider") or ((config.get("execution_profile") or {}).get("provider")) or ((config.get("provider") or {}).get("id")),
+        "usage": (report or {}).get("usage"),
         "opencode_version": opencode_version,
         "opencode": (report or {}).get("opencode") or ((command.get("argv") or ["-"])[0]),
         "steps": (report or {}).get("steps") or agent.get("steps"),
