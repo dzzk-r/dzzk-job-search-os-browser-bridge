@@ -16,6 +16,7 @@ let currentBrowserConversationId=null;
 let pendingActionApprovalCount=0;
 let timelineScope='all';
 let timelineView='raw';
+let transientTimelineScope=null;
 let currentConversationBinding=null;
 let knownConversationBindings=[];
 let timelineScopeOptionsFingerprint='';
@@ -33,6 +34,7 @@ function scopeOptionModel(bindings) {
     {value:'all',label:'All activity'},
     {value:'unscoped',label:'Unscoped'}
   ];
+  if(transientTimelineScope && !model.some(item=>item.value===transientTimelineScope.value)) model.push(transientTimelineScope);
   for(const [id,binding] of byId) {
     const title=String(binding.title||'').trim().replace(/\s+/g,' ');
     model.push({
@@ -68,6 +70,19 @@ function reconcileTimelineScopeOptions(selector, model) {
   return true;
 }
 
+function renderTimelineScopeOptions() {
+  const selector=$('timeline-scope');
+  if(!selector) return;
+  const previous=timelineScope;
+  const {model,byId}=scopeOptionModel(knownConversationBindings);
+  reconcileTimelineScopeOptions(selector,model);
+  const valid=new Set(model.map(item=>item.value));
+  const wanted=valid.has(previous)?previous:'all';
+  selector.value=wanted;
+  timelineScope=wanted;
+  currentConversationBinding=timelineScope.startsWith('chat:') ? byId.get(timelineScope.slice(5))||null : null;
+}
+
 function compactMessage(message) {
   return String(message||'')
     .replaceAll('/Users/dzzk/WORK/_bridge-local-execution/','…/harness/')
@@ -91,12 +106,23 @@ function activeSpans(state) {
 function recentSpans(state) {
   const all=state.spans||[];
   const now=Date.now()/1000;
+  const currentTask=state.task_lifecycle?.task_id||null;
+  const currentRun=state.task_lifecycle?.run_id||null;
+  const currentChat=currentBrowserConversationId||null;
   const open=openSpans(state).filter(s=>{
     if(s.status!=='WAITING') return true;
     const age=now-(s.updated||s.started||now);
     return !(s.actor==='TERM' && age>30);
   });
-  const terminal=all.filter(s=>['DONE','ERROR','CANCELED','EXITED'].includes(s.status)).slice(-5);
+  const terminal=all.filter(s=>{
+    if(!['DONE','ERROR','CANCELED','EXITED'].includes(String(s.status||'').toUpperCase())) return false;
+    const c=s.correlation||{};
+    if(currentTask && c.task_id===currentTask) return true;
+    if(currentRun && c.run_id===currentRun) return true;
+    if(currentChat && c.conversation_id===currentChat) return true;
+    const age=now-Number(s.updated||s.ended||s.started||0);
+    return Number.isFinite(age) && age>=0 && age<=180;
+  }).slice(-8);
   const seen=new Set();
   return [...open,...terminal].filter(s=>!seen.has(s.id)&&seen.add(s.id)).sort((a,b)=>(b.started||0)-(a.started||0));
 }
@@ -226,6 +252,22 @@ function settingsCard(parent,text,buttons) {
   for(const [label,fn] of buttons){const b=document.createElement('button');b.textContent=label;b.addEventListener('click',fn);div.append(b);}
   parent.append(div);
 }
+async function refreshExecutorPolicy(preparedReady=false) {
+  const select=$('executor-policy-select');
+  const status=$('executor-policy-status');
+  const compare=$('create-compare-plan');
+  try {
+    const policy=await send({type:'executor-policy'});
+    select.value=policy.mode||'AUTO';
+    status.textContent=(policy.mode||'AUTO')+' · dispatch policy'+(policy.updated_at?' · updated '+new Date(policy.updated_at).toLocaleString():'');
+    compare.hidden=!preparedReady || policy.mode!=='COMPARE';
+    compare.disabled=!preparedReady || policy.mode!=='COMPARE';
+  } catch(e) {
+    status.textContent='executor policy unavailable';
+    compare.hidden=true; compare.disabled=true;
+  }
+}
+
 async function refreshPreparedDispatch() {
   const box=$('prepared-dispatch');
   const button=$('dispatch-prepared');
@@ -233,7 +275,7 @@ async function refreshPreparedDispatch() {
   const status=$('prepared-dispatch-status');
   try {
     const s=await send({type:'dispatch-state'});
-    if(!s?.ready) { box.hidden=true; status.textContent=''; button.disabled=false; updateRunDetailGroups(); return; }
+    if(!s?.ready) { box.hidden=true; status.textContent=''; button.disabled=false; await refreshExecutorPolicy(false); updateRunDetailGroups(); return; }
     box.hidden=false;
     const preparedAt=s.prepared_at?Date.parse(s.prepared_at)/1000:null;
     const preparedAge=Number.isFinite(preparedAt)?seconds(Math.max(0,Date.now()/1000-preparedAt))+' old':'age unknown';
@@ -242,6 +284,7 @@ async function refreshPreparedDispatch() {
     button.title='Dispatch is available only while the handoff state is READY. It starts a new Harness-owned run; completed/PASS handoffs cannot be dispatched again.';
     status.textContent='READY · not yet dispatched';
     button.disabled=false;
+    await refreshExecutorPolicy(true);
     updateRunDetailGroups();
   } catch(e) {
     box.hidden=true;
@@ -720,6 +763,7 @@ function renderTaskLifecycle(state) {
     ]);
     $('task-lifecycle-work').replaceChildren();
     $('task-usage').replaceChildren(); $('task-usage').hidden=true;
+    $('task-evidence-actions').replaceChildren();
     return;
   }
   const terminal=['DONE','ERROR','CANCELED'].includes(String(task.status||'').toUpperCase());
@@ -746,6 +790,15 @@ function renderTaskLifecycle(state) {
     ['Waiting',task.waiting_reason||'-','', 'Why the task cannot advance right now, if it is waiting.'],
     ['Checkpoint',task.last_durable_checkpoint||'-','', 'Latest durable progress marker that can survive interruption or resume.']
   ]);
+  const taskActions=$('task-evidence-actions'); taskActions.replaceChildren();
+  if(task.task_id) {
+    const b=document.createElement('button'); b.type='button'; b.textContent='Show task timeline';
+    b.addEventListener('click',()=>focusTimelineScope('task:'+task.task_id,'Task · '+task.task_id)); taskActions.append(b);
+  }
+  if(task.run_id) {
+    const b=document.createElement('button'); b.type='button'; b.textContent='Show run timeline';
+    b.addEventListener('click',()=>focusTimelineScope('run:'+task.run_id,'Run · '+task.run_id)); taskActions.append(b);
+  }
   const usage=task.budget_used?.model_usage||null;
   appendKeyValues($('task-lifecycle-work'),[
     ['Completed',(task.completed||[]).join(' · ')||'none','', 'Lifecycle steps already completed for this task.'],
@@ -836,6 +889,10 @@ function renderSpans(state) {
     meta.textContent='elapsed '+seconds(span.age_seconds||0)+' · last update '+seconds(updateAge)+' ago'+detailText;
     meta.title='Elapsed is the span duration. Last update is observation freshness. A terminal event identical to the Status column is intentionally not repeated here.';
     main.append(label,meta);
+    const actions=document.createElement('div'); actions.className='span-actions';
+    const show=document.createElement('button'); show.type='button'; show.textContent='Show in timeline';
+    show.addEventListener('click',()=>focusTimelineScope('span:'+span.id,'Span · '+compactMessage(span.label||span.id)));
+    actions.append(show); main.append(actions);
     row.append(status,actor,main);
     frag.append(row);
   }
@@ -965,7 +1022,31 @@ function timelineEventsForScope(events,scope,binding) {
     const id=scope.slice(5);
     return events.filter(event=>timelineConversationId(event)===id);
   }
+  if(scope.startsWith('task:')) {
+    const id=scope.slice(5);
+    return events.filter(event=>(event.correlation||{}).task_id===id);
+  }
+  if(scope.startsWith('run:')) {
+    const id=scope.slice(4);
+    return events.filter(event=>(event.correlation||{}).run_id===id);
+  }
+  if(scope.startsWith('span:')) {
+    const id=scope.slice(5);
+    return events.filter(event=>{ const c=event.correlation||{}; return c.span_id===id || c.parent_span_id===id; });
+  }
   return [...events];
+}
+function focusTimelineScope(value,label) {
+  transientTimelineScope={value,label};
+  timelineScope=value;
+  timelineScopeOptionsFingerprint='';
+  renderedKeys=null;
+  if(lastState) {
+    renderTimelineScopeOptions();
+    $('timeline-scope').value=value;
+    renderTimeline(lastState);
+  }
+  $('timeline-section')?.scrollIntoView({block:'start',behavior:'smooth'});
 }
 function sourceEventRef(event) {
   return event.event_id||event.id||eventKey(event);
@@ -1384,17 +1465,7 @@ async function refresh() {
         byMergedId.set(binding.conversation_id,{...prior,...binding});
       }
       knownConversationBindings=[...byMergedId.values()];
-      const selector=$('timeline-scope');
-      if(selector) {
-        const previous=timelineScope;
-        const selectedId=previous.startsWith('chat:') ? previous.slice(5) : null;
-        const {model,byId}=scopeOptionModel(knownConversationBindings);
-        reconcileTimelineScopeOptions(selector,model);
-        const wanted=selectedId && byId.has(selectedId) ? previous : (['all','unscoped'].includes(previous)?previous:'all');
-        if(selector.value!==wanted) selector.value=wanted;
-        timelineScope=wanted;
-        currentConversationBinding=timelineScope.startsWith('chat:') ? byId.get(timelineScope.slice(5))||null : null;
-      }
+      renderTimelineScopeOptions();
     } catch {
       knownConversationBindings=[];
       currentConversationBinding=null;
@@ -1438,6 +1509,7 @@ must('timeline').addEventListener('scroll',()=>{
 });
 must('timeline-scope').addEventListener('change',event=>{
   timelineScope=event.target.value;
+  if(!transientTimelineScope || timelineScope!==transientTimelineScope.value) transientTimelineScope=null;
   currentConversationBinding=timelineScope.startsWith('chat:')
     ? knownConversationBindings.find(x=>x.conversation_id===timelineScope.slice(5))||null
     : null;
@@ -1495,13 +1567,43 @@ must('gw01-acceptance').addEventListener('click',async()=>{
     button.disabled=false;
   }
 });
+must('executor-policy-select').addEventListener('change',async event=>{
+  const select=event.currentTarget;
+  const status=$('executor-policy-status');
+  select.disabled=true; status.textContent='Saving executor policy…';
+  try {
+    const policy=await send({type:'set-executor-policy',mode:select.value});
+    status.textContent=policy.mode+' · dispatch policy · updated '+new Date(policy.updated_at).toLocaleString();
+    const prepared=await send({type:'dispatch-state'}).catch(()=>null);
+    await refreshExecutorPolicy(Boolean(prepared?.ready));
+  } catch(e) { status.textContent=String(e?.message||e); }
+  finally { select.disabled=false; }
+});
+
+must('create-compare-plan').addEventListener('click',async()=>{
+  const button=$('create-compare-plan');
+  const status=$('executor-policy-status');
+  button.disabled=true; status.textContent='Creating sibling EDH/RDC run plan…';
+  try {
+    const plan=await send({type:'create-compare-plan'});
+    status.textContent='COMPARE PLANNED · '+plan.comparison_id+' · same task/baseline, 2 sibling runs';
+  } catch(e) { status.textContent=String(e?.message||e); }
+  finally { button.disabled=false; }
+});
+
 must('dispatch-prepared').addEventListener('click',async()=>{
   const button=$('dispatch-prepared');
   const status=$('prepared-dispatch-status');
   button.disabled=true; status.textContent='Dispatching…';
   try {
     const result=await send({type:'dispatch-prepared'});
-    status.textContent='DISPATCHED'+(result?.pid?' · pid '+result.pid:'');
+    if(result?.status==='AWAITING_RDC') {
+      status.textContent='AWAITING RDC · '+(result.intent?.intent_id||'external handoff recorded');
+    } else if(result?.status==='COMPARE_PLANNED') {
+      status.textContent='COMPARE PLANNED · '+(result.comparison_id||'2 sibling runs');
+    } else {
+      status.textContent=(result?.status||'DISPATCHED')+(result?.executor_policy?' · '+result.executor_policy:'')+(result?.pid?' · pid '+result.pid:'');
+    }
     await refreshPreparedDispatch();
     await refresh();
   } catch(e) {

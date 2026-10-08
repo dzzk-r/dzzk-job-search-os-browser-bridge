@@ -11,7 +11,7 @@ async function setup(t) {
   const configDir=await mkdtemp(join(tmpdir(),'dzzk-server-test-'));
   const observerEventPath=join(configDir,'observer-events.jsonl');
   const browserTurnStatePath=join(configDir,'browser-turn-state.json');
-  const bridge=await createBridgeServer({port:0,configDir,observerEventPath,browserTurnStatePath,observerSnapshot:async()=>({state:'DONE',active_source:'MCP',timeline:[{ts:1,source:'MCP',message:'test'}],versions:{mcp:'test'}})});
+  const bridge=await createBridgeServer({port:0,configDir,observerEventPath,browserTurnStatePath,executorPolicyPath:join(configDir,'executor-policy.json'),executorCompareRoot:join(configDir,'compare'),observerSnapshot:async()=>({state:'DONE',active_source:'MCP',timeline:[{ts:1,source:'MCP',message:'test'}],versions:{mcp:'test'}})});
   t.after(async()=>{await bridge.close(); await rm(configDir,{recursive:true,force:true});});
   const call=async(path,{method='GET',data,token,headers={}}={})=>{
     const response=await fetch(bridge.issuer+path,{method,headers:{...(data?{'Content-Type':'application/json'}:{}),...(token?{Authorization:'Bearer '+token}:{}),...headers},...(data?{body:JSON.stringify(data)}:{})});
@@ -41,6 +41,17 @@ test('observer snapshot is available only through extension pairing',async t=>{
   assert.equal(observer.value.state,'DONE');
   assert.equal(observer.value.active_source,'MCP');
   assert.equal(observer.value.timeline[0].message,'test');
+});
+
+test('executor policy is pairing-only, persistent and owner-switchable',async t=>{
+  const b=await setup(t);
+  assert.equal((await b.call('/bridge/executor-policy')).status,401);
+  const initial=await b.extension('executor-policy');
+  assert.equal(initial.status,200); assert.equal(initial.value.mode,'AUTO');
+  const changed=await b.extension('executor-policy',{mode:'COMPARE'});
+  assert.equal(changed.status,200); assert.equal(changed.value.mode,'COMPARE');
+  assert.equal((await b.extension('executor-policy')).value.mode,'COMPARE');
+  assert.equal((await b.extension('executor-policy',{mode:'MAGIC'})).status,400);
 });
 
 test('OAuth and pairing credentials are separate; hostile origin and host are rejected',async t=>{
@@ -220,7 +231,7 @@ test('observer snapshot reports disk extension semver without forcing reload',as
   const b=await setup(t);
   const snapshot=await b.extension('observer');
   assert.equal(snapshot.status,200);
-  assert.equal(snapshot.value.extension_version.disk,'0.1.40');
+  assert.equal(snapshot.value.extension_version.disk,'0.1.41');
 });
 
 test('OpenCode-style DCR metadata is accepted without advertising unsupported refresh grants',async t=>{

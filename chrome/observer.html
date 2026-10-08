@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build-version="0.1.40">
+<html lang="en" data-build-version="0.1.41">
 <head>
   <meta charset="utf-8">
   <title>Execution Delivery Harness — Observer</title>
@@ -139,6 +139,7 @@
         <section class="detail-group">
           <h3>Goal &amp; state</h3>
           <div id="task-lifecycle-summary" class="run-summary"></div>
+          <div id="task-evidence-actions" class="evidence-actions"></div>
         </section>
         <section class="detail-group">
           <h3>Progress &amp; budget</h3>
@@ -168,6 +169,17 @@
           <div id="prepared-dispatch" class="inline-action" hidden>
             <strong>Ready handoff</strong>
             <span id="prepared-dispatch-label"></span>
+            <div class="executor-policy-row">
+              <label for="executor-policy-select">Executor</label>
+              <select id="executor-policy-select" aria-label="Executor policy for next prepared task">
+                <option value="AUTO">Auto</option>
+                <option value="EDH">EDH</option>
+                <option value="RDC">RDC</option>
+                <option value="COMPARE">Compare EDH vs RDC</option>
+              </select>
+              <button id="create-compare-plan" type="button">Create compare plan</button>
+            </div>
+            <span id="executor-policy-status" class="muted"></span>
             <button id="dispatch-prepared" class="primary">Dispatch</button>
             <span id="prepared-dispatch-status" class="muted"></span>
           </div>

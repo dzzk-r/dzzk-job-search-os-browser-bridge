@@ -14,9 +14,9 @@ Opera.
 
 ## Current baseline
 
-- package / Chrome / Firefox development version: **0.1.40**;
+- package / Chrome / Firefox development version: **0.1.41**;
 - active development branch/worktree: `chore/local-execution`;
-- automated suite: **141/141 passing** on 2026-10-09;
+- automated suite: **148/148 passing** on 2026-10-09;
 - next readiness milestone: `owner-local-v0` (currently blocked);
 - pre-1.0 release interpretation: `0.1.x` is the owner-local
   Observer/foundation line; `0.2.0` requires the owner-local routine execution
@@ -146,6 +146,7 @@ the current package version. An unsigned ZIP is not an approved AMO release.
 - [`docs/LOCAL-STACK-ONBOARDING-DRAFT.md`](docs/LOCAL-STACK-ONBOARDING-DRAFT.md) — broader clean-machine/portable-stack inventory.
 - [`docs/CLIENTS-AND-TRANSPORTS.md`](docs/CLIENTS-AND-TRANSPORTS.md) — transport-neutral client boundary.
 - [`docs/PRE-1.0-RELEASE-MILESTONE-MODEL.md`](docs/PRE-1.0-RELEASE-MILESTONE-MODEL.md) — minor-version capability model.
+- [`docs/EXECUTOR-COMPARISON.md`](docs/EXECUTOR-COMPARISON.md) — executor policy, RDC handoff and EDH-vs-RDC comparison contract.
 - [`TODO.md`](TODO.md) — authoritative cross-cutting engineering task catalog.
 
 ## Knowledge and readiness

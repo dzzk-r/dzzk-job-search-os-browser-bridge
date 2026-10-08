@@ -475,7 +475,7 @@ test('Observer renders provenance-labeled model usage without inventing unavaila
   assert.match(observer,/usage = \(report or \{\}\)\.get\("usage"\) or backfill\.get\("usage"\)/);
 });
 
-test('0.1.40 separates LIVE activity from observer-inferred next-request quiescence', async () => {
+test('0.1.41 separates LIVE activity from observer-inferred next-request quiescence', async () => {
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
@@ -491,7 +491,7 @@ test('0.1.40 separates LIVE activity from observer-inferred next-request quiesce
   assert.match(css,/timeline-quiescence\.quiescent/);
 });
 
-test('0.1.40 estimates ChatGPT Web visible-text usage without storing message text', async () => {
+test('0.1.41 estimates ChatGPT Web visible-text usage without storing message text', async () => {
   const chat=await readFile(new URL('../chrome/chat-context.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const observer=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
@@ -672,7 +672,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.40');
+  assert.equal(manifest.version,'0.1.41');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -689,7 +689,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.40');
+  assert.equal(pkg.version,'0.1.41');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -759,7 +759,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.40"/);
+  assert.match(html,/data-build-version="0\.1\.41"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -798,10 +798,41 @@ test('Unified timeline scope selector is a persistent DOM island across polling 
   assert.match(js,/if\(fingerprint===timelineScopeOptionsFingerprint\) return false/);
   const refreshBlock=js.slice(js.indexOf('knownConversationBindings=[...byMergedId.values()]'),js.indexOf('    } catch {',js.indexOf('knownConversationBindings=[...byMergedId.values()]')));
   assert.doesNotMatch(refreshBlock,/selector\.replaceChildren\(/);
-  assert.match(refreshBlock,/reconcileTimelineScopeOptions\(selector,model\)/);
-  assert.match(refreshBlock,/if\(selector\.value!==wanted\) selector\.value=wanted/);
+  assert.match(refreshBlock,/renderTimelineScopeOptions\(\)/);
+  const scopeHelper=js.slice(js.indexOf('function renderTimelineScopeOptions'),js.indexOf('function compactMessage'));
+  assert.match(scopeHelper,/reconcileTimelineScopeOptions\(selector,model\)/);
+  assert.match(scopeHelper,/const wanted=valid\.has\(previous\)\?previous:'all'/);
 });
 
+
+test('Execution spans navigate to causal timeline scopes and old terminal spans are age-bounded', async () => {
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(js,/age>=0 && age<=180/);
+  assert.match(js,/Show in timeline/);
+  assert.match(js,/focusTimelineScope\('span:'/);
+  assert.match(js,/scope\.startsWith\('span:'\)/);
+  assert.match(js,/c\.span_id===id \|\| c\.parent_span_id===id/);
+});
+
+test('Current task exposes task/run timeline navigation instead of being an isolated status card', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(html,/id="task-evidence-actions"/);
+  assert.match(js,/Show task timeline/);
+  assert.match(js,/Show run timeline/);
+  assert.match(js,/focusTimelineScope\('task:'/);
+  assert.match(js,/focusTimelineScope\('run:'/);
+});
+
+test('Prepared handoff exposes owner-selectable AUTO EDH RDC COMPARE executor policy', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  for(const mode of ['AUTO','EDH','RDC','COMPARE']) assert.match(html,new RegExp('value=\"'+mode+'\"'));
+  assert.match(html,/id="create-compare-plan"/);
+  assert.match(js,/set-executor-policy/);
+  assert.match(js,/create-compare-plan/);
+  assert.match(js,/same task\/baseline, 2 sibling runs/);
+});
 
 test('UI-01 first viewport prioritizes actors, operator status, work summaries and evidence', async () => {
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');

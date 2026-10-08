@@ -18,11 +18,11 @@ still broader than the intended final policy/sandbox.
 
 ## Current version and test baseline
 
-- Package / Chrome / Firefox development version: **0.1.40**.
+- Package / Chrome / Firefox development version: **0.1.41**.
 - Active worktree: `chore/local-execution`.
 - Current implementation checkpoint: `9ab7663` (`feat: add browser turn usage estimates`).
 - Current documentation checkpoint before this cleanup: `ccef212`.
-- Automated suite: **141/141 passing** on 2026-10-09.
+- Automated suite: **148/148 passing** on 2026-10-09.
 - TODO catalog: **36 tasks, 4 complete, 60.9% simple average**. This average is informative only; release/readiness decisions are gate-based.
 - Next configured milestone: `owner-local-v0` — **BLOCKED** by incomplete `BRW-01`, `LOC-01`, `LOC-02` and `SEC-01` gates.
 - Pre-1.0 target interpretation: `0.2.0` is reserved for the owner-local routine execution loop, not for an arbitrary patch-count threshold.
@@ -46,6 +46,8 @@ still broader than the intended final policy/sandbox.
 - Durable task lifecycle, budget envelope and detached prepared-dispatch substrate.
 - Knowledge plane and project/task/readiness context injection for local planning.
 - Versioned extension reload UX: loaded-vs-disk mismatch is explicit and user-triggered; gateway restart does not imply extension reload.
+- Owner-selectable executor policy (`AUTO / EDH / RDC / COMPARE`) before prepared dispatch; RDC is represented as a durable external-executor intent and COMPARE as sibling planned Runs, not as fake execution.
+- Span/Task/Run causal navigation into Unified timeline; current Task/Run scopes are computed from the full ledger.
 
 ## Important current limitations
 
@@ -111,6 +113,7 @@ Related canonical documents:
 - `docs/OBSERVER-ARCHITECTURE.md`
 - `docs/SIDE-PANEL-INFORMATION-ARCHITECTURE.md`
 - `docs/EXECUTION-LIFECYCLES.md`
+- `docs/EXECUTOR-COMPARISON.md`
 - `docs/CLIENTS-AND-TRANSPORTS.md`
 - `docs/PRE-1.0-RELEASE-MILESTONE-MODEL.md`
 - `TODO.md`

@@ -1312,6 +1312,17 @@ def print_json(root, repo, commands, mcp):
         key = f"chat:{cid}"
         scope_events[key] = items[-300:]
         scope_totals[key] = len(items)
+    current_task = d.get("task_lifecycle") or {}
+    current_task_id = current_task.get("task_id")
+    current_run_id = current_task.get("run_id")
+    if current_task_id:
+        items = [item for item in full_timeline if ((item.get("correlation") or {}).get("task_id") == current_task_id)]
+        scope_events[f"task:{current_task_id}"] = items[-300:]
+        scope_totals[f"task:{current_task_id}"] = len(items)
+    if current_run_id:
+        items = [item for item in full_timeline if ((item.get("correlation") or {}).get("run_id") == current_run_id)]
+        scope_events[f"run:{current_run_id}"] = items[-300:]
+        scope_totals[f"run:{current_run_id}"] = len(items)
     active = active_source(d, merged)
     status = project_status(repo, d["timeline"])
     prepared = prepared_dispatch_summary()

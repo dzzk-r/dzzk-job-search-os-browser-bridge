@@ -389,6 +389,18 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
       if (!config.enabled) throw new Error('Connect the companion before checking prepared dispatch.');
       return companion('/bridge/dispatch-state');
     }
+    case 'executor-policy': {
+      if (!config.enabled) throw new Error('Connect the companion before reading executor policy.');
+      return companion('/bridge/executor-policy');
+    }
+    case 'set-executor-policy': {
+      if (!config.enabled) throw new Error('Connect the companion before changing executor policy.');
+      return companion('/bridge/executor-policy',{mode:m.mode});
+    }
+    case 'create-compare-plan': {
+      if (!config.enabled) throw new Error('Connect the companion before creating a comparison plan.');
+      return companion('/bridge/compare-plan',{});
+    }
     case 'dispatch-prepared': {
       if (!config.enabled) throw new Error('Connect the companion before dispatching prepared work.');
       return companion('/bridge/dispatch-prepared',{});

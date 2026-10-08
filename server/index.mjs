@@ -13,6 +13,7 @@ import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { createLocalExecutor } from './local-executor.mjs';
 import { createPreparedDispatch } from './prepared-dispatch.mjs';
+import { createExecutorPolicy } from './executor-policy.mjs';
 import { appendObserverEvent, newCorrelationId } from '../scripts/observer-events.mjs';
 
 const secret = () => randomBytes(32).toString('base64url');
@@ -76,6 +77,11 @@ export async function createBridgeServer(options = {}) {
     repoRoot,
     workRoot: options.preparedDispatchWorkRoot,
     statePath: options.preparedDispatchPath
+  });
+  const executorPolicy = options.executorPolicy ?? createExecutorPolicy({
+    statePath: options.executorPolicyPath,
+    compareRoot: options.executorCompareRoot,
+    intentRoot: options.executorIntentRoot
   });
   const observerEventPath = options.observerEventPath ?? null;
   const gatewayRuntimeVersion = {
@@ -702,6 +708,9 @@ export async function createBridgeServer(options = {}) {
         if (path === '/bridge/dispatch-state' && req.method === 'GET') {
           return json(res,200,await preparedDispatch.state());
         }
+        if (path === '/bridge/executor-policy' && req.method === 'GET') {
+          return json(res,200,await executorPolicy.state());
+        }
         if (path === '/bridge/gw01-acceptance' && req.method === 'POST') {
           return json(res,200,await runGw01CorrelationAcceptance(adapter));
         }
@@ -762,13 +771,51 @@ export async function createBridgeServer(options = {}) {
         }
         if (path === '/bridge/dispatch-prepared') {
           if (Object.keys(data).length) fail(400,'invalid_request');
-          try { return json(res,200,await preparedDispatch.dispatch()); }
-          catch(e) {
+          const prepared=await preparedDispatch.state();
+          if(!prepared.ready) fail(409,'no_prepared_dispatch','No prepared Harness task is ready.');
+          const policy=await executorPolicy.state();
+          const task=JSON.parse(await readFile(prepared.task_path,'utf8'));
+          const baseline=await gitHead();
+          const binding=activeBrowserConversations.get(adapter);
+          const turns=binding?[...activeBrowserTurns.values()].filter(t=>t.conversation_id===binding.conversation_id).sort((a,b)=>Date.parse(b.last_seen_at||0)-Date.parse(a.last_seen_at||0)):[];
+          const activeTurn=turns[0]||null;
+          if(policy.mode==='COMPARE') {
+            const plan=await executorPolicy.createComparisonPlan({task,baseline_commit:baseline,source_run_dir:prepared.run_dir});
+            return json(res,200,{ok:true,status:'COMPARE_PLANNED',executor_policy:'COMPARE',comparison_id:plan.comparison_id,runs:plan.runs});
+          }
+          if(policy.mode==='RDC') {
+            const intent=await executorPolicy.createDispatchIntent({task,executor:'RDC',baseline_commit:baseline,source_run_dir:prepared.run_dir,conversation_id:binding?.conversation_id||null,turn_id:activeTurn?.turn_id||null});
+            return json(res,200,{ok:true,status:'AWAITING_RDC',executor_policy:'RDC',intent});
+          }
+          if(!binding) fail(409,'conversation_admission_required','A current ChatGPT conversation must be observed before EDH dispatch.');
+          try {
+            const result=await preparedDispatch.dispatch({
+              client:'chatgpt-web',conversation_id:binding.conversation_id,binding_id:'browser-observed:'+binding.conversation_id,
+              platform_locator:binding.url,source_quality:'declared'
+            });
+            return json(res,200,{...result,executor_policy:policy.mode==='AUTO'?'AUTO→EDH':'EDH'});
+          } catch(e) {
             if (e.code === 'no_prepared_dispatch') fail(409,'no_prepared_dispatch',e.message);
+            if (e.code === 'conversation_admission_required') fail(409,e.code,e.message);
+            if (e.code === 'conversation_binding_conflict') fail(409,e.code,e.message);
             if (e.code === 'invalid_prepared_dispatch') fail(400,'invalid_prepared_dispatch',e.message);
             if (e.code === 'dispatch_launch_invalid') fail(500,'dispatch_launch_invalid',e.message);
             throw e;
           }
+        }
+        if (path === '/bridge/executor-policy') {
+          if (Object.keys(data).some(k=>!['mode'].includes(k)) || typeof data.mode!=='string') fail(400,'invalid_executor_mode');
+          try { return json(res,200,await executorPolicy.setMode(data.mode,{updatedBy:'chrome-side-panel'})); }
+          catch(e) { if(e.code==='invalid_executor_mode') fail(400,e.code,e.message); throw e; }
+        }
+        if (path === '/bridge/compare-plan') {
+          if (Object.keys(data).length) fail(400,'invalid_request');
+          const prepared=await preparedDispatch.state();
+          if(!prepared.ready) fail(409,'no_prepared_dispatch','No prepared Harness task is ready.');
+          const task=JSON.parse(await readFile(prepared.task_path,'utf8'));
+          const baseline=await gitHead();
+          try { return json(res,200,await executorPolicy.createComparisonPlan({task,baseline_commit:baseline,source_run_dir:prepared.run_dir})); }
+          catch(e) { if(e.code==='invalid_compare_task') fail(400,e.code,e.message); throw e; }
         }
         if (path === '/bridge/action-consent') {
           if (Object.keys(data).length !== 2 || !Object.hasOwn(data,'id') || typeof data.id !== 'string' || typeof data.allow !== 'boolean') fail(400,'invalid_action_consent');

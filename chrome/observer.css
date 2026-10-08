@@ -577,3 +577,10 @@ html, body.observer { width:100%; max-width:100%; overflow-x:hidden; box-sizing:
 .actor-chip.waiting .dot { background:#d49400; box-shadow:0 0 0 2px rgba(212,148,0,.12); }
 .actor-chip.pending { opacity:.78; }
 .actor-chip.pending .dot { background:#8a8a8a; box-shadow:0 0 0 2px rgba(128,128,128,.08); }
+
+.executor-policy-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:6px; }
+.executor-policy-row label { opacity:.65; font:10px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace; }
+.executor-policy-row select { min-width:120px; max-width:100%; }
+.evidence-actions { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+.evidence-actions button,.span-actions button { margin:0; padding:3px 6px; font:9.5px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace; }
+.span-actions { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
