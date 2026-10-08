@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build-version="0.1.36">
+<html lang="en" data-build-version="0.1.37">
 <head>
   <meta charset="utf-8">
   <title>Execution Delivery Harness — Observer</title>
@@ -105,11 +105,14 @@
           <button id="timeline-live-trigger" class="timeline-live-trigger" type="button" aria-label="Live timeline status">
             <span id="timeline-live-dot" class="timeline-live-dot" aria-hidden="true"></span><span>LIVE</span>
           </button>
+          <span id="timeline-quiescence" class="timeline-quiescence settling" title="Observed execution boundary is still settling">SETTLING</span>
           <div id="timeline-live-popover" class="timeline-live-popover" role="tooltip">
             <strong>Live timeline</strong>
             <div id="timeline-window-summary">Waiting for timeline data…</div>
             <div id="timeline-view-summary" class="muted">Raw evidence view</div>
-            <div class="muted">Green pulse = observed work is active. Gray = the live feed is idle.</div>
+            <div id="timeline-quiescence-summary">Execution boundary is still being evaluated.</div>
+            <div id="timeline-quiescence-reason" class="muted"></div>
+            <div class="muted">LIVE reports observed activity. QUIESCENT is a separate observer-inferred next-request boundary; it is not transport-authoritative until GW-01 owns dispatch.</div>
           </div>
         </div>
       </div>

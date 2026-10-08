@@ -12,6 +12,8 @@ let follow=true;
 let renderedKeys=null;
 let lastState=null;
 let browserLocalChatActivity=null;
+let currentBrowserConversationId=null;
+let pendingActionApprovalCount=0;
 let timelineScope='all';
 let timelineView='raw';
 let currentConversationBinding=null;
@@ -253,6 +255,7 @@ async function refreshConnectionRequests() {
     const s=await send({type:'state'});
     box.replaceChildren();
     const requests=s.consents||[];
+    pendingActionApprovalCount=(s.actions||[]).length;
     box.hidden=requests.length===0;
     for(const c of requests) {
       const card=document.createElement('div'); card.className='card connection-request-card';
@@ -266,6 +269,7 @@ async function refreshConnectionRequests() {
         try {
           await send({type:'consent',id:c.id,allow:allowValue});
           await refreshConnectionRequests();
+    if(lastState) renderTimeline(lastState);
         } catch(e) {
           allow.disabled=false; deny.disabled=false;
           $('error').textContent=e.message;
@@ -1081,6 +1085,63 @@ function appendRawEventDrilldown(full,event,key) {
   });
   full.append(document.createElement('br'),button,rawBox);
 }
+const QUIESCENCE_QUIET_SECONDS=15;
+function quiescenceOutstandingSpans(state) {
+  const now=Date.now()/1000;
+  return (state.spans||[]).filter(span=>{
+    const status=String(span.status||'').toUpperCase();
+    if(['DONE','ERROR','CANCELED','EXITED'].includes(status)) return false;
+    if(status==='WAITING' && span.actor==='TERM') {
+      const updated=Number(span.updated||span.started||0);
+      return updated>0 && now-updated<=30;
+    }
+    return true;
+  });
+}
+function quiescenceRelevantEvents(state) {
+  const workSources=new Set(['MCP','RDC','TERM','OC','QWEN','LLAMA','ACTION','CHAT']);
+  const currentId=currentBrowserConversationId;
+  const events=state.timeline||[];
+  return events.filter(event=>{
+    if(!workSources.has(String(event.source||'').toUpperCase())) return false;
+    const conversation=timelineConversationId(event);
+    if(currentId && conversation===currentId) return true;
+    // Until gateway attribution is authoritative, recent unscoped execution must
+    // conservatively delay a "safe next request" claim.
+    return !conversation && String(event.source||'').toUpperCase()!=='CHAT';
+  });
+}
+function deriveQuiescence(state) {
+  const now=Date.now()/1000;
+  const chat=browserLocalChatActivity||state.chat_activity||{state:'idle'};
+  const chatState=String(chat.state||'idle');
+  const spans=quiescenceOutstandingSpans(state);
+  const events=quiescenceRelevantEvents(state);
+  const latest=events.length?events.reduce((a,b)=>Number(a.ts||0)>=Number(b.ts||0)?a:b):null;
+  const latestAge=latest?.ts ? Math.max(0,now-Number(latest.ts)) : null;
+  const latestLabel=latest ? String(latest.source||'?')+' · '+compactMessage(latest.message||'') : 'none observed';
+  if(chatState==='active' || spans.some(span=>String(span.status||'').toUpperCase()==='RUNNING')) {
+    return {state:'WORKING',safe:false,quality:'observer_inferred',reason:chatState==='active'?'ChatGPT turn has positive activity evidence':spans.length+' execution span(s) are running',latestAge,latestLabel};
+  }
+  if(chatState==='waiting_user' || pendingActionApprovalCount>0) {
+    return {state:'SETTLING',safe:false,quality:'observer_inferred',reason:pendingActionApprovalCount>0?pendingActionApprovalCount+' browser action approval(s) are pending':'ChatGPT turn is waiting for user input/approval',latestAge,latestLabel};
+  }
+  if(chatState==='pending') {
+    return {state:'SETTLING',safe:false,quality:'observer_inferred',reason:'ChatGPT turn is still open without positive activity evidence',latestAge,latestLabel};
+  }
+  if(spans.length) {
+    return {state:'SETTLING',safe:false,quality:'observer_inferred',reason:spans.length+' non-terminal execution span(s) remain observable',latestAge,latestLabel};
+  }
+  if(latestAge!==null && latestAge<QUIESCENCE_QUIET_SECONDS) {
+    const remaining=Math.max(1,Math.ceil(QUIESCENCE_QUIET_SECONDS-latestAge));
+    return {state:'SETTLING',safe:false,quality:'observer_inferred',reason:'quiet-window probation · '+remaining+'s remaining after latest relevant evidence',latestAge,latestLabel};
+  }
+  return {
+    state:'QUIESCENT',safe:true,quality:'observer_inferred',
+    reason:latestAge===null?'no outstanding observed execution and no recent relevant evidence':'no outstanding observed execution · quiet for '+Math.floor(latestAge)+'s',
+    latestAge,latestLabel
+  };
+}
 function renderTimelineLive(state,rawCount,totalCount,displayCount) {
   const live=activeSpans(state).length>0 || browserLocalChatActivity?.state==='active';
   const cluster=$('position');
@@ -1089,8 +1150,20 @@ function renderTimelineLive(state,rawCount,totalCount,displayCount) {
   $('timeline-window-summary').textContent='Latest '+rawCount.toLocaleString()+' of '+total.toLocaleString()+' raw events in the selected scope.';
   const viewName=timelineView[0].toUpperCase()+timelineView.slice(1);
   $('timeline-view-summary').textContent=viewName+' view · '+displayCount.toLocaleString()+' visible row'+(displayCount===1?'':'s')+'. Raw evidence is unchanged.';
-  $('timeline-live-trigger').title=live?'Live timeline · observed work is active':'Live timeline · feed is idle';
+  $('timeline-live-trigger').title=live?'Live timeline · observed work is active':'Live timeline · no positive activity evidence right now';
+  const q=deriveQuiescence(state);
+  const badge=$('timeline-quiescence');
+  badge.textContent=q.state;
+  badge.className='timeline-quiescence '+q.state.toLowerCase();
+  badge.title=q.state==='QUIESCENT'
+    ? 'Observed quiescence: no known outstanding work. This is observer-inferred, not yet transport-authoritative.'
+    : 'Do not treat the current idle gap as a proven end-of-turn boundary.';
+  $('timeline-quiescence-summary').textContent=q.state==='QUIESCENT'
+    ? 'Observed next-request boundary: QUIESCENT'
+    : q.state+' · next-request boundary not yet established';
+  $('timeline-quiescence-reason').textContent='Reason: '+q.reason+'. Latest relevant evidence: '+q.latestLabel+(q.latestAge==null?'':(' · '+seconds(q.latestAge)+' ago'))+'. quality='+q.quality+'.';
 }
+
 function renderTimeline(state) {
   const box=$('timeline');
   const allEvents=state.timeline||[];
@@ -1151,8 +1224,10 @@ async function refresh() {
   try {
     currentConversationState=await send({type:'conversation-current'});
     browserLocalChatActivity=currentConversationState?.activity||null;
+    currentBrowserConversationId=currentConversationState?.binding?.conversation_id||null;
   } catch {
     browserLocalChatActivity=null;
+    currentBrowserConversationId=null;
   }
   try {
     const state=await send({type:'observer-state'});

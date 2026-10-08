@@ -475,6 +475,22 @@ test('Observer renders provenance-labeled model usage without inventing unavaila
   assert.match(observer,/["\']usage["\']:\s*\(report or \{\}\)\.get\(["\']usage["\']\)/);
 });
 
+test('0.1.37 separates LIVE activity from observer-inferred next-request quiescence', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
+  assert.match(html,/id="timeline-quiescence"/);
+  assert.match(html,/QUIESCENT is a separate observer-inferred next-request boundary/);
+  assert.match(js,/QUIESCENCE_QUIET_SECONDS=15/);
+  assert.match(js,/state:'WORKING'/);
+  assert.match(js,/state:'SETTLING'/);
+  assert.match(js,/state:'QUIESCENT'/);
+  assert.match(js,/quiet-window probation/);
+  assert.match(js,/pendingActionApprovalCount/);
+  assert.match(js,/recent unscoped execution must/);
+  assert.match(css,/timeline-quiescence\.quiescent/);
+});
+
 test('timeline LIVE indicator separates feed state from presentation-window counts', async () => {
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
@@ -482,7 +498,7 @@ test('timeline LIVE indicator separates feed state from presentation-window coun
   assert.match(html,/id="timeline-live-dot"/);
   assert.match(html,/id="timeline-live-popover"/);
   assert.match(js,/Latest '\+rawCount\.toLocaleString\(\)\+' of '/);
-  assert.match(html,/Green pulse = observed work is active/);
+  assert.match(html,/LIVE reports observed activity/);
   assert.match(css,/timeline-live-cluster\.active \.timeline-live-dot/);
   assert.match(js,/browserLocalChatActivity\?\.state==='active'/);
   assert.doesNotMatch(js,/\['active','pending'\]\.includes\(browserLocalChatActivity\?\.state\)/);
@@ -606,7 +622,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.36');
+  assert.equal(manifest.version,'0.1.37');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -623,7 +639,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.36');
+  assert.equal(pkg.version,'0.1.37');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -693,7 +709,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.36"/);
+  assert.match(html,/data-build-version="0\.1\.37"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
