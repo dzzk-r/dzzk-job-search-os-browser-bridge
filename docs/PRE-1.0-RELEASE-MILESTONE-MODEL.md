@@ -1,13 +1,13 @@
 # Execution Delivery Harness — pre-1.0 release milestone model
 
 Status: proposed normative release rationale  
-Baseline when written: 2026-10-08, extension/package `0.1.36`, branch `chore/local-execution`
-Current checkpoint: `08da68e`
+Baseline when written: 2026-10-08, extension/package `0.1.37`, branch `chore/local-execution`
+Current checkpoint: `f632f40`
 
 ## Why this document exists
 
 Execution Delivery Harness already changes faster than a patch-number sequence can explain.
-`0.1.33` through `0.1.36` identify concrete builds, but they do not answer the more important question:
+`0.1.33` through `0.1.37` identify concrete builds, but they do not answer the more important question:
 
 > What capability boundary must become true before the project may honestly call itself `0.2.0`?
 
@@ -350,6 +350,10 @@ Example:
 0.1.36
   advanced: Observable execution accounting
   evidence: provenance-labeled model/provider tokens, cache, throughput and cost telemetry
+
+0.1.37
+  advanced: Observable turn quiescence / safe-next-request semantics
+  evidence: LIVE activity is separated from WORKING / SETTLING / QUIESCENT with a conservative quiet-window boundary
 ```
 
 This is preferable to pretending that the patch number itself encodes progress.
@@ -421,7 +425,7 @@ A minor version must therefore be explainable as an evidence-backed capability t
 
 ---
 
-# Current interpretation at `0.1.36`
+# Current interpretation at `0.1.37`
 
 The project has crossed the point where `0.1.x` means “small browser extension prototype”.
 It already contains substantial Observer, lifecycle, gateway, knowledge and local-executor infrastructure.
