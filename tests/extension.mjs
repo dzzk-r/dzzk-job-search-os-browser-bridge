@@ -570,7 +570,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.32');
+  assert.equal(manifest.version,'0.1.33');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -587,7 +587,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.32');
+  assert.equal(pkg.version,'0.1.33');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -657,7 +657,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.32"/);
+  assert.match(html,/data-build-version="0\.1\.33"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -673,7 +673,11 @@ test('scoped timeline events expose explicit source-chat navigation', async () =
   assert.match(js,/type:'conversation-open'/);
   assert.match(bg,/case 'conversation-open'/);
   assert.match(bg,/tabs\.update\(tab\.id,\{active:true\}\)/);
-  assert.match(bg,/tabs\.create\(\{url:binding\.url,active:true\}\)/);
+  assert.match(bg,/const canonicalUrl='https:\/\/chatgpt\.com\/c\/'\+encodeURIComponent\(id\)/);
+  assert.match(bg,/opened:alreadyCurrent\?'current':'existing'/);
+  assert.match(bg,/tabs\.create\(\{url:targetUrl,active:true\}\)/);
+  assert.match(js,/Source chat is current/);
+  assert.match(js,/Opened source chat/);
 });
 
 

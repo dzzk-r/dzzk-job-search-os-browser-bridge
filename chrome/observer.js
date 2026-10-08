@@ -852,8 +852,19 @@ function renderTimeline(state) {
         nav.addEventListener('click',async e=>{
           e.stopPropagation();
           nav.disabled=true;
-          try { await send({type:'conversation-open',conversation_id:c.conversation_id}); }
-          catch(err) { $('error').textContent=String(err?.message||err); nav.disabled=false; }
+          const idleLabel='Open source chat';
+          try {
+            const result=await send({type:'conversation-open',conversation_id:c.conversation_id});
+            $('error').textContent='';
+            nav.textContent=result?.opened==='current'?'Source chat is current':'Opened source chat';
+            nav.title=result?.opened==='current'?'This event belongs to the ChatGPT conversation already active in this window.':'The ChatGPT conversation that owns this event was activated.';
+            setTimeout(()=>{ nav.textContent=idleLabel; nav.title='Activate the ChatGPT conversation that owns this event'; nav.disabled=false; },1600);
+          } catch(err) {
+            $('error').textContent=String(err?.message||err);
+            nav.textContent='Open failed · retry';
+            nav.title='Source chat could not be opened. Click to retry.';
+            nav.disabled=false;
+          }
         });
         full.append(document.createElement('br'),nav);
       }
