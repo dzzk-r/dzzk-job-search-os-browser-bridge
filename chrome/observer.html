@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build-version="0.1.37">
+<html lang="en" data-build-version="0.1.38">
 <head>
   <meta charset="utf-8">
   <title>Execution Delivery Harness — Observer</title>
@@ -107,12 +107,20 @@
           </button>
           <span id="timeline-quiescence" class="timeline-quiescence settling" title="Observed execution boundary is still settling">SETTLING</span>
           <div id="timeline-live-popover" class="timeline-live-popover" role="tooltip">
-            <strong>Live timeline</strong>
-            <div id="timeline-window-summary">Waiting for timeline data…</div>
-            <div id="timeline-view-summary" class="muted">Raw evidence view</div>
-            <div id="timeline-quiescence-summary">Execution boundary is still being evaluated.</div>
-            <div id="timeline-quiescence-reason" class="muted"></div>
-            <div class="muted">LIVE reports observed activity. QUIESCENT is a separate observer-inferred next-request boundary; it is not transport-authoritative until GW-01 owns dispatch.</div>
+            <div class="live-popover-head">
+              <strong>Live status</strong>
+              <span id="timeline-live-updated" class="live-popover-updated">updated —</span>
+            </div>
+            <div class="live-popover-grid">
+              <span class="live-popover-key">Activity</span><strong id="timeline-activity-summary">Idle</strong>
+              <span class="live-popover-key">Boundary</span><strong id="timeline-quiescence-summary">SETTLING</strong>
+              <span class="live-popover-key">Last evidence</span><span id="timeline-last-evidence">—</span>
+              <span class="live-popover-key">Window</span><span id="timeline-window-summary">Waiting for timeline data…</span>
+              <span class="live-popover-key">View</span><span id="timeline-view-summary">Raw</span>
+              <span class="live-popover-key">Usage</span><span id="timeline-usage-summary">not available for current run</span>
+            </div>
+            <div id="timeline-quiescence-reason" class="live-popover-callout"></div>
+            <div class="live-popover-foot">Boundary quality: <strong>observer_inferred</strong> · not transport-authoritative until GW-01 owns dispatch.</div>
           </div>
         </div>
       </div>
@@ -135,6 +143,7 @@
         <section class="detail-group">
           <h3>Progress &amp; budget</h3>
           <div id="task-lifecycle-work" class="run-summary"></div>
+          <div id="task-usage" class="usage-panel" hidden></div>
         </section>
       </div>
     </details>

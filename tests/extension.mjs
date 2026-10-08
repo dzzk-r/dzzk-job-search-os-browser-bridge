@@ -475,12 +475,12 @@ test('Observer renders provenance-labeled model usage without inventing unavaila
   assert.match(observer,/["\']usage["\']:\s*\(report or \{\}\)\.get\(["\']usage["\']\)/);
 });
 
-test('0.1.37 separates LIVE activity from observer-inferred next-request quiescence', async () => {
+test('0.1.38 separates LIVE activity from observer-inferred next-request quiescence', async () => {
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
   assert.match(html,/id="timeline-quiescence"/);
-  assert.match(html,/QUIESCENT is a separate observer-inferred next-request boundary/);
+  assert.match(html,/Boundary quality: <strong>observer_inferred<\/strong>/);
   assert.match(js,/QUIESCENCE_QUIET_SECONDS=15/);
   assert.match(js,/state:'WORKING'/);
   assert.match(js,/state:'SETTLING'/);
@@ -491,14 +491,43 @@ test('0.1.37 separates LIVE activity from observer-inferred next-request quiesce
   assert.match(css,/timeline-quiescence\.quiescent/);
 });
 
+test('LIVE popover is a structured status card with freshness and compact usage summary', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
+  for(const id of ['timeline-live-updated','timeline-activity-summary','timeline-quiescence-summary','timeline-last-evidence','timeline-window-summary','timeline-view-summary','timeline-usage-summary','timeline-quiescence-reason']) assert.match(html,new RegExp('id=\"'+id+'\"'));
+  assert.match(html,/live-popover-grid/);
+  assert.match(css,/\.live-popover-grid/);
+  assert.match(css,/\.live-popover-callout/);
+  assert.match(js,/updated '\+new Date\(\)\.toLocaleTimeString/);
+  assert.match(js,/compactUsageSummary\(currentUsage\(state\)\)/);
+});
+
+test('Task usage presentation separates budget, model usage and role-aware resources', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
+  assert.match(html,/id="task-usage"/);
+  assert.match(js,/Budget envelope/);
+  assert.match(js,/Model usage/);
+  assert.match(js,/Resources/);
+  assert.match(js,/recently_observed/);
+  assert.match(js,/usage_bound/);
+  assert.match(js,/profile_declared/);
+  assert.match(css,/\.usage-metric-provenance/);
+  assert.match(css,/\.resource-row/);
+  assert.doesNotMatch(js,/\['Budget',JSON\.stringify\(task\.budget/);
+  assert.doesNotMatch(js,/\['Budget used',JSON\.stringify\(task\.budget_used/);
+});
+
 test('timeline LIVE indicator separates feed state from presentation-window counts', async () => {
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
   assert.match(html,/id="timeline-live-dot"/);
   assert.match(html,/id="timeline-live-popover"/);
-  assert.match(js,/Latest '\+rawCount\.toLocaleString\(\)\+' of '/);
-  assert.match(html,/LIVE reports observed activity/);
+  assert.match(js,/rawCount\.toLocaleString\(\)\+' \/ '\+total\.toLocaleString\(\)\+' raw events'/);
+  assert.match(html,/Live status/);
   assert.match(css,/timeline-live-cluster\.active \.timeline-live-dot/);
   assert.match(js,/browserLocalChatActivity\?\.state==='active'/);
   assert.doesNotMatch(js,/\['active','pending'\]\.includes\(browserLocalChatActivity\?\.state\)/);
@@ -622,7 +651,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.37');
+  assert.equal(manifest.version,'0.1.38');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -639,7 +668,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.37');
+  assert.equal(pkg.version,'0.1.38');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -709,7 +738,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.37"/);
+  assert.match(html,/data-build-version="0\.1\.38"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -867,8 +896,10 @@ test('Current task uses one key-value grammar with per-field semantic help', asy
   assert.match(js,/Current orchestration phase inside the task lifecycle/);
   assert.match(js,/Latest durable progress marker/);
   assert.match(js,/Lifecycle steps already completed/);
-  assert.match(js,/Execution limits allocated to this task/);
-  assert.match(js,/Observed consumption of the allocated task budget/);
+  assert.match(js,/Budget envelope/);
+  assert.match(js,/task_envelope/);
+  assert.match(js,/Model usage/);
+  assert.match(js,/renderUsagePanel\(state,usage,task\.budget/);
   assert.match(js,/task-preview.*title/s);
 });
 

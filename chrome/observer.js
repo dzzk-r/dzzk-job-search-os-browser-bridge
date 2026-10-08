@@ -477,6 +477,127 @@ function modelUsageRows(usage,profile={}) {
   ];
 }
 
+function usageMetricParts(metric,{unit='tokens',digits=0}={}) {
+  if(!metric || metric.value==null) return {value:'not reported',quality:'unavailable',source:'not_reported',estimator:null};
+  const n=Number(metric.value);
+  const formatted=Number.isFinite(n)?n.toLocaleString(undefined,{maximumFractionDigits:digits,minimumFractionDigits:digits}):String(metric.value);
+  return {value:formatted+(unit?' '+unit:''),quality:metric.quality||'unknown',source:metric.source||'unknown',estimator:metric.estimator||null};
+}
+function usageCostParts(cost) {
+  if(!cost) return {value:'not available',quality:'unavailable',source:'not_reported'};
+  if(cost.value_usd!=null) {
+    const n=Number(cost.value_usd);
+    return {value:'$'+(Number.isFinite(n)?n.toFixed(n<0.01?6:4):String(cost.value_usd)),quality:cost.quality||'unknown',source:cost.source||'unknown',estimator:null};
+  }
+  if(cost.status==='not_metered') return {value:'not metered',quality:'unavailable',source:'local_runtime',estimator:null};
+  return {value:'not available',quality:'unavailable',source:cost.source||'pricing_unavailable',estimator:null};
+}
+function appendUsageMetric(parent,label,parts) {
+  const box=document.createElement('div'); box.className='usage-metric';
+  const l=document.createElement('span'); l.className='usage-metric-label'; l.textContent=label;
+  const v=document.createElement('span'); v.className='usage-metric-value'; v.textContent=parts.value;
+  const provenance=document.createElement('div'); provenance.className='usage-metric-provenance';
+  for(const [text,cls] of [[parts.quality,parts.quality],[parts.source,'source'],[parts.estimator,'estimator']]) {
+    if(!text) continue;
+    const badge=document.createElement('span'); badge.className='usage-badge '+(cls||''); badge.textContent=text; provenance.append(badge);
+  }
+  box.append(l,v,provenance); parent.append(box);
+}
+function appendUsageCard(parent,title,meta='') {
+  const card=document.createElement('section'); card.className='usage-card';
+  const head=document.createElement('div'); head.className='usage-card-head';
+  const t=document.createElement('span'); t.className='usage-card-title'; t.textContent=title;
+  const m=document.createElement('span'); m.className='usage-card-meta'; m.textContent=meta;
+  head.append(t,m); card.append(head); parent.append(card); return card;
+}
+function budgetMetric(value,suffix='') {
+  return {value:value==null?'not set':String(value)+suffix,quality:value==null?'unavailable':'declared',source:'task_envelope'};
+}
+function recentResourceRows(state,usage,profile={}) {
+  const rows=[];
+  const seen=new Set();
+  const add=(role,name,quality)=>{ if(!name) return; const key=role+'|'+name; if(seen.has(key)) return; seen.add(key); rows.push([role,String(name),quality]); };
+  add('Model',usage?.model||profile.model,usage?.model?'usage_bound':'profile_declared');
+  add('Provider',usage?.provider||profile.provider,usage?.provider?'usage_bound':'profile_declared');
+  const run=state.run_inspection||{};
+  if(run.opencode_version) add('Agent','OpenCode '+run.opencode_version,'run_reported');
+  const now=Date.now()/1000;
+  const recent=(state.timeline||[]).filter(event=>Number(event.ts||0)>0 && now-Number(event.ts)<=300);
+  const counts=new Map();
+  for(const event of recent) {
+    const src=String(event.source||'').toUpperCase();
+    if(src==='RDC') add('Transport','Remote Desktop Commander','recently_observed');
+    if(src==='MCP') add('Protocol','MCP','recently_observed');
+    if(src==='LLAMA') add('Runtime','llama.cpp','recently_observed');
+    if(src==='OC') add('Agent','OpenCode','recently_observed');
+    if(src==='QWEN') add('Model','Qwen','recently_observed');
+    let tool=null;
+    if(src==='RDC') tool=String(event.message||'').match(/^(start_process|read_process_output|search_files|read_file|write_file|list_directory|find_files|kill_process)/)?.[1]||null;
+    if(src==='MCP') tool=String(event.message||'').match(/\btool\s+([A-Za-z0-9_.:-]+)/i)?.[1]||null;
+    if(tool) counts.set(tool,(counts.get(tool)||0)+1);
+  }
+  for(const [tool,count] of [...counts.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5)) add('Tool',tool+(count>1?' ×'+count:''),'recently_observed');
+  return rows;
+}
+function renderUsagePanel(state,usage,budget={},profile={}) {
+  const root=$('task-usage');
+  const hasBudget=budget && Object.keys(budget).length>0;
+  const resources=recentResourceRows(state,usage,profile);
+  if(!usage && !hasBudget && !resources.length) { root.hidden=true; root.replaceChildren(); return; }
+  root.hidden=false; root.replaceChildren();
+
+  if(hasBudget) {
+    const card=appendUsageCard(root,'Budget envelope','declared · task_envelope');
+    const grid=document.createElement('div'); grid.className='usage-metrics';
+    appendUsageMetric(grid,'Deadline',budgetMetric(budget.deadline_seconds,' s'));
+    appendUsageMetric(grid,'Agent steps',budgetMetric(budget.max_agent_steps));
+    appendUsageMetric(grid,'Output cap',budgetMetric(budget.max_output_tokens,' tokens'));
+    appendUsageMetric(grid,'Repairs',budgetMetric(budget.max_repairs));
+    card.append(grid);
+  }
+
+  if(usage) {
+    const identity=[usage.provider||profile.provider,usage.model||profile.model].filter(Boolean).join(' · ')||'model request';
+    const card=appendUsageCard(root,'Model usage',identity);
+    const grid=document.createElement('div'); grid.className='usage-metrics';
+    appendUsageMetric(grid,'Input',usageMetricParts(usage.input_tokens));
+    appendUsageMetric(grid,'Output',usageMetricParts(usage.output_tokens));
+    appendUsageMetric(grid,'Cache read',usageMetricParts(usage.cache_read_tokens));
+    appendUsageMetric(grid,'Cache write',usageMetricParts(usage.cache_write_tokens));
+    appendUsageMetric(grid,'Throughput',usageMetricParts(usage.output_tokens_per_second,{unit:'tok/s',digits:2}));
+    appendUsageMetric(grid,'Cost',usageCostParts(usage.cost));
+    card.append(grid);
+  }
+
+  if(resources.length) {
+    const card=appendUsageCard(root,'Resources','role-aware · provenance labeled');
+    const list=document.createElement('div'); list.className='resource-list';
+    for(const [role,name,quality] of resources) {
+      const row=document.createElement('div'); row.className='resource-row';
+      const r=document.createElement('span'); r.className='resource-role'; r.textContent=role;
+      const n=document.createElement('span'); n.className='resource-name'; n.textContent=name;
+      const q=document.createElement('span'); q.className='resource-quality'; q.textContent=quality;
+      row.append(r,n,q); list.append(row);
+    }
+    card.append(list);
+  }
+}
+function currentUsage(state) {
+  return state.task_lifecycle?.budget_used?.model_usage || state.run_inspection?.usage || null;
+}
+function compactUsageSummary(usage) {
+  if(!usage) return 'not reported for current run';
+  const input=usage.input_tokens, output=usage.output_tokens;
+  if(!input && !output) return 'record exists · token counts unavailable';
+  const bits=[];
+  if(input?.value!=null) bits.push(Number(input.value).toLocaleString()+' in');
+  if(output?.value!=null) bits.push(Number(output.value).toLocaleString()+' out');
+  const qualities=[input?.quality,output?.quality].filter(Boolean);
+  const q=qualities.length && qualities.every(x=>x===qualities[0])?qualities[0]:'mixed quality';
+  if(q) bits.push(q);
+  return bits.join(' · ');
+}
+
 function appendKeyValues(parent, rows) {
   const frag=document.createDocumentFragment();
   for(const [key,value,cls,help] of rows) {
@@ -598,6 +719,7 @@ function renderTaskLifecycle(state) {
       ['Phase','-']
     ]);
     $('task-lifecycle-work').replaceChildren();
+    $('task-usage').replaceChildren(); $('task-usage').hidden=true;
     return;
   }
   const terminal=['DONE','ERROR','CANCELED'].includes(String(task.status||'').toUpperCase());
@@ -625,15 +747,12 @@ function renderTaskLifecycle(state) {
     ['Checkpoint',task.last_durable_checkpoint||'-','', 'Latest durable progress marker that can survive interruption or resume.']
   ]);
   const usage=task.budget_used?.model_usage||null;
-  const workRows=[
+  appendKeyValues($('task-lifecycle-work'),[
     ['Completed',(task.completed||[]).join(' · ')||'none','', 'Lifecycle steps already completed for this task.'],
     ['Current',task.current||'none','', 'The work step the Harness currently considers in progress.'],
-    ['Pending',(task.pending||[]).join(' · ')||'none','', 'Known lifecycle steps still required before the task can finish.'],
-    ['Budget',JSON.stringify(task.budget||{}),'', 'Execution limits allocated to this task, such as deadline, agent steps, output tokens and repairs.'],
-    ['Budget used',JSON.stringify(task.budget_used||{}),'', 'Observed consumption of the allocated task budget. Raw lifecycle data is preserved here; structured model usage is expanded below when available.']
-  ];
-  workRows.push(...modelUsageRows(usage,task.execution_profile||{}));
-  appendKeyValues($('task-lifecycle-work'),workRows);
+    ['Pending',(task.pending||[]).join(' · ')||'none','', 'Known lifecycle steps still required before the task can finish.']
+  ]);
+  renderUsagePanel(state,usage,task.budget||{},task.execution_profile||{});
 }
 
 function renderRunInspection(state) {
@@ -1118,28 +1237,29 @@ function deriveQuiescence(state) {
   const spans=quiescenceOutstandingSpans(state);
   const events=quiescenceRelevantEvents(state);
   const latest=events.length?events.reduce((a,b)=>Number(a.ts||0)>=Number(b.ts||0)?a:b):null;
-  const latestAge=latest?.ts ? Math.max(0,now-Number(latest.ts)) : null;
+  const latestTs=latest?.ts?Number(latest.ts):null;
+  const latestAge=latestTs ? Math.max(0,now-latestTs) : null;
   const latestLabel=latest ? String(latest.source||'?')+' · '+compactMessage(latest.message||'') : 'none observed';
   if(chatState==='active' || spans.some(span=>String(span.status||'').toUpperCase()==='RUNNING')) {
-    return {state:'WORKING',safe:false,quality:'observer_inferred',reason:chatState==='active'?'ChatGPT turn has positive activity evidence':spans.length+' execution span(s) are running',latestAge,latestLabel};
+    return {state:'WORKING',safe:false,quality:'observer_inferred',reason:chatState==='active'?'ChatGPT turn has positive activity evidence':spans.length+' execution span(s) are running',latestAge,latestLabel,latestTs};
   }
   if(chatState==='waiting_user' || pendingActionApprovalCount>0) {
-    return {state:'SETTLING',safe:false,quality:'observer_inferred',reason:pendingActionApprovalCount>0?pendingActionApprovalCount+' browser action approval(s) are pending':'ChatGPT turn is waiting for user input/approval',latestAge,latestLabel};
+    return {state:'SETTLING',safe:false,quality:'observer_inferred',reason:pendingActionApprovalCount>0?pendingActionApprovalCount+' browser action approval(s) are pending':'ChatGPT turn is waiting for user input/approval',latestAge,latestLabel,latestTs};
   }
   if(chatState==='pending') {
-    return {state:'SETTLING',safe:false,quality:'observer_inferred',reason:'ChatGPT turn is still open without positive activity evidence',latestAge,latestLabel};
+    return {state:'SETTLING',safe:false,quality:'observer_inferred',reason:'ChatGPT turn is still open without positive activity evidence',latestAge,latestLabel,latestTs};
   }
   if(spans.length) {
-    return {state:'SETTLING',safe:false,quality:'observer_inferred',reason:spans.length+' non-terminal execution span(s) remain observable',latestAge,latestLabel};
+    return {state:'SETTLING',safe:false,quality:'observer_inferred',reason:spans.length+' non-terminal execution span(s) remain observable',latestAge,latestLabel,latestTs};
   }
   if(latestAge!==null && latestAge<QUIESCENCE_QUIET_SECONDS) {
     const remaining=Math.max(1,Math.ceil(QUIESCENCE_QUIET_SECONDS-latestAge));
-    return {state:'SETTLING',safe:false,quality:'observer_inferred',reason:'quiet-window probation · '+remaining+'s remaining after latest relevant evidence',latestAge,latestLabel};
+    return {state:'SETTLING',safe:false,quality:'observer_inferred',reason:'quiet-window probation · '+remaining+'s remaining after latest relevant evidence',latestAge,latestLabel,latestTs};
   }
   return {
     state:'QUIESCENT',safe:true,quality:'observer_inferred',
     reason:latestAge===null?'no outstanding observed execution and no recent relevant evidence':'no outstanding observed execution · quiet for '+Math.floor(latestAge)+'s',
-    latestAge,latestLabel
+    latestAge,latestLabel,latestTs
   };
 }
 function renderTimelineLive(state,rawCount,totalCount,displayCount) {
@@ -1147,21 +1267,28 @@ function renderTimelineLive(state,rawCount,totalCount,displayCount) {
   const cluster=$('position');
   cluster.classList.toggle('active',live);
   const total=Number.isFinite(totalCount)?totalCount:rawCount;
-  $('timeline-window-summary').textContent='Latest '+rawCount.toLocaleString()+' of '+total.toLocaleString()+' raw events in the selected scope.';
   const viewName=timelineView[0].toUpperCase()+timelineView.slice(1);
-  $('timeline-view-summary').textContent=viewName+' view · '+displayCount.toLocaleString()+' visible row'+(displayCount===1?'':'s')+'. Raw evidence is unchanged.';
   $('timeline-live-trigger').title=live?'Live timeline · observed work is active':'Live timeline · no positive activity evidence right now';
   const q=deriveQuiescence(state);
+  cluster.classList.remove('working','settling','quiescent');
+  cluster.classList.add(q.state.toLowerCase());
   const badge=$('timeline-quiescence');
   badge.textContent=q.state;
   badge.className='timeline-quiescence '+q.state.toLowerCase();
   badge.title=q.state==='QUIESCENT'
-    ? 'Observed quiescence: no known outstanding work. This is observer-inferred, not yet transport-authoritative.'
+    ? 'Observed quiescence: no known outstanding work. Observer-inferred until GW-01 owns dispatch.'
     : 'Do not treat the current idle gap as a proven end-of-turn boundary.';
-  $('timeline-quiescence-summary').textContent=q.state==='QUIESCENT'
-    ? 'Observed next-request boundary: QUIESCENT'
-    : q.state+' · next-request boundary not yet established';
-  $('timeline-quiescence-reason').textContent='Reason: '+q.reason+'. Latest relevant evidence: '+q.latestLabel+(q.latestAge==null?'':(' · '+seconds(q.latestAge)+' ago'))+'. quality='+q.quality+'.';
+
+  $('timeline-activity-summary').textContent=live?'ACTIVE':'IDLE';
+  $('timeline-quiescence-summary').textContent=q.state;
+  $('timeline-last-evidence').textContent=q.latestTs
+    ? new Date(q.latestTs*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})+' · '+seconds(q.latestAge)+' ago'
+    : 'none observed';
+  $('timeline-window-summary').textContent=rawCount.toLocaleString()+' / '+total.toLocaleString()+' raw events';
+  $('timeline-view-summary').textContent=viewName+' · '+displayCount.toLocaleString()+' row'+(displayCount===1?'':'s');
+  $('timeline-usage-summary').textContent=compactUsageSummary(currentUsage(state));
+  $('timeline-live-updated').textContent='updated '+new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  $('timeline-quiescence-reason').textContent=q.reason+'. Latest: '+q.latestLabel+'.';
 }
 
 function renderTimeline(state) {
