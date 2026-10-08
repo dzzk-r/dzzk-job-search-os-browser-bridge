@@ -182,6 +182,28 @@ test('browser-observed turn lifecycle persists an active lease and closes it on 
   assert.deepEqual(lifecycle,['TURN_START','TURN_ACTIVE','TURN_DONE']);
 });
 
+test('browser recovery START aliases to the still-leased canonical turn instead of splitting lifecycle',async t=>{
+  const b=await setup(t);
+  const conversation_id='chat-reload-123';
+  const first='browser:chat-reload-123:11111111-1111-1111-1111-111111111111';
+  const recovered='browser:chat-reload-123:22222222-2222-2222-2222-222222222222';
+  const common={conversation_id,url:'https://chatgpt.com/c/chat-reload-123',title:'Reload chat',observed_at:new Date().toISOString(),user_count:1,assistant_count:1};
+  assert.equal((await b.extension('turn-observed',{...common,turn_id:first,phase:'START',reason:'composer-submit'})).status,200);
+  assert.equal((await b.extension('turn-observed',{...common,turn_id:first,phase:'ACTIVE',reason:'generating-control-present'})).status,200);
+  const recovery=await b.extension('turn-observed',{...common,turn_id:recovered,phase:'START',reason:'attached-during-generation'});
+  assert.equal(recovery.status,200);
+  assert.equal(recovery.value.turn_id,first);
+  assert.equal(recovery.value.observed_turn_id,recovered);
+  assert.equal(recovery.value.recovered,true);
+  const done=await b.extension('turn-observed',{...common,turn_id:recovered,phase:'DONE',reason:'completed-response-actions-stable',usage_estimate:{schema_version:'1.0',provider:'chatgpt-web',input_tokens:{value:10,quality:'estimated',source:'observable_browser_text',estimator:'utf8-bytes-per-token-v1'}}});
+  assert.equal(done.status,200);
+  assert.equal(done.value.turn_id,first);
+  const lines=(await readFile(b.observerEventPath,'utf8')).trim().split('\n').map(JSON.parse).filter(x=>x.source?.conversation_id===conversation_id);
+  assert.deepEqual(lines.map(x=>x.event),['TURN_START','TURN_ACTIVE','TURN_DONE']);
+  assert.ok(lines.every(x=>x.source.turn_id===first));
+  assert.equal(lines.at(-1).meta.usage_estimate.input_tokens.value,10);
+});
+
 test('dev reload revision is monotonic and visible to the extension poll',async t=>{
   const b=await setup(t);
   const before=(await b.extension('next')).value.reload_revision;
@@ -198,7 +220,7 @@ test('observer snapshot reports disk extension semver without forcing reload',as
   const b=await setup(t);
   const snapshot=await b.extension('observer');
   assert.equal(snapshot.status,200);
-  assert.equal(snapshot.value.extension_version.disk,'0.1.38');
+  assert.equal(snapshot.value.extension_version.disk,'0.1.39');
 });
 
 test('OpenCode-style DCR metadata is accepted without advertising unsupported refresh grants',async t=>{

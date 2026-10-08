@@ -259,7 +259,8 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
         generating:m.generating===true,
         active_turn_id:m.active_turn_id||null,
         activity_state:['active','waiting_user','pending','idle'].includes(m.activity_state)?m.activity_state:'idle',
-        waiting_user:m.waiting_user===true
+        waiting_user:m.waiting_user===true,
+        last_turn_usage:m.last_turn_usage&&typeof m.last_turn_usage==='object'?m.last_turn_usage:null
       };
       chatDetectorByTab.set(tab.id,localActivity);
       try {
@@ -275,6 +276,7 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
           active_turn_id:localActivity.active_turn_id,
           activity_state:localActivity.activity_state,
           waiting_user:localActivity.waiting_user,
+          last_turn_usage:localActivity.last_turn_usage,
           structural_counts:m.structural_counts&&typeof m.structural_counts==='object'?m.structural_counts:null,
           tab_id:tab.id
         });
@@ -287,7 +289,7 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
       if(!tab || !Number.isInteger(tab.id)) throw new Error('Chat turn observation requires a browser tab.');
       const binding=conversations.getByTab({...tab,url:m.url||tab.url,title:m.title||tab.title||''});
       if(!binding || binding.conversation_id!==m.conversation_id) throw new Error('Chat turn does not match the tab conversation binding.');
-      return companion('/bridge/turn-observed',{
+      const result=await companion('/bridge/turn-observed',{
         phase:m.phase,
         conversation_id:m.conversation_id,
         turn_id:m.turn_id,
@@ -296,8 +298,14 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
         observed_at:m.observed_at,
         reason:m.reason||null,
         user_count:Number.isInteger(m.user_count)?m.user_count:null,
-        assistant_count:Number.isInteger(m.assistant_count)?m.assistant_count:null
+        assistant_count:Number.isInteger(m.assistant_count)?m.assistant_count:null,
+        usage_estimate:m.usage_estimate&&typeof m.usage_estimate==='object'?m.usage_estimate:null
       });
+      if(m.phase==='DONE' && m.usage_estimate) {
+        const prior=chatDetectorByTab.get(tab.id)||{};
+        chatDetectorByTab.set(tab.id,{...prior,conversation_id:m.conversation_id,observed_at:m.observed_at||new Date().toISOString(),activity_state:'idle',active_turn_id:null,last_turn_usage:m.usage_estimate});
+      }
+      return result;
     }
     case 'conversation-state': return {bindings:conversations.list()};
 
@@ -349,7 +357,8 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
         waiting_user:fresh.activity_state==='waiting_user',
         pending:fresh.activity_state==='pending',
         generating:fresh.generating===true,
-        source_quality:'browser_observed'
+        source_quality:'browser_observed',
+        last_turn_usage:fresh.last_turn_usage||null
       } : null};
     }
     case 'conversation-bind': {

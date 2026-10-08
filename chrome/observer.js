@@ -583,7 +583,7 @@ function renderUsagePanel(state,usage,budget={},profile={}) {
   }
 }
 function currentUsage(state) {
-  return state.task_lifecycle?.budget_used?.model_usage || state.run_inspection?.usage || null;
+  return browserLocalChatActivity?.last_turn_usage || state.task_lifecycle?.budget_used?.model_usage || state.run_inspection?.usage || null;
 }
 function compactUsageSummary(usage) {
   if(!usage) return 'not reported for current run';
@@ -1275,9 +1275,10 @@ function renderTimelineLive(state,rawCount,totalCount,displayCount) {
   const badge=$('timeline-quiescence');
   badge.textContent=q.state;
   badge.className='timeline-quiescence '+q.state.toLowerCase();
-  badge.title=q.state==='QUIESCENT'
-    ? 'Observed quiescence: no known outstanding work. Observer-inferred until GW-01 owns dispatch.'
-    : 'Do not treat the current idle gap as a proven end-of-turn boundary.';
+  badge.removeAttribute('title');
+  badge.setAttribute('aria-label',q.state==='QUIESCENT'
+    ? 'Observed quiescence: no known outstanding work; observer-inferred until GW-01 owns dispatch.'
+    : q.state+'; current idle gap is not a proven end-of-turn boundary.');
 
   $('timeline-activity-summary').textContent=live?'ACTIVE':'IDLE';
   $('timeline-quiescence-summary').textContent=q.state;

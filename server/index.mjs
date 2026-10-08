@@ -120,6 +120,7 @@ export async function createBridgeServer(options = {}) {
   const clientPolicies = new Map(), policyRevisions = new Map();
   const activeBrowserConversations = new Map();
   const activeBrowserTurns = new Map();
+  const browserTurnAliases = new Map();
   const chatDetectorStatuses = new Map();
   let chatTabInventory = {observed_at:null,tabs:[]};
   const browserTurnStatePath = options.browserTurnStatePath ?? join(homedir(), '.local', 'state', 'execution-delivery-harness', 'browser-turn-state.json');
@@ -535,15 +536,29 @@ export async function createBridgeServer(options = {}) {
             locator:chatUrl.href,
             source_quality:'browser_observed'
           };
-          let state=activeBrowserTurns.get(data.turn_id);
+          let canonicalTurnId=browserTurnAliases.get(data.turn_id)||data.turn_id;
+          let state=activeBrowserTurns.get(canonicalTurnId);
           let recovered=false;
           let started=false;
           const dropConversationSiblings=()=>{
             for(const [id,other] of activeBrowserTurns) {
-              if(id!==data.turn_id && other.conversation_id===data.conversation_id) activeBrowserTurns.delete(id);
+              if(id!==canonicalTurnId && other.conversation_id===data.conversation_id) activeBrowserTurns.delete(id);
             }
           };
           if(phase==='START') {
+            const recoveryReason=['attached-during-generation','generating-without-active-turn-recovery'].includes(String(data.reason||''));
+            if(!state && recoveryReason) {
+              for(const [id,other] of activeBrowserTurns) {
+                const lease=Date.parse(other.lease_until||0);
+                if(other.conversation_id===data.conversation_id && Number.isFinite(lease) && lease>=now.getTime()) {
+                  canonicalTurnId=id;
+                  state=other;
+                  browserTurnAliases.set(data.turn_id,id);
+                  recovered=true;
+                  break;
+                }
+              }
+            }
             dropConversationSiblings();
             if(state && state.conversation_id===data.conversation_id) {
               state.url=chatUrl.href;
@@ -551,9 +566,10 @@ export async function createBridgeServer(options = {}) {
               state.last_seen_at=observedAt.toISOString();
               state.lease_until=new Date(now.getTime()+15000).toISOString();
             } else {
+              canonicalTurnId=data.turn_id;
               state={
                 conversation_id:data.conversation_id,
-                turn_id:data.turn_id,
+                turn_id:canonicalTurnId,
                 url:chatUrl.href,
                 title,
                 started_at:observedAt.toISOString(),
@@ -561,14 +577,14 @@ export async function createBridgeServer(options = {}) {
                 lease_until:new Date(now.getTime()+15000).toISOString(),
                 active_emitted:false
               };
-              activeBrowserTurns.set(data.turn_id,state);
+              activeBrowserTurns.set(canonicalTurnId,state);
               started=true;
             }
           } else if(phase==='HEARTBEAT' && (!state || state.conversation_id!==data.conversation_id)) {
             dropConversationSiblings();
             state={
               conversation_id:data.conversation_id,
-              turn_id:data.turn_id,
+              turn_id:canonicalTurnId,
               url:chatUrl.href,
               title,
               started_at:observedAt.toISOString(),
@@ -576,7 +592,7 @@ export async function createBridgeServer(options = {}) {
               lease_until:new Date(now.getTime()+15000).toISOString(),
               active_emitted:true
             };
-            activeBrowserTurns.set(data.turn_id,state);
+            activeBrowserTurns.set(canonicalTurnId,state);
             recovered=true;
           } else if(phase==='DONE' && (!state || state.conversation_id!==data.conversation_id)) {
             await persistBrowserTurnState();
@@ -589,6 +605,7 @@ export async function createBridgeServer(options = {}) {
             state.lease_until=new Date(now.getTime()+15000).toISOString();
           }
 
+          source.turn_id=canonicalTurnId;
           let appendPhase=null;
           if(phase==='START' && started) appendPhase='TURN_START';
           else if(phase==='HEARTBEAT' && recovered) appendPhase='TURN_START';
@@ -599,8 +616,8 @@ export async function createBridgeServer(options = {}) {
             await appendObserverEvent({
               actor:'CHAT',
               event:appendPhase,
-              run_id:'browser-turn:'+data.turn_id,
-              span_id:'browser-turn:'+data.turn_id,
+              run_id:'browser-turn:'+canonicalTurnId,
+              span_id:'browser-turn:'+canonicalTurnId,
               message:appendPhase==='TURN_START'?'Browser-observed ChatGPT turn started':
                       appendPhase==='TURN_ACTIVE'?'Browser-observed ChatGPT turn active':
                       'Browser-observed ChatGPT turn completed',
@@ -610,13 +627,14 @@ export async function createBridgeServer(options = {}) {
                 url:chatUrl.href,
                 reason:typeof data.reason==='string'?data.reason:null,
                 user_count:Number.isInteger(data.user_count)?data.user_count:null,
-                assistant_count:Number.isInteger(data.assistant_count)?data.assistant_count:null
+                assistant_count:Number.isInteger(data.assistant_count)?data.assistant_count:null,
+                usage_estimate:data.usage_estimate&&typeof data.usage_estimate==='object'?data.usage_estimate:null
               }
             },observerEventPath?{path:observerEventPath}:{});
           }
-          if(phase==='DONE') activeBrowserTurns.delete(data.turn_id);
+          if(phase==='DONE') { activeBrowserTurns.delete(canonicalTurnId); browserTurnAliases.delete(data.turn_id); }
           await persistBrowserTurnState();
-          return json(res,200,{ok:true,phase,conversation_id:data.conversation_id,turn_id:data.turn_id,active_turns:activeBrowserTurns.size,recovered});
+          return json(res,200,{ok:true,phase,conversation_id:data.conversation_id,turn_id:canonicalTurnId,observed_turn_id:data.turn_id,active_turns:activeBrowserTurns.size,recovered});
         }
 
         if (path === '/bridge/chat-observed' && req.method === 'POST') {

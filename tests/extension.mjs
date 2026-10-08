@@ -472,10 +472,10 @@ test('Observer renders provenance-labeled model usage without inventing unavaila
   const usage=await readFile(new URL('../scripts/usage-telemetry.mjs',import.meta.url),'utf8');
   assert.match(usage,/provider_reported/);
   assert.match(usage,/local_estimator/);
-  assert.match(observer,/["\']usage["\']:\s*\(report or \{\}\)\.get\(["\']usage["\']\)/);
+  assert.match(observer,/usage = \(report or \{\}\)\.get\("usage"\) or backfill\.get\("usage"\)/);
 });
 
-test('0.1.38 separates LIVE activity from observer-inferred next-request quiescence', async () => {
+test('0.1.39 separates LIVE activity from observer-inferred next-request quiescence', async () => {
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
@@ -489,6 +489,27 @@ test('0.1.38 separates LIVE activity from observer-inferred next-request quiesce
   assert.match(js,/pendingActionApprovalCount/);
   assert.match(js,/recent unscoped execution must/);
   assert.match(css,/timeline-quiescence\.quiescent/);
+});
+
+test('0.1.39 estimates ChatGPT Web visible-text usage without storing message text', async () => {
+  const chat=await readFile(new URL('../chrome/chat-context.js',import.meta.url),'utf8');
+  const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
+  const observer=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(chat,/observableTurnUsageEstimate/);
+  assert.match(chat,/utf8-bytes-per-token-v1/);
+  assert.match(chat,/observable_browser_text/);
+  assert.match(chat,/Hidden system context, tool schemas/);
+  assert.match(chat,/usage_estimate:phase==='DONE'/);
+  assert.doesNotMatch(chat,/usage_estimate:.*userText/);
+  assert.match(bg,/last_turn_usage/);
+  assert.match(observer,/browserLocalChatActivity\?\.last_turn_usage/);
+});
+
+test('SETTLING badge relies on the structured LIVE popover instead of a competing native title tooltip', async () => {
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(js,/badge\.removeAttribute\('title'\)/);
+  assert.match(js,/badge\.setAttribute\('aria-label'/);
+  assert.doesNotMatch(js,/badge\.title=q\.state/);
 });
 
 test('LIVE popover is a structured status card with freshness and compact usage summary', async () => {
@@ -651,7 +672,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.38');
+  assert.equal(manifest.version,'0.1.39');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -668,7 +689,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.38');
+  assert.equal(pkg.version,'0.1.39');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -738,7 +759,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.38"/);
+  assert.match(html,/data-build-version="0\.1\.39"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -1047,15 +1068,18 @@ test('turn-v5 does not close a ChatGPT turn merely because Stop/Cancel disappear
   assert.doesNotMatch(script,/const generationSettled=/);
 });
 
-test('turn-v5 diagnostics expose completion evidence without reading assistant message text', async () => {
+test('turn-v5 diagnostics stay structural while text access is isolated to usage estimation', async () => {
   const script=await readFile(new URL('../chrome/chat-context.js',import.meta.url),'utf8');
   assert.match(script,/response_action_controls/);
   assert.match(script,/response_action_baseline/);
   assert.match(script,/completion_evidence/);
   assert.match(script,/completion_candidate_ms/);
   assert.match(script,/ready:composerReady\(\)/);
-  assert.doesNotMatch(script,/\.innerText\b/);
-  assert.doesNotMatch(script,/\.textContent\b/);
+  const diagnostics=script.slice(script.indexOf('function structuralNames'),script.indexOf('function utf8Bytes'));
+  assert.doesNotMatch(diagnostics,/\.innerText\b|\.textContent\b/);
+  const estimator=script.slice(script.indexOf('function observableTurnUsageEstimate'),script.indexOf('function publishDetectorStatus'));
+  assert.match(estimator,/\.innerText\b/);
+  assert.match(estimator,/observable_bytes/);
 });
 
 
@@ -1077,9 +1101,9 @@ test('turn-v5 exposes active waiting pending and idle browser states', async () 
 
 test('turn-v5 approval detection is structural and does not read dialog or message text', async () => {
   const chat=await readFile(new URL('../chrome/chat-context.js',import.meta.url),'utf8');
-  assert.match(chat,/\[role="dialog"\]/);
-  assert.match(chat,/\[role="alertdialog"\]/);
-  assert.match(chat,/controls\.length>=2/);
-  assert.doesNotMatch(chat,/\.innerText\b/);
-  assert.doesNotMatch(chat,/\.textContent\b/);
+  const approval=chat.slice(chat.indexOf('function approvalGatePresent'),chat.indexOf('function turnActivityState'));
+  assert.match(approval,/\[role="dialog"\]/);
+  assert.match(approval,/\[role="alertdialog"\]/);
+  assert.match(approval,/controls\.length>=2/);
+  assert.doesNotMatch(approval,/\.innerText\b|\.textContent\b/);
 });

@@ -801,8 +801,10 @@ def run_inspection(run: Path, report, local_agent):
             changed = [str(Path(report["expected"]).resolve().relative_to(DEFAULT_REPO.resolve()))]
         except Exception:
             changed = [str(report["expected"])]
+    backfill = load_json(run / "usage-backfill.json") or {}
+    usage = (report or {}).get("usage") or backfill.get("usage")
     artifacts = {}
-    for name in ("task.txt", "config.json", "command.json", "events.log", "report.json"):
+    for name in ("task.txt", "config.json", "command.json", "events.log", "report.json", "usage-backfill.json"):
         path = run / name
         if path.exists():
             artifacts[name] = str(path)
@@ -813,7 +815,7 @@ def run_inspection(run: Path, report, local_agent):
         "task": task,
         "model": model,
         "provider": (report or {}).get("provider") or ((config.get("execution_profile") or {}).get("provider")) or ((config.get("provider") or {}).get("id")),
-        "usage": (report or {}).get("usage"),
+        "usage": usage,
         "opencode_version": opencode_version,
         "opencode": (report or {}).get("opencode") or ((command.get("argv") or ["-"])[0]),
         "steps": (report or {}).get("steps") or agent.get("steps"),

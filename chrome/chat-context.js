@@ -68,6 +68,7 @@
   let lastAssistantCount=0;
   let activeTurn=null;
   let lastDetectorStatusAt=0;
+  let lastCompletedUsage=null;
 
   function publishContext() {
     const id=conversationIdFromLocation();
@@ -105,7 +106,8 @@
       observed_at:new Date().toISOString(),
       reason,
       user_count:lastUserCount,
-      assistant_count:lastAssistantCount
+      assistant_count:lastAssistantCount,
+      usage_estimate:phase==='DONE'?(activeTurn.usageEstimate||null):null
     });
   }
 
@@ -162,6 +164,27 @@
     return {testids,roles,composer,response_action_controls:responseActionCount()};
   }
 
+  function utf8Bytes(text) {
+    try { return new TextEncoder().encode(String(text||'')).length; } catch { return String(text||'').length; }
+  }
+  function observableTurnUsageEstimate() {
+    const users=[...document.querySelectorAll(USER)];
+    const assistants=[...document.querySelectorAll(ASSISTANT)];
+    const userText=users.at(-1)?.innerText||users.at(-1)?.textContent||'';
+    const assistantText=assistants.at(-1)?.innerText||assistants.at(-1)?.textContent||'';
+    const metric=text=>{
+      const bytes=utf8Bytes(text);
+      return bytes>0?{value:Math.max(1,Math.ceil(bytes/4)),quality:'estimated',source:'observable_browser_text',estimator:'utf8-bytes-per-token-v1',observable_bytes:bytes}:null;
+    };
+    return {
+      schema_version:'1.0',provider:'chatgpt-web',model:null,
+      input_tokens:metric(userText),output_tokens:metric(assistantText),
+      total_tokens:null,cache_read_tokens:null,cache_write_tokens:null,output_tokens_per_second:null,
+      cost:{value_usd:null,quality:'unavailable',source:'server_usage_unavailable',status:'not_available'},
+      semantics:'Observable visible-text estimate only. Hidden system context, tool schemas, server-side context/cache and billed usage are unavailable.'
+    };
+  }
+
   function publishDetectorStatus(now,userCount,assistantCount) {
     const statusInterval=activeTurn ? 3000 : 15000;
     if(now-lastDetectorStatusAt<statusInterval) return;
@@ -180,6 +203,7 @@
       active_turn_id:activeTurn?.id||null,
       activity_state:turnActivityState(now),
       waiting_user:approvalGatePresent(),
+      last_turn_usage:lastCompletedUsage,
       structural_counts:{
         article:count('article'),
         conversation_turn:count('[data-testid^="conversation-turn"]'),
@@ -271,6 +295,8 @@
     if(completionEvidence && !isGenerating && readyForNextTurn) {
       if(!activeTurn.completionCandidateSince) activeTurn.completionCandidateSince=now;
       if(now-activeTurn.completionCandidateSince>=DONE_QUIET_MS) {
+        lastCompletedUsage=observableTurnUsageEstimate();
+        activeTurn.usageEstimate=lastCompletedUsage;
         sendTurn('DONE','completed-response-actions-stable');
         activeTurn=null;
         return;
