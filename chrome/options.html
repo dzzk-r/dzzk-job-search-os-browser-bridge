@@ -16,10 +16,10 @@
     <li>Chrome Side Panel Observer: implemented and locally verified.</li>
     <li>Firefox Observer page: implemented; Sidebar adapter is not yet verified.</li>
     <li>Process/OpenCode/Qwen/llama/Git timeline: implemented.</li>
-    <li>Authoritative “is the current ChatGPT turn still busy?” detection: <strong>not implemented yet</strong>.</li>
+    <li>ChatGPT Web activity/quiescence: browser-observed <strong>WORKING / SETTLING / QUIESCENT</strong> is implemented, but remains observer-inferred rather than transport-authoritative until GW-01 owns real dispatch.</li>
     <li>Firefox Sidebar adapter, Opera observer adapter and public store publication are not yet verified.</li>
   </ul>
-  <p><strong>Important:</strong> the ChatGPT composer may look ready while an MCP/local execution chain is still running. Until the planned MCP gateway/turn lease exists, the Observer cannot guarantee that sending a new message is safe.</p>
+  <p><strong>Important:</strong> the ChatGPT composer may look ready while work is still settling. Use the Observer boundary state as conservative evidence, not as transport authority: <strong>QUIESCENT</strong> is currently observer-inferred until GW-01 owns the real dispatch boundary.</p>
 
   <h2>Connect this browser profile</h2>
   <ol>
@@ -52,7 +52,7 @@
   <p>
     <a href="https://github.com/dzzk-r/execution-delivery-harness/blob/main/docs/STATUS.md" target="_blank" rel="noreferrer">Current status</a> ·
     <a href="https://github.com/dzzk-r/execution-delivery-harness/blob/main/docs/OBSERVER-ARCHITECTURE.md" target="_blank" rel="noreferrer">Observer architecture</a> ·
-    <a href="https://github.com/dzzk-r/execution-delivery-harness#quickstart" target="_blank" rel="noreferrer">Quickstart</a> ·
+    <a href="https://github.com/dzzk-r/execution-delivery-harness/blob/main/docs/CHROME-LOCAL-INSTALL.md" target="_blank" rel="noreferrer">Chrome local install</a> ·
     <a href="https://github.com/dzzk-r/execution-delivery-harness/blob/main/docs/PRIVACY.md" target="_blank" rel="noreferrer">Privacy</a> ·
     <a href="https://github.com/dzzk-r/execution-delivery-harness/issues" target="_blank" rel="noreferrer">Support</a>
   </p>

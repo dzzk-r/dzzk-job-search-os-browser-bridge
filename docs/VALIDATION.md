@@ -1,5 +1,8 @@
 # Validation — 0.1.1
 
+> **Historical snapshot:** this file records the 0.1.1 validation performed on 2026-10-03. It is preserved as evidence and is not the current installation or regression baseline. Current Chrome installation: `docs/CHROME-LOCAL-INSTALL.md`. Current status/test baseline: `docs/STATUS.md`.
+
+
 Executed October 3, 2026.
 
 - Node.js 24.19.0; MCP SDK 1.32.0; web-ext 10.7.0.

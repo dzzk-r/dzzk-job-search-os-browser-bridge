@@ -1,6 +1,6 @@
 # Local stack inventory and second-install onboarding draft
 
-Status: **draft / descriptive only**. This document records the current owner-local installation so a future second-machine / clean-profile onboarding path can be designed without reverse-engineering the first installation. It is not yet an installer specification and does not authorize changing the current machine.
+Status: **draft / broader stack inventory**. This document records the wider owner-local stack so a future second-machine / clean-profile onboarding path can be designed without reverse-engineering the first installation. It is not the canonical Chrome install guide and it is not yet an installer specification. For the current Chrome Side Panel path, use `docs/CHROME-LOCAL-INSTALL.md`.
 
 ## 1. Scope and invariants
 
@@ -19,15 +19,15 @@ A future onboarding flow must preserve these invariants:
 
 ## 2. Current source tree and Git layout
 
-Observed 2026-10-05:
+Current development layout (refreshed 2026-10-09):
 
 - canonical repository: `~/WORK/execution-delivery-harness`
 - active execution worktree: `~/WORK/_bridge-local-execution`
 - active branch: `chore/local-execution`
-- observed HEAD while this inventory was written: `f9a5091`
+- current documented development baseline: extension/package `0.1.40` on `chore/local-execution`; use Git itself for the exact current HEAD
 - GitHub origin: `dzzk-r/execution-delivery-harness`
 
-The active worktree currently contains substantial uncommitted project work. A second installation must consume a deliberate released/committed revision, not copy this worktree byte-for-byte.
+A second installation must consume a deliberate committed revision or release, not copy another machine's worktree/runtime state byte-for-byte.
 
 Important repo areas:
 
@@ -44,6 +44,8 @@ Important repo areas:
 
 ## 3. Browser extension installation
 
+Canonical current Chrome installation/start/update steps live in `docs/CHROME-LOCAL-INSTALL.md`; this section records the broader second-install inventory and portability concerns.
+
 Current Chrome path is an unpacked Manifest V3 extension loaded from:
 
 `~/WORK/_bridge-local-execution/chrome`
@@ -51,14 +53,14 @@ Current Chrome path is an unpacked Manifest V3 extension loaded from:
 Relevant manifest facts:
 
 - name: Execution Delivery Harness Browser Bridge
-- version: 0.1.1
+- version at current documentation baseline: 0.1.40
 - permissions: `activeTab`, `scripting`, `storage`, `alarms`, `sidePanel`
 - loopback host permission: `http://127.0.0.1/*`
-- fixed companion CSP destination: `http://127.0.0.1:43119`
+- companion CSP/host scope: loopback HTTP (`http://127.0.0.1:*`); default configured port is `43119`
 - Side Panel entry: `observer.html`
 - options page: `options.html`
 
-Current development installation requires manual Reload when browser-side HTML/JS/CSS changes. A future packaged/signed distribution should replace this with versioned extension updates and migration-aware local state.
+Current unpacked development installation uses explicit versioned reload semantics: the Side Panel compares the loaded extension version with disk and offers a user-triggered reload when they differ; `chrome://extensions` Reload remains a manual fallback. Gateway restart and extension reload are separate operations. A future packaged/signed distribution should replace unpacked development reload with signed update semantics.
 
 A second installation must explicitly establish:
 
@@ -102,7 +104,7 @@ Observed files:
 
 A fresh installation should create this directory with restrictive permissions and generate a new pairing token. Client registrations should be recreated through normal authorization instead of copied by default.
 
-Port 43119 is currently a convention and implementation dependency. Future onboarding should either reserve/check it or support explicit configured port discovery.
+Port `43119` is the current default. It can be overridden by `EDH_COMPANION_PORT` (including via project `.env`), and each browser profile must be configured with the same port. Future onboarding still needs collision checks and better discovery/service ownership.
 
 ## 5. ChatGPT Desktop / Codex local plugin
 

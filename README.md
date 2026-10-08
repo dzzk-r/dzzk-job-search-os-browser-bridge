@@ -1,96 +1,59 @@
 # Execution Delivery Harness
 
-A local, user-controlled bridge between explicitly shared browser pages and an
-authorized MCP client such as ChatGPT, plus an experimental operator surface
-called **Browser Bridge Observer**.
+Execution Delivery Harness (EDH) is a local, user-controlled bridge and execution
+substrate for explicitly authorized browser/local work, with a live Browser
+Bridge Observer for evidence, provenance and execution state.
 
 By Daniel Chechik / dzzk. Independent of Mozilla, Google, OpenAI, LinkedIn and
 Opera.
 
 > **AI/runtime disclosure rule:** ChatGPT, Codex and all project agents must follow
-> the mandatory IP/external-disclosure boundary in [`AGENTS.md`](AGENTS.md). Private
-> app registration never implies permission to publish or disclose project internals.
+> the mandatory IP/external-disclosure boundary in [`AGENTS.md`](AGENTS.md).
+> Private app registration never implies permission to publish or disclose project
+> internals.
 
-Side Panel semantic/UI design baseline: `docs/SIDE-PANEL-INFORMATION-ARCHITECTURE.md`.
+## Current baseline
 
-Execution lifecycle model: `docs/EXECUTION-LIFECYCLES.md`.
+- package / Chrome / Firefox development version: **0.1.40**;
+- active development branch/worktree: `chore/local-execution`;
+- automated suite: **141/141 passing** on 2026-10-09;
+- next readiness milestone: `owner-local-v0` (currently blocked);
+- pre-1.0 release interpretation: `0.1.x` is the owner-local
+  Observer/foundation line; `0.2.0` requires the owner-local routine execution
+  loop without Remote Desktop Commander on the normal critical path.
 
-Local companion/control-observation plane: `docs/LOCAL-CONTROL-OBSERVATION-PLANE.md`.
+See [`docs/STATUS.md`](docs/STATUS.md) for the current implementation snapshot and
+[`docs/PRE-1.0-RELEASE-MILESTONE-MODEL.md`](docs/PRE-1.0-RELEASE-MILESTONE-MODEL.md)
+for release-capability semantics.
 
-## Current development status
+## Working layers
 
-The project currently has three working surfaces around one MCP boundary:
+1. **Read-only Browser Bridge** — explicit temporary page grants and browser-read
+   MCP tools.
+2. **Local Executor** — bounded filesystem/process primitives behind explicit
+   policy; trusted-shell isolation work remains incomplete.
+3. **Browser Bridge Observer** — immutable raw event ledger plus reversible
+   `Raw / Grouped / Semantic` projections in Chrome Side Panel/TUI surfaces.
+4. **Gateway/orchestration substrate** — correlation, browser-observed ChatGPT
+   turn evidence, detached/prepared dispatch, lifecycle state and knowledge/context
+   injection.
 
-1. **Read-only Browser Bridge** — explicit page-sharing through browser adapters.
-2. **Local Executor** — bounded filesystem/process tools, blocked by default for
-   newly authorized clients.
-3. **Browser Bridge Observer** — a local observability/operator layer for MCP,
-   terminal, OpenCode/Qwen, llama.cpp and Git activity.
+Current Chrome Observer capabilities include named ChatGPT conversation scopes,
+turn lifecycle observation, versioned extension reload, `LIVE` plus conservative
+`WORKING / SETTLING / QUIESCENT` state, source-chat navigation, task/run budget
+presentation and provenance-labeled usage telemetry where evidence exists.
 
-The client-facing architecture is intentionally transport-neutral; see
-[Clients and transports](docs/CLIENTS-AND-TRANSPORTS.md).
+Platform-managed ChatGPT Web -> MCP/RDC calls still do not provide authoritative
+end-to-end transport identity, so browser-derived attribution and quiescence are
+explicitly labeled as observed/inferred rather than authoritative.
 
-The read-only bridge is the baseline. The Observer is already usable locally in
-Chrome and Firefox, but it is still under active development and must **not** yet
-be treated as an authoritative indicator that the current ChatGPT turn is idle.
+## Chrome local quickstart
 
-Verified locally through 2026-10-06:
+The canonical Chrome installation/start/update guide is:
 
-- Firefox read-only bridge synthetic smoke;
-- Chrome unpacked extension with live Side Panel Observer;
-- Firefox Observer page;
-- loopback pairing for Firefox and Chrome;
-- observer timeline from completed MCP history, terminal markers, OpenCode/Qwen,
-  llama.cpp and Git;
-- child-process lifecycle reconstruction for tracked PIDs;
-- named ChatGPT conversation scopes derived from real `/c/<conversation_id>` URLs;
-- browser-observed turn lifecycle with conservative `browser_inferred` attribution;
-- versioned Side Panel reload UX for loaded-vs-disk extension versions;
-- OpenCode 1.14.48 and 1.18.34 bounded-edit compatibility smoke.
+**[`docs/CHROME-LOCAL-INSTALL.md`](docs/CHROME-LOCAL-INSTALL.md)**
 
-Known limitations:
-
-- Desktop Commander writes tool history after a call returns, so an in-flight MCP
-  call can be temporarily invisible;
-- ChatGPT may look ready for a new message while an MCP/local execution chain is
-  still running;
-- Harness-owned pre-dispatch correlation exists, and Chrome can observe real
-  ChatGPT conversation IDs plus browser turn lifecycle, but platform-managed
-  ChatGPT Web tool calls still lack authoritative end-to-end transport identity;
-- PAUSE / BREAK / STOP ALL for the observer execution plane are not implemented;
-- Firefox Sidebar and Opera observer adapters are not yet verified;
-- live LinkedIn DOM, live ChatGPT OAuth linking, AMO signing/publication and
-  public store release remain outside the verified scope.
-
-See [Current status](docs/STATUS.md),
-[Observer architecture](docs/OBSERVER-ARCHITECTURE.md),
-[Clients and transports](docs/CLIENTS-AND-TRANSPORTS.md), and the
-[cross-cutting TODO](TODO.md).
-
-> **Repository state:** as of 2026-10-06 the active local worktree is
-> `chore/local-execution`. The live-acceptance delta after `f9a5091` has been
-> stabilized into separate implementation, evidence/knowledge, and documentation
-> checkpoint commits. `TODO.md` is the authoritative task catalog; integration
-> into `main` remains a separate reviewed step.
-
-## Version 0.1.17 development baseline
-
-The MCP server exposes four read-only page tools:
-`list_tabs`, `read_page`, `find_in_page`, `bridge_status`.
-Use them for browser pages you explicitly share, including visible job listings
-and recruiter conversations. The bridge does not log in, crawl message history,
-send messages or submit applications. Only loaded main-document text is read.
-
-Each page is shared from the browser UI for 30 minutes. Navigation, reload, tab
-closure, extension restart and manual revocation end access. Unshared tabs are
-not listed. No browser history, cookie API, raw profile or form-draft export.
-
-## Quickstart
-
-Requires Node.js 22+ and either Firefox 140+ or a Chromium-family browser that
-supports the extension APIs used by the current adapter.
-
-Start the local companion:
+Minimal path:
 
 ```sh
 git clone https://github.com/dzzk-r/execution-delivery-harness.git
@@ -99,82 +62,65 @@ npm ci
 npm start
 ```
 
-### Firefox
+Then open `chrome://extensions`, enable Developer mode, choose **Load unpacked**,
+and select the repository's `chrome/` directory. Pair the profile with the local
+companion using the token created at:
 
-Load `firefox/manifest.json` using Firefox `about:debugging` → This Firefox →
-Load Temporary Add-on. Temporary installation ends when Firefox restarts.
-For permanent installation, Mozilla must sign the submitted package.
-
-### Chrome
-
-Open `chrome://extensions`, enable Developer mode, choose **Load unpacked** and
-select the repository's `chrome/` directory. The current Chrome adapter provides
-the Browser Bridge Observer through the Side Panel API. This is a local
-development path, not a Chrome Web Store release.
-
-The companion creates one persistent extension pairing token for this local
-installation. It is stored at:
-
-`~/.config/dzzk-jso-bridge/pairing-token`
-
-Show it in Terminal only when you actually need to read it:
-
-```sh
-cat ~/.config/dzzk-jso-bridge/pairing-token
+```text
+~/.config/dzzk-jso-bridge/pairing-token
 ```
 
-On macOS, copy it without printing it:
+The default companion endpoint is `http://127.0.0.1:43119`. Clicking the extension
+toolbar action opens the Side Panel Observer.
 
-```sh
-pbcopy < ~/.config/dzzk-jso-bridge/pairing-token
-```
+`llama.cpp`, Ollama, OpenCode and a standalone `run-observer.py` process are **not
+required** for this basic Chrome Side Panel path.
 
-Paste that same token into the Browser Bridge settings for every Firefox or
-Chrome profile you want to pair with this companion, then accept the data-flow
-disclosure. Browser profiles keep separate extension storage, so Firefox and
-Chrome each need this one-time pairing even though they use the same companion
-token. Restarting the companion reuses the token; it is regenerated only if the
-pairing-token file is removed. Keep it out of chats and screenshots.
+## Firefox development path
 
-Open the toolbar button and check that the companion is Connected.
+Firefox remains a separate adapter. Load `firefox/manifest.json` through
+`about:debugging` -> **This Firefox** -> **Load Temporary Add-on** for local
+synthetic/development testing. Temporary installation ends when Firefox restarts.
+A permanent public install requires Mozilla signing/review.
 
-### ChatGPT
+The historical Firefox 0.1.1 validation snapshot is preserved in
+[`docs/VALIDATION.md`](docs/VALIDATION.md); it is not the current Chrome install
+guide.
 
-Installing the extension alone does not connect ChatGPT. ChatGPT needs a
-supported developer-mode MCP connection to the companion. For a public HTTPS
-transport, set `PUBLIC_URL` to your tunnel's stable HTTPS origin before starting
-`npm start`, and point the tunnel at `http://127.0.0.1:43119`. Connect ChatGPT to
-`https://YOUR-ORIGIN/mcp` with OAuth / dynamic client registration. Keep the
-companion bound to loopback. Alternatively a supported private MCP tunnel can
-reach the local server; availability depends on your account and workspace.
+## MCP clients and transports
 
-During OAuth linking, open the extension popup and approve the displayed client
-and callback origin. Then open your job page and click Share this page.
-Ask the client to list shared tabs, read one by its opaque handle, or find text.
-Stop sharing to block subsequent reads. Disconnect also revokes client tokens.
+Installing the browser extension alone does not establish a remote ChatGPT MCP
+transport. The companion hosts local MCP/OAuth surfaces, while Web/Desktop/API
+clients have different reachability and authorization paths.
 
-The browser path has no required paid automation service. ChatGPT, hosting and
-transport providers have their own account, plan and availability requirements.
+See [`docs/CLIENTS-AND-TRANSPORTS.md`](docs/CLIENTS-AND-TRANSPORTS.md) before
+configuring ChatGPT Web/Desktop, Responses API or another MCP host.
 
-## Stop and approval controls
+Browser-read tools currently include:
 
-In the extension popup, use Pause all actions to stop every client, cancel queued
-or in-flight requests, and remove page grants. Resume does not restore grants;
-share each page again. Local pause stays effective if the companion is unavailable.
+- `list_tabs`;
+- `read_page`;
+- `find_in_page`;
+- `bridge_status`.
 
-Each authorized client has four permission selectors: list shared pages, read page
-text, find passages and check connection. Allow performs that operation within
-existing page grants. Ask every time holds each request until you choose Allow
-once or Deny once in Firefox; an approval is never reused. Block refuses that
-operation until you change it. New authorized clients default to Allow after the
-explicit connection approval. Choose Ask or Block before sharing pages if desired.
+Local-executor tools are separately authorized and default to Block for a newly
+authorized client.
 
-Only extension UI can change these settings; MCP client credentials cannot.
-Policies persist in the local companion and survive reauthorization of the same
-registered client. A newly registered client needs fresh connection approval.
-Revoking a connection removes its tokens. Stop and revoke cannot retract data
-already returned to a client. ChatGPT's own plugin approval settings are an
-additional, independent control.
+## Security and data boundary
+
+Page sharing is explicit and temporary. Navigation, reload, tab close, extension
+restart or manual revoke ends a page grant. Unshared tabs are not exposed through
+the read-only browser contract. Browser-read permission does not imply local
+filesystem/process permission.
+
+The pairing token and OAuth/client state are machine-local secrets and must not be
+committed, pasted into issues or placed in screenshots.
+
+See:
+
+- [`docs/SECURITY-BOUNDARY.md`](docs/SECURITY-BOUNDARY.md)
+- [`docs/PRIVACY.md`](docs/PRIVACY.md)
+- [`docs/CONTROL-MODEL.md`](docs/CONTROL-MODEL.md)
 
 ## Development
 
@@ -183,52 +129,40 @@ npm test
 npm run lint
 npm run build
 FIREFOX_BIN=/path/to/firefox npm run test:firefox
-```
-
-`dist/execution_delivery_harness_browser_bridge-0.1.17.zip` is the unsigned AMO submission
-package. An unsigned ZIP is not an approved AMO release. Firefox smoke testing
-uses a disposable profile and synthetic pages, never personal browser sessions.
-
-## Boundaries and next adapters
-
-[Privacy](docs/PRIVACY.md) · [Security](docs/SECURITY-BOUNDARY.md) · [Controls](docs/CONTROL-MODEL.md) ·
-[Observer architecture](docs/OBSERVER-ARCHITECTURE.md) · [Clients and transports](docs/CLIENTS-AND-TRANSPORTS.md) ·
-[Compatibility](docs/COMPATIBILITY.md) · [Cross-cutting TODO](TODO.md) · [AMO submission](docs/AMO-LISTING.md).
-
-Opera, Safari and site-specific adapters are later work. The existing Opera
-Browser Connector remains an independent third-party option. No Opera or Safari
-support in this release is claimed. Other websites can be manually shared as
-ordinary pages; dedicated extraction and end-to-end compatibility need testing.
-
-MIT license. Support: GitHub issues. Do not post private browser data or tokens.
-
-
-## Knowledge Plane
-
-Harness keeps durable engineering knowledge outside any model. `knowledge/events.jsonl` stores append-only chronology; `knowledge/records/*.json` stores curated claims, decisions, constraints, lessons and evidence. The local planner retrieves a compact context bundle before calling Qwen and persists the exact bundle as `knowledge-context.json` in the run directory.
-
-```bash
-npm run knowledge:query -- "ChatGPT Desktop stdio plugin"
-npm run knowledge:context -- "CT-03 Chrome local MCP"
-```
-
-See [`knowledge/README.md`](knowledge/README.md).
-
-
-## Project readiness
-
-Readiness is milestone-based, not an average of task percentages. The authoritative work state remains `TODO.md`; `project/readiness.json` defines which tasks and dependencies must be complete for each delivery class.
-
-```bash
 npm run project:readiness
 ```
 
-Current task-catalog aggregate on 2026-10-06: **59% average, 4/36 tasks at 100%**. The count now includes explicit Side Panel information-architecture work (UI-01); this aggregate is informative only, while milestone readiness remains gate-based.
+`npm run build` creates an unsigned Firefox/web-ext artifact under `dist/` using
+the current package version. An unsigned ZIP is not an approved AMO release.
 
-The current milestones are:
+## Architecture and operations
 
-- `owner-local-v0` — usable owner-local loop without Remote Desktop Commander on the critical path.
-- `portable-private-v0` — the same private contract works across intended clients.
-- `public-distribution-v1` — signed/public browser and ChatGPT/plugin distribution gates are satisfied.
+- [`docs/CHROME-LOCAL-INSTALL.md`](docs/CHROME-LOCAL-INSTALL.md) — canonical Chrome local install/start/update guide.
+- [`docs/STATUS.md`](docs/STATUS.md) — current status and test baseline.
+- [`docs/OBSERVER-ARCHITECTURE.md`](docs/OBSERVER-ARCHITECTURE.md) — event/projection architecture.
+- [`docs/SIDE-PANEL-INFORMATION-ARCHITECTURE.md`](docs/SIDE-PANEL-INFORMATION-ARCHITECTURE.md) — Side Panel UX semantics.
+- [`docs/EXECUTION-LIFECYCLES.md`](docs/EXECUTION-LIFECYCLES.md) — macro/micro lifecycle model.
+- [`docs/LOCAL-CONTROL-OBSERVATION-PLANE.md`](docs/LOCAL-CONTROL-OBSERVATION-PLANE.md) — loopback companion contract.
+- [`docs/LOCAL-STACK-ONBOARDING-DRAFT.md`](docs/LOCAL-STACK-ONBOARDING-DRAFT.md) — broader clean-machine/portable-stack inventory.
+- [`docs/CLIENTS-AND-TRANSPORTS.md`](docs/CLIENTS-AND-TRANSPORTS.md) — transport-neutral client boundary.
+- [`docs/PRE-1.0-RELEASE-MILESTONE-MODEL.md`](docs/PRE-1.0-RELEASE-MILESTONE-MODEL.md) — minor-version capability model.
+- [`TODO.md`](TODO.md) — authoritative cross-cutting engineering task catalog.
 
-Planner runs persist `planning-context.json`, which records repo HEAD, current and related task state, readiness snapshot, and the IDs of retrieved knowledge records. This makes each model decision reconstructable later.
+## Knowledge and readiness
+
+Durable engineering knowledge is model-independent: `knowledge/events.jsonl`
+stores append-only chronology and `knowledge/records/*.json` stores curated
+claims/decisions/constraints/evidence. Planner runs persist the exact retrieved
+knowledge/context used for a decision.
+
+```sh
+npm run knowledge:query -- "ChatGPT Desktop stdio plugin"
+npm run knowledge:context -- "CT-03 Chrome local MCP"
+npm run project:readiness
+```
+
+Readiness is gate-based rather than inferred from the patch number or an average
+percentage. `project/readiness.json` currently defines `owner-local-v0`,
+`portable-private-v0` and `public-distribution-v1`.
+
+MIT license. Support: GitHub issues. Do not post private browser data or tokens.

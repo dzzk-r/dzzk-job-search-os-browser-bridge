@@ -1,6 +1,8 @@
 # Local Control / Observation Plane
 
 Status: canonical local-runtime note
+
+Canonical Chrome installation/start/update guide: `docs/CHROME-LOCAL-INSTALL.md`.
 Date: 2026-10-07
 Scope: owner-local Execution Delivery Harness companion
 

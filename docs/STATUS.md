@@ -1,56 +1,75 @@
 # Execution Delivery Harness status
 
+Updated: **2026-10-09**
+
 ## Current stage
 
-Execution Delivery Harness currently has four working layers:
+Execution Delivery Harness has four working layers:
 
 1. **Read-only Browser Bridge** — explicit page-sharing and browser-read MCP contract.
-2. **Local Executor** — bounded filesystem/terminal/process operations behind explicit policy.
-3. **Browser Bridge Observer** — one global event ledger plus causal/run projections in TUI and Chrome Side Panel.
-4. **Gateway / orchestration substrate** — pre-dispatch correlation, prepared detached dispatch, durable lifecycle, knowledge/context injection and browser-observed ChatGPT conversation/turn evidence.
+2. **Local Executor** — bounded filesystem/terminal/process primitives behind explicit policy.
+3. **Browser Bridge Observer** — immutable raw evidence plus reversible timeline/run projections in the Chrome Side Panel and local Observer surfaces.
+4. **Gateway/orchestration substrate** — pre-dispatch correlation, prepared/detached execution state, lifecycle evidence, knowledge/context injection and browser-observed ChatGPT conversation/turn telemetry.
 
-The local owner workflow is substantially implemented, but the repository is not yet release-clean and ChatGPT Web tool dispatch is still not authoritative end-to-end.
+The owner-local workflow is substantially implemented, but `owner-local-v0` is
+still blocked because routine repo/terminal execution from this ChatGPT Web path
+continues to use Remote Desktop Commander and the local execution boundary is
+still broader than the intended final policy/sandbox.
 
 ## Current version and test baseline
 
-- Package / Chrome / Firefox version: **0.1.17**
-- Active worktree: `chore/local-execution`
-- Checkpoint base: `f9a5091`; stabilized checkpoint commits follow on `chore/local-execution`
-- Automated suite: **90/90 passing** on 2026-10-06
-- TODO aggregate: **59% average, 4/36 tasks at 100%**. The count increased because UI-01 now tracks Side Panel information architecture explicitly instead of hiding that work inside CHR/OBS tasks.
-- Milestone gate `owner-local-v0`: still blocked by unfinished Local Executor critical-path replacement / execution isolation work.
-
-The live-acceptance worktree has been classified and stabilized into separate implementation, evidence/knowledge, and documentation checkpoint commits. Bulk runtime run directories remain local-only; compact acceptance evidence is committed under `evidence/`.
+- Package / Chrome / Firefox development version: **0.1.40**.
+- Active worktree: `chore/local-execution`.
+- Current implementation checkpoint: `9ab7663` (`feat: add browser turn usage estimates`).
+- Current documentation checkpoint before this cleanup: `ccef212`.
+- Automated suite: **141/141 passing** on 2026-10-09.
+- TODO catalog: **36 tasks, 4 complete, 60.9% simple average**. This average is informative only; release/readiness decisions are gate-based.
+- Next configured milestone: `owner-local-v0` — **BLOCKED** by incomplete `BRW-01`, `LOC-01`, `LOC-02` and `SEC-01` gates.
+- Pre-1.0 target interpretation: `0.2.0` is reserved for the owner-local routine execution loop, not for an arbitrary patch-count threshold.
 
 ## Verified locally
 
-- Chrome unpacked extension with live Side Panel Observer.
-- Firefox read-only bridge synthetic smoke and observer surface.
-- Explicit page grants and browser read tools.
+- Chrome unpacked Manifest V3 extension with Side Panel Observer.
+- Loopback companion on `127.0.0.1:43119` with persistent local pairing.
+- Explicit page grants and read-only browser tools.
+- Firefox read-only synthetic smoke/observer surface (historical validation remains separate from current Chrome onboarding).
 - Local Executor filesystem/process primitives with deny-by-default client policy.
-- Observer timeline from MCP history, terminal lifecycle, OpenCode/Qwen, llama.cpp and Git.
-- Controlled CHAT→ACTION→TERM→OC→QWEN→LLAMA correlation for Harness-owned work.
-- Durable task lifecycle and detached prepared-dispatch path.
-- Real ChatGPT Web conversation identity derived from `/c/<conversation_id>`.
-- Named conversation scopes in Unified timeline; selecting a known conversation filters its scoped evidence.
-- Browser-observed ChatGPT TURN START/ACTIVE/DONE lifecycle and conservative single-active-turn attribution substrate.
-- PID/process descendants can inherit an already-scoped launch after the browser turn lease ends.
-- Versioned extension reload UX is live-accepted: loaded-vs-disk semver mismatch is shown in Side Panel, reload is explicit user action, and the mismatch control disappears after the requested version loads.
-- Gateway restart no longer implies extension reload.
-- Side Panel now compares running gateway identity with repository state: runtime commit + runtime server-file hash vs current repo HEAD + disk server-file hash; a mismatch is surfaced as Gateway restart <old> → <new>.
-- Knowledge plane and project/task context injection for local planning.
+- Unified timeline with literal Raw plus reversible Grouped/Semantic projections.
+- Browser-observed ChatGPT conversation identity from `/c/<conversation_id>`.
+- Browser TURN START/ACTIVE/DONE lifecycle with reload/recovery aliasing so a recovery UUID can continue the still-leased canonical turn instead of creating a duplicate lifecycle.
+- Conservative `LIVE` activity and `WORKING / SETTLING / QUIESCENT` observer-inferred next-request boundary.
+- Scoped source-chat navigation.
+- Synthetic policy-test observer events isolated from the owner production ledger.
+- Provider/runtime usage normalization for input/output/total/cache tokens, throughput and cost provenance.
+- Observable ChatGPT Web visible-text estimates labeled `estimated`; hidden server/system/cache usage is not presented as exact.
+- Historical local planner usage can be derived into separate `usage-backfill.json` artifacts without mutating raw planner responses.
+- Durable task lifecycle, budget envelope and detached prepared-dispatch substrate.
+- Knowledge plane and project/task/readiness context injection for local planning.
+- Versioned extension reload UX: loaded-vs-disk mismatch is explicit and user-triggered; gateway restart does not imply extension reload.
 
 ## Important current limitations
 
-- Platform-managed ChatGPT Web → RDC/MCP calls can still arrive without an authoritative conversation/turn marker. Such events remain **Unscoped** unless a trustworthy causal edge exists.
-- Browser-observed attribution is explicitly labeled `browser_observed` / `browser_inferred`; it is not transport authority.
-- Generic MCP operations such as `read_file`, `list_tabs` and `bridge_status` have no PID. PID propagation only helps after a process-producing call such as `start_process` has already been scoped.
-- Unified timeline is still noisy. Raw evidence is literal; semantic compaction of polling/diagnostic repetition remains unfinished.
-- Chrome Side Panel visual containment was repaired again during live acceptance and still needs final visual acceptance on the loaded 0.1.17 build.
-- PAUSE / BREAK / STOP ALL semantics are not complete.
+- Platform-managed ChatGPT Web -> RDC/MCP calls can still arrive without an authoritative conversation/turn marker. Such events remain Unscoped unless a trustworthy causal edge exists.
+- `browser_observed` / `browser_inferred` are evidence-quality labels, not transport authority.
+- `QUIESCENT` is observer-inferred until GW-01 owns the real dispatch boundary.
+- ChatGPT Web token accounting is an estimate of observable visible text only; server-side prompt assembly, hidden system context, tool schemas, cache accounting and billed usage are unavailable unless explicitly reported by a provider/runtime.
+- Local `local_exec_start` still represents a trusted-shell boundary inside allowed roots; stronger execution isolation or a narrower command contract remains open.
+- This ChatGPT Web development path still uses Remote Desktop Commander for repo/terminal work; LOC-02 remains a hard `0.2.0` blocker.
+- Full-width forensic Raw evidence inspection and independent `Compact / Normal / Forensic` density remain unfinished UI work.
+- PAUSE / BREAK / STOP ALL execution-cycle semantics are incomplete.
 - Harness-owned semantic verifier/repair/escalation remains incomplete.
-- This ChatGPT Web session still uses Remote Desktop Commander for repository work; LOC-02 therefore remains open.
 - Firefox/Opera parity, AMO publication and public distribution are separate unfinished tracks.
+
+## Chrome local installation
+
+The canonical current guide is:
+
+`docs/CHROME-LOCAL-INSTALL.md`
+
+It defines prerequisites, companion startup, health check, pairing, unpacked Chrome
+installation, Side Panel opening, verification, updates, stop/restart and
+troubleshooting. `llama.cpp`, Ollama, OpenCode and a standalone Observer process
+are explicitly optional for the minimum Chrome Side Panel path.
 
 ## Current architectural truth for chat attribution
 
@@ -61,33 +80,37 @@ ChatGPT URL /c/<conversation_id>
 browser-observed turn / short ownership lease
         |
         v
-first scoped MCP/tool span
+trustworthy scoped tool/process edge when one exists
         |
-        +--> non-process tool span identity
+        +--> non-process span identity
         |
-        +--> start_process -> PID + start timestamp
+        +--> process_key = PID + start timestamp
                           -> TERM lifecycle
                           -> process_output / stop descendants
 ```
 
-The browser lifecycle detector is only a bridge for the first causal edge. Once a tool/span or process instance has trustworthy ancestry, normal span/PID propagation should carry the scope.
+If zero or multiple browser turns plausibly own an otherwise-unscoped event, the
+event remains Unscoped rather than being guessed from browser focus alone.
 
-If zero or multiple browser turns plausibly own an otherwise-unscoped event, the event remains Unscoped rather than being guessed from focus or timestamp alone.
+## Repository and release semantics
 
-## Repository checkpoint state
+The active development worktree is currently clean and aligned with
+`origin/chore/local-execution` before this documentation cleanup. Bulk runtime
+run directories remain local-only; curated acceptance evidence belongs under
+`evidence/`.
 
-The 2026-10-06 live-acceptance pile has been stabilized:
+`TODO.md` is authoritative task state. `project/readiness.json` defines configured
+milestone gates. `docs/PRE-1.0-RELEASE-MILESTONE-MODEL.md` defines why patch
+versions are implementation checkpoints while pre-1.0 minor versions are named
+capability boundaries.
 
-1. executable code/tests and installable manifests are one implementation checkpoint;
-2. curated acceptance evidence and knowledge records are a separate checkpoint;
-3. project status/documentation are a separate checkpoint;
-4. Python bytecode and bulk runtime `runs/` are excluded from Git;
-5. full automated suite passes 91/91.
+Related canonical documents:
 
-Remaining repository work is to keep the checkpoint branch pushed and review integration into `main`; further feature work should not recreate a mixed uncommitted pile.
-
-See `TODO.md` for authoritative task state and `project/readiness.json` for milestone definitions.
-
-Side Panel semantic/UI design baseline: `docs/SIDE-PANEL-INFORMATION-ARCHITECTURE.md`.
-
-Canonical macro/micro execution lifecycle model: `docs/EXECUTION-LIFECYCLES.md`.
+- `docs/CHROME-LOCAL-INSTALL.md`
+- `docs/LOCAL-CONTROL-OBSERVATION-PLANE.md`
+- `docs/OBSERVER-ARCHITECTURE.md`
+- `docs/SIDE-PANEL-INFORMATION-ARCHITECTURE.md`
+- `docs/EXECUTION-LIFECYCLES.md`
+- `docs/CLIENTS-AND-TRANSPORTS.md`
+- `docs/PRE-1.0-RELEASE-MILESTONE-MODEL.md`
+- `TODO.md`

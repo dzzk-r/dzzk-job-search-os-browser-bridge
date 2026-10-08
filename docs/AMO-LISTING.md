@@ -1,5 +1,8 @@
 # Mozilla Add-ons submission — version 0.1.1
 
+> **Historical publication draft:** this document targets the earlier Firefox 0.1.1 submission scope. It remains useful review material but is not the current 0.1.40 Chrome/local installation guide or release-status source. See `docs/STATUS.md` and `docs/CHROME-LOCAL-INSTALL.md`.
+
+
 Verified scope: the synthetic Firefox smoke check was completed. Live ChatGPT
 account OAuth linking, live LinkedIn DOM, and AMO signing/publication have not
 been verified.

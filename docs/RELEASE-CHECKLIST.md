@@ -1,5 +1,8 @@
 # Release status — 0.1.1
 
+> **Historical snapshot:** this checklist records the 0.1.1 Firefox/publication state. It is not the current 0.1.40 development checklist. Use `docs/STATUS.md`, `TODO.md`, and `docs/CHROME-LOCAL-INSTALL.md` for current development truth.
+
+
 ## Ready
 
 - Firefox MV3 package, minimum desktop Firefox 140; fixed loopback endpoint.

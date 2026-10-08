@@ -1,20 +1,25 @@
 # Compatibility and cost
 
+Updated: **2026-10-09**
+Current development baseline: **0.1.40**
+
 | Component | Current support |
 | --- | --- |
-| Firefox desktop 140+ | Extension adapter in 0.1.1 |
-| Node.js 22+ | Local MCP companion |
-| ChatGPT | Developer-mode MCP transport and OAuth required; live account linking must be verified separately |
-| LinkedIn | Visible, manually shared page text; no messaging API, crawling or writes |
-| Opera | Existing third-party Opera Browser Connector; our adapter is future work |
-| Safari | Future adapter, not implemented |
-| Other job sites | Generic visible text; site-specific parsing not implemented |
+| Chrome / Chromium with MV3 Side Panel | Primary owner-local development adapter; unpacked Chrome installation and Side Panel are locally verified |
+| Firefox desktop 140+ | Read-only adapter and Observer page exist; historical 0.1.1 synthetic smoke is preserved; current Sidebar parity remains unverified |
+| Node.js 22+ | Required local companion runtime |
+| ChatGPT Web | Browser conversation/turn observation works; authoritative platform tool-dispatch correlation remains incomplete |
+| ChatGPT Desktop / local plugin | Private stdio browser-read facade exists; final live client acceptance remains tracked in CT-03 |
+| Generic MCP hosts | Partial compatibility; full host acceptance remains tracked in CT-05 |
+| LinkedIn / other ordinary pages | Visible manually shared page text through the generic read path; no messaging/crawling/write guarantee |
+| Opera | EDH-specific adapter remains future/unverified; any third-party Opera connector is independent |
+| Safari | Not implemented |
+| llama.cpp / Qwen | Optional owner-local inference profile; not required for Chrome Side Panel installation |
+| OpenCode | Optional agent/worker runtime; not required for Chrome Side Panel installation |
+| Ollama | Optional alternative model runtime when selected by an execution profile |
 
-The code is MIT licensed. There is no dzzk subscription, paid browser-automation
-service or developer-operated relay. A remote MCP client needs a reachable
-transport; free transport availability, client plans and hosting are external.
-Do not describe the entire ChatGPT path as unconditionally free.
+The code is MIT licensed. There is no EDH subscription, required paid browser-automation service or developer-operated relay. Remote MCP/model/hosting providers can have their own plans, billing and availability requirements.
 
-Firefox, Opera, Safari, ChatGPT and LinkedIn identify compatibility, not
-ownership or affiliation. Publication in AMO and the ChatGPT directory are
-separate processes and statuses.
+Compatibility names identify integration targets, not ownership or affiliation. AMO publication, Chrome Web Store publication and public ChatGPT distribution are separate release/review tracks.
+
+Current Chrome local installation instructions are in `docs/CHROME-LOCAL-INSTALL.md`.

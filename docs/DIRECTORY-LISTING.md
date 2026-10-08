@@ -1,5 +1,8 @@
 # ChatGPT directory draft — not submitted
 
+> **Historical directory draft:** this text predates the current 0.1.40 development baseline and has not been submitted. Current implementation truth lives in `docs/STATUS.md`; do not submit this draft without a fresh review.
+
+
 Name: dzzk Job Search OS
 
 Subtitle: Read job-search evidence from browser pages you choose to share.
