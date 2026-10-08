@@ -469,6 +469,8 @@ test('timeline LIVE indicator separates feed state from presentation-window coun
   assert.match(js,/Latest '\+rawCount\.toLocaleString\(\)\+' of '/);
   assert.match(html,/Green pulse = observed work is active/);
   assert.match(css,/timeline-live-cluster\.active \.timeline-live-dot/);
+  assert.match(js,/browserLocalChatActivity\?\.state==='active'/);
+  assert.doesNotMatch(js,/\['active','pending'\]\.includes\(browserLocalChatActivity\?\.state\)/);
 });
 
 

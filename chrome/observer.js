@@ -1043,7 +1043,7 @@ function appendRawEventDrilldown(full,event,key) {
   full.append(document.createElement('br'),button,rawBox);
 }
 function renderTimelineLive(state,rawCount,totalCount,displayCount) {
-  const live=activeSpans(state).length>0 || ['active','pending'].includes(browserLocalChatActivity?.state);
+  const live=activeSpans(state).length>0 || browserLocalChatActivity?.state==='active';
   const cluster=$('position');
   cluster.classList.toggle('active',live);
   const total=Number.isFinite(totalCount)?totalCount:rawCount;
