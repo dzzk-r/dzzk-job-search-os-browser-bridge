@@ -4,6 +4,8 @@ This is the cross-cutting execution plan for the repository. It tracks the work
 that cuts across Browser Bridge, MCP transport, Local Executor, Observer,
 client integrations and release/distribution.
 
+Release-version rationale: `docs/PRE-1.0-RELEASE-MILESTONE-MODEL.md` defines the pre-1.0 capability model, including the proposed `0.1.x` owner-local Observer/foundation phase, the `0.2.0` owner-local execution gate, and the later portable-private milestone.
+
 ## Legend
 
 - **🟩 G** - understood path / low design risk.
