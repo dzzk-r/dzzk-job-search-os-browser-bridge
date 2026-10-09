@@ -131,6 +131,40 @@ export async function createBridgeServer(options = {}) {
     const {stdout} = await execFileAsync('/usr/bin/env',['python3',observerScript,'--json'],{cwd:repoRoot,timeout:4000,maxBuffer:2*1024*1024});
     return JSON.parse(stdout);
   });
+  let dashboardRevision=0, dashboardSignature=null;
+  async function observerStateFor(adapter) {
+    const snapshot=await observerSnapshot();
+    let diskVersion=null;
+    try {
+      const manifest=JSON.parse(await readFile(join(repoRoot,'chrome','manifest.json'),'utf8'));
+      diskVersion=typeof manifest.version==='string'?manifest.version:null;
+    } catch {}
+    const now=Date.now();
+    const binding=activeBrowserConversations.get(adapter);
+    let chatActivity={state:'idle',active:false,waiting_user:false,pending:false,generating:false,conversation_id:null,turn_id:null,source_quality:'browser_observed'};
+    if(binding && now-binding.observedAtMs<=15000) {
+      const turns=[...activeBrowserTurns.values()]
+        .filter(turn=>turn.conversation_id===binding.conversation_id && Date.parse(turn.lease_until||0)>now)
+        .sort((a,b)=>Date.parse(b.last_seen_at||0)-Date.parse(a.last_seen_at||0));
+      const detector=[...chatDetectorStatuses.values()]
+        .filter(status=>status.conversation_id===binding.conversation_id && now-Date.parse(status.observed_at||0)<=15000)
+        .sort((a,b)=>Date.parse(b.observed_at||0)-Date.parse(a.observed_at||0))[0]||null;
+      const turn=turns[0]||null;
+      const state=detector?.activity_state || (turn?'pending':'idle');
+      chatActivity={state,active:state==='active',waiting_user:state==='waiting_user',pending:state==='pending',generating:detector?.generating===true,conversation_id:binding.conversation_id,turn_id:turn?.turn_id||detector?.active_turn_id||null,source_quality:'browser_observed'};
+    }
+    return {...snapshot,chat_activity:chatActivity,extension_version:{disk:diskVersion},gateway_version:await gatewayVersionState()};
+  }
+  async function dashboardStateFor(adapter) {
+    const [observer,projectTasks,rdc,prepared,policy]=await Promise.all([
+      observerStateFor(adapter),taskAdmission.list(),rdcAdapter.snapshot(),preparedDispatch.state(),executorPolicy.state()
+    ]);
+    const content={observer,project_tasks:projectTasks,rdc,prepared_dispatch:prepared,executor_policy:policy};
+    const signature=hash(JSON.stringify(content));
+    if(signature!==dashboardSignature){dashboardSignature=signature;dashboardRevision+=1;}
+    return {schema_version:'1.0',revision:dashboardRevision,generated_at:new Date().toISOString(),...content};
+  }
+
   const publicValue = options.publicUrl ?? process.env.PUBLIC_URL;
   let origin = publicValue ? new URL(publicValue) : null;
   if (origin && (origin.protocol !== 'https:' || origin.pathname !== '/' || origin.search || origin.hash || origin.username || origin.password)) throw new Error('PUBLIC_URL must be one HTTPS origin without a path.');
@@ -450,7 +484,12 @@ export async function createBridgeServer(options = {}) {
       const url = new URL(req.url,issuer), path = url.pathname;
       const key = req.socket.remoteAddress + ':' + (path.startsWith('/bridge/') ? 'bridge' : path.startsWith('/mcp') ? 'mcp' : 'oauth');
       let rate = rates.get(key); if (!rate) {rate={since:Date.now(),count:0}; rates.set(key,rate);}
-      if (++rate.count > (path.startsWith('/bridge/') ? 240 : 120)) fail(429,'rate_limited');
+      const rateLimit=path.startsWith('/bridge/') ? 240 : 120;
+      if (++rate.count > rateLimit) {
+        const retrySeconds=Math.max(1,Math.ceil((60000-(Date.now()-rate.since))/1000));
+        res.setHeader('Retry-After',String(retrySeconds));
+        fail(429,'rate_limited','rate_limited');
+      }
       const requestOrigin = req.headers.origin;
       if (requestOrigin && requestOrigin !== issuer && !(path.startsWith('/bridge/') && /^(?:moz|chrome)-extension:\/\/[a-zA-Z0-9-]+$/.test(requestOrigin))) fail(403,'invalid_origin');
       if (path === '/dev/reload-extension' && req.method === 'POST') {
@@ -683,39 +722,12 @@ export async function createBridgeServer(options = {}) {
           },observerEventPath?{path:observerEventPath}:{});
           return json(res,200,{ok:true,event:{conversation_id:source.conversation_id,title,url:chatUrl.href,ts:event.ts}});
         }
+        if (path === '/bridge/dashboard-state' && req.method === 'GET') {
+          try { return json(res,200,await dashboardStateFor(adapter)); }
+          catch { fail(503,'dashboard_unavailable','Dashboard state is unavailable.'); }
+        }
         if (path === '/bridge/observer' && req.method === 'GET') {
-          try {
-            const snapshot=await observerSnapshot();
-            let diskVersion=null;
-            try {
-              const manifest=JSON.parse(await readFile(join(repoRoot,'chrome','manifest.json'),'utf8'));
-              diskVersion=typeof manifest.version==='string'?manifest.version:null;
-            } catch {}
-            const now=Date.now();
-            const binding=activeBrowserConversations.get(adapter);
-            let chatActivity={state:'idle',active:false,waiting_user:false,pending:false,generating:false,conversation_id:null,turn_id:null,source_quality:'browser_observed'};
-            if(binding && now-binding.observedAtMs<=15000) {
-              const turns=[...activeBrowserTurns.values()]
-                .filter(turn=>turn.conversation_id===binding.conversation_id && Date.parse(turn.lease_until||0)>now)
-                .sort((a,b)=>Date.parse(b.last_seen_at||0)-Date.parse(a.last_seen_at||0));
-              const detector=[...chatDetectorStatuses.values()]
-                .filter(status=>status.conversation_id===binding.conversation_id && now-Date.parse(status.observed_at||0)<=15000)
-                .sort((a,b)=>Date.parse(b.observed_at||0)-Date.parse(a.observed_at||0))[0]||null;
-              const turn=turns[0]||null;
-              const state=detector?.activity_state || (turn?'pending':'idle');
-              chatActivity={
-                state,
-                active:state==='active',
-                waiting_user:state==='waiting_user',
-                pending:state==='pending',
-                generating:detector?.generating===true,
-                conversation_id:binding.conversation_id,
-                turn_id:turn?.turn_id||detector?.active_turn_id||null,
-                source_quality:'browser_observed'
-              };
-            }
-            return json(res,200,{...snapshot,chat_activity:chatActivity,extension_version:{disk:diskVersion},gateway_version:await gatewayVersionState()});
-          }
+          try { return json(res,200,await observerStateFor(adapter)); }
           catch { fail(503,'observer_unavailable','Observer snapshot is unavailable.'); }
         }
         if (path === '/bridge/dispatch-state' && req.method === 'GET') {

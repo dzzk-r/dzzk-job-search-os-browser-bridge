@@ -1,7 +1,7 @@
 # Chrome local installation and Side Panel startup
 
 Status: **canonical local-development installation guide**
-Current baseline: **0.1.45**
+Current baseline: **0.1.46**
 Updated: **2026-10-09**
 
 This guide describes the smallest supported owner-local setup for loading the
@@ -88,7 +88,7 @@ Optional preflight:
 npm test
 ```
 
-At the 0.1.45 baseline the automated suite is **141/141 passing**.
+At the 0.1.46 baseline the automated suite is **141/141 passing**.
 
 ## 4. Start the local companion
 
@@ -184,7 +184,7 @@ Example for the current owner worktree:
 The current manifest is Manifest V3 and declares:
 
 - extension name: `Execution Delivery Harness Browser Bridge`;
-- version: `0.1.45`;
+- version: `0.1.46`;
 - permissions: `activeTab`, `scripting`, `storage`, `alarms`, `sidePanel`;
 - loopback host permission: `http://127.0.0.1/*`;
 - ChatGPT content-script scope: `https://chatgpt.com/*`;
@@ -225,7 +225,7 @@ Bridge** from Chrome's Extensions menu, then click it.
 
 Expected first-level UI includes:
 
-- extension version (`v0.1.45` at this baseline);
+- extension version (`v0.1.46` at this baseline);
 - actor strip (`CHAT`, `MCP`, `RDC`, `TERM`, `OC`, `QWEN`, `LLAMA`, `GIT`);
 - Unified timeline;
 - `Raw / Grouped / Semantic` views;

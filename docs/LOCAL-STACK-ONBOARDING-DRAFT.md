@@ -24,7 +24,7 @@ Current development layout (refreshed 2026-10-09):
 - canonical repository: `~/WORK/execution-delivery-harness`
 - active execution worktree: `~/WORK/_bridge-local-execution`
 - active branch: `chore/local-execution`
-- current documented development baseline: extension/package `0.1.45` on `chore/local-execution`; use Git itself for the exact current HEAD
+- current documented development baseline: extension/package `0.1.46` on `chore/local-execution`; use Git itself for the exact current HEAD
 - GitHub origin: `dzzk-r/execution-delivery-harness`
 
 A second installation must consume a deliberate committed revision or release, not copy another machine's worktree/runtime state byte-for-byte.
@@ -53,7 +53,7 @@ Current Chrome path is an unpacked Manifest V3 extension loaded from:
 Relevant manifest facts:
 
 - name: Execution Delivery Harness Browser Bridge
-- version at current documentation baseline: 0.1.45
+- version at current documentation baseline: 0.1.46
 - permissions: `activeTab`, `scripting`, `storage`, `alarms`, `sidePanel`
 - loopback host permission: `http://127.0.0.1/*`
 - companion CSP/host scope: loopback HTTP (`http://127.0.0.1:*`); default configured port is `43119`

@@ -33,6 +33,23 @@ async function setup(t) {
   return {...bridge,configDir,observerEventPath,browserTurnStatePath,call,extension,register,authorize,tokenRequest,mcp};
 }
 
+test('canonical dashboard snapshot is pairing-protected and contains one revisioned control-plane state',async t=>{
+  const b=await setup(t);
+  assert.equal((await b.call('/bridge/dashboard-state?adapter=chrome')).status,401);
+  const dashboard=await b.extension('dashboard-state');
+  assert.equal(dashboard.status,200);
+  assert.equal(dashboard.value.schema_version,'1.0');
+  assert.ok(Number.isInteger(dashboard.value.revision));
+  assert.equal(dashboard.value.observer.state,'DONE');
+  assert.equal(dashboard.value.observer.timeline[0].message,'test');
+  assert.ok(dashboard.value.project_tasks && typeof dashboard.value.project_tasks==='object');
+  assert.ok(dashboard.value.rdc && typeof dashboard.value.rdc==='object');
+  assert.ok(dashboard.value.prepared_dispatch && typeof dashboard.value.prepared_dispatch==='object');
+  assert.ok(dashboard.value.executor_policy && typeof dashboard.value.executor_policy==='object');
+  const again=await b.extension('dashboard-state');
+  assert.equal(again.value.revision,dashboard.value.revision);
+});
+
 test('observer snapshot is available only through extension pairing',async t=>{
   const b=await setup(t);
   assert.equal((await b.call('/bridge/observer')).status,401);
@@ -258,7 +275,7 @@ test('observer snapshot reports disk extension semver without forcing reload',as
   const b=await setup(t);
   const snapshot=await b.extension('observer');
   assert.equal(snapshot.status,200);
-  assert.equal(snapshot.value.extension_version.disk,'0.1.45');
+  assert.equal(snapshot.value.extension_version.disk,'0.1.46');
 });
 
 test('OpenCode-style DCR metadata is accepted without advertising unsupported refresh grants',async t=>{

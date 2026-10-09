@@ -8,6 +8,8 @@ let seenReloadRevision = 0, pendingReloadRevision = 0;
 let publishedConversationSignature = null, publishedConversationAt = 0;
 const chatDetectorByTab = new Map();
 let policyWrites = Promise.resolve(), pauseIntent = 0;
+let dashboardCache=null, dashboardFetchedAt=0, dashboardInFlight=null, dashboardBackoffUntil=0, dashboardBackoffMs=0;
+const DASHBOARD_MIN_INTERVAL_MS=2000;
 const isPaused = () => localPaused || serverPaused;
 async function persistConversationBindings() { const api=globalThis.chrome || globalThis.browser; await api.storage.local.set({conversationBindings:conversations.serialize()}); }
 function writePolicy(body) {
@@ -44,11 +46,50 @@ async function companion(path, body, cfg = config) {
       } catch {}
       if (response.status===503 && detail==='observer_unavailable') throw new Error('observer_unavailable: Observer snapshot is unavailable.');
       if (response.status===401) throw new Error('invalid_pairing: Companion rejected the extension pairing token.');
-      throw new Error('companion_http_'+response.status+(detail?': '+detail:''));
+      const error=new Error('companion_http_'+response.status+(detail?': '+detail:''));
+      error.httpStatus=response.status;
+      const retry=Number(response.headers.get('Retry-After'));
+      error.retryAfterMs=Number.isFinite(retry)&&retry>0?retry*1000:null;
+      throw error;
     }
     return await response.json();
   } finally { clearTimeout(timer); }
 }
+function invalidateDashboardState() {
+  dashboardFetchedAt=0;
+}
+function decorateDashboard(snapshot,status='CONNECTED',extra={}) {
+  return {...snapshot,connection:{status,stale:status!=='CONNECTED',fetched_at:dashboardFetchedAt?new Date(dashboardFetchedAt).toISOString():null,...extra}};
+}
+async function getDashboardState({force=false}={}) {
+  if(!config.enabled) throw new Error('Connect the companion before opening the observer.');
+  const now=Date.now();
+  if(!force && dashboardCache && dashboardBackoffUntil>now) {
+    return decorateDashboard(dashboardCache,'THROTTLED',{retry_after_ms:dashboardBackoffUntil-now});
+  }
+  if(!force && dashboardCache && now-dashboardFetchedAt<DASHBOARD_MIN_INTERVAL_MS) return decorateDashboard(dashboardCache);
+  if(dashboardInFlight) return dashboardInFlight;
+  dashboardInFlight=(async()=>{
+    try {
+      const snapshot=await companion('/bridge/dashboard-state');
+      dashboardCache=snapshot; dashboardFetchedAt=Date.now(); dashboardBackoffUntil=0; dashboardBackoffMs=0;
+      return decorateDashboard(snapshot);
+    } catch(error) {
+      const rateLimited=error?.httpStatus===429 || /companion_http_429/.test(String(error?.message||error));
+      if(rateLimited) {
+        const requested=Number(error?.retryAfterMs)||0;
+        dashboardBackoffMs=Math.max(requested,dashboardBackoffMs?Math.min(dashboardBackoffMs*2,30000):3000);
+        dashboardBackoffUntil=Date.now()+dashboardBackoffMs;
+        if(dashboardCache) return decorateDashboard(dashboardCache,'THROTTLED',{retry_after_ms:dashboardBackoffMs,error:'rate_limited'});
+      } else if(dashboardCache) {
+        return decorateDashboard(dashboardCache,'OFFLINE',{error:String(error?.message||error)});
+      }
+      throw error;
+    } finally { dashboardInFlight=null; }
+  })();
+  return dashboardInFlight;
+}
+
 async function hydratedTab(tabId) {
   const tab = await chrome.tabs.get(tabId);
   if (typeof tab.url === 'string' && tab.url) return tab;
@@ -381,6 +422,7 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
       setTimeout(()=>chrome.runtime.reload(),50);
       return {ok:true,version:chrome.runtime.getManifest().version};
     }
+    case 'dashboard-state': return getDashboardState({force:m.force===true});
     case 'observer-state': {
       if (!config.enabled) throw new Error('Connect the companion before opening the observer.');
       return companion('/bridge/observer');
@@ -405,19 +447,19 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
       if (!config.enabled) throw new Error('Connect the companion before changing task admission.');
       const payload={action:m.action};
       if(typeof m.task_id==='string') payload.task_id=m.task_id;
-      return companion('/bridge/task-admission',payload);
+      const result=await companion('/bridge/task-admission',payload); invalidateDashboardState(); return result;
     }
     case 'set-executor-policy': {
       if (!config.enabled) throw new Error('Connect the companion before changing executor policy.');
-      return companion('/bridge/executor-policy',{mode:m.mode});
+      const result=await companion('/bridge/executor-policy',{mode:m.mode}); invalidateDashboardState(); return result;
     }
     case 'create-compare-plan': {
       if (!config.enabled) throw new Error('Connect the companion before creating a comparison plan.');
-      return companion('/bridge/compare-plan',{});
+      const result=await companion('/bridge/compare-plan',{}); invalidateDashboardState(); return result;
     }
     case 'dispatch-prepared': {
       if (!config.enabled) throw new Error('Connect the companion before dispatching prepared work.');
-      return companion('/bridge/dispatch-prepared',{});
+      const result=await companion('/bridge/dispatch-prepared',{}); invalidateDashboardState(); return result;
     }
     case 'gw01-acceptance': {
       if (!config.enabled) throw new Error('Connect the companion before running GW-01 acceptance.');

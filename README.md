@@ -14,7 +14,7 @@ Opera.
 
 ## Current baseline
 
-- package / Chrome / Firefox development version: **0.1.45**;
+- package / Chrome / Firefox development version: **0.1.46**;
 - active development branch/worktree: `chore/local-execution`;
 - automated suite: **148/148 passing** on 2026-10-09;
 - next readiness milestone: `owner-local-v0` (currently blocked);
@@ -150,6 +150,7 @@ the current package version. An unsigned ZIP is not an approved AMO release.
 - [`docs/PRE-1.0-RELEASE-MILESTONE-MODEL.md`](docs/PRE-1.0-RELEASE-MILESTONE-MODEL.md) — minor-version capability model.
 - [`docs/EXECUTOR-COMPARISON.md`](docs/EXECUTOR-COMPARISON.md) — executor policy, RDC handoff and EDH-vs-RDC comparison contract.
 - [`docs/RDC-EXECUTOR-ADAPTER.md`](docs/RDC-EXECUTOR-ADAPTER.md) — RDC intent, approval, capability and result adapter contract.
+- [`docs/STATE-PLANE.md`](docs/STATE-PLANE.md) — canonical dashboard state, background cache/single-flight and throttling semantics.
 - [`docs/TASK-ADMISSION.md`](docs/TASK-ADMISSION.md) — project backlog → Current task → bounded handoff admission contract.
 - [`TODO.md`](TODO.md) — authoritative cross-cutting engineering task catalog.
 

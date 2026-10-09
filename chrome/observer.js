@@ -254,23 +254,22 @@ function settingsCard(parent,text,buttons) {
   for(const [label,fn] of buttons){const b=document.createElement('button');b.textContent=label;b.addEventListener('click',fn);div.append(b);}
   parent.append(div);
 }
-async function refreshExecutorPolicy(preparedReady=false) {
+function renderExecutorPolicy(policy,preparedReady=false) {
   const select=$('executor-policy-select');
   const status=$('executor-policy-status');
   const compare=$('create-compare-plan');
-  try {
-    const policy=await send({type:'executor-policy'});
-    select.value=policy.mode||'AUTO';
-    status.textContent=(policy.mode||'AUTO')+' · dispatch policy'+(policy.updated_at?' · updated '+new Date(policy.updated_at).toLocaleString():'');
-    compare.hidden=!preparedReady || policy.mode!=='COMPARE';
-    compare.disabled=!preparedReady || policy.mode!=='COMPARE';
-  } catch(e) {
+  if(!policy) {
     status.textContent='executor policy unavailable';
     compare.hidden=true; compare.disabled=true;
+    return;
   }
+  select.value=policy.mode||'AUTO';
+  status.textContent=(policy.mode||'AUTO')+' · dispatch policy'+(policy.updated_at?' · updated '+new Date(policy.updated_at).toLocaleString():'');
+  compare.hidden=!preparedReady || policy.mode!=='COMPARE';
+  compare.disabled=!preparedReady || policy.mode!=='COMPARE';
 }
 
-async function refreshProjectTasks() {
+function renderProjectTasks(snapshot) {
   const select=$('project-task-select');
   const recommendation=$('project-task-recommendation');
   const status=$('project-task-admission-status');
@@ -278,98 +277,88 @@ async function refreshProjectTasks() {
   const takeSelected=$('take-selected-task');
   const prepare=$('prepare-current-task');
   const release=$('release-current-task');
-  try {
-    const snapshot=await send({type:'project-tasks'});
-    projectTaskSnapshot=snapshot;
-    const previous=select.value;
-    const frag=document.createDocumentFragment();
-    for(const task of snapshot.tasks||[]) {
-      const option=document.createElement('option');
-      option.value=task.id;
-      option.textContent=(task.priority==='next_milestone'?'★ ':'')+task.id+' · '+task.percent+'% · '+task.title;
-      frag.append(option);
-    }
-    select.replaceChildren(frag);
-    const ids=new Set((snapshot.tasks||[]).map(x=>x.id));
-    const selected=ids.has(previous)?previous:(snapshot.recommended?.id||'');
-    select.value=selected;
-    select.disabled=!snapshot.tasks?.length || snapshot.current_admission?.status==='ADMITTED';
-    takeSelected.disabled=!snapshot.tasks?.length || snapshot.current_admission?.status==='ADMITTED';
-    takeNext.disabled=!snapshot.recommended || snapshot.current_admission?.status==='ADMITTED';
-    prepare.disabled=!snapshot.envelope?.ready || snapshot.current_admission?.status!=='ADMITTED';
-    release.disabled=snapshot.current_admission?.status!=='ADMITTED';
-    recommendation.textContent=snapshot.recommended
-      ? 'Recommended next: '+snapshot.recommended.id+' · '+snapshot.recommended.percent+'% · '+snapshot.recommended.title+(snapshot.next_milestone?' · gates '+snapshot.next_milestone.id:'')
-      : 'No incomplete backlog item is available.';
-    if(snapshot.current_admission?.status==='ADMITTED') {
-      status.textContent='ADMITTED · '+snapshot.current_admission.backlog_task_id+' → '+snapshot.current_admission.runtime_task_id+' · '+(snapshot.envelope?.ready?'BOUNDED TASK READY':'PLANNING REQUIRED');
-    } else if(snapshot.current_admission?.status==='RELEASED') {
-      status.textContent='No active admission · last released '+snapshot.current_admission.backlog_task_id;
-    } else {
-      status.textContent='No backlog item currently admitted into execution.';
-    }
-  } catch(e) {
+  if(!snapshot) {
     projectTaskSnapshot=null;
     select.replaceChildren(); select.disabled=true;
     takeNext.disabled=true; takeSelected.disabled=true; prepare.disabled=true; release.disabled=true;
     recommendation.textContent='Backlog admission unavailable';
-    status.textContent=String(e?.message||e);
+    status.textContent='No canonical project task state available.';
+    return;
+  }
+  projectTaskSnapshot=snapshot;
+  const previous=select.value;
+  const frag=document.createDocumentFragment();
+  for(const task of snapshot.tasks||[]) {
+    const option=document.createElement('option');
+    option.value=task.id;
+    option.textContent=(task.priority==='next_milestone'?'★ ':'')+task.id+' · '+task.percent+'% · '+task.title;
+    frag.append(option);
+  }
+  select.replaceChildren(frag);
+  const ids=new Set((snapshot.tasks||[]).map(x=>x.id));
+  const selected=ids.has(previous)?previous:(snapshot.recommended?.id||'');
+  select.value=selected;
+  select.disabled=!snapshot.tasks?.length || snapshot.current_admission?.status==='ADMITTED';
+  takeSelected.disabled=!snapshot.tasks?.length || snapshot.current_admission?.status==='ADMITTED';
+  takeNext.disabled=!snapshot.recommended || snapshot.current_admission?.status==='ADMITTED';
+  prepare.disabled=!snapshot.envelope?.ready || snapshot.current_admission?.status!=='ADMITTED';
+  release.disabled=snapshot.current_admission?.status!=='ADMITTED';
+  recommendation.textContent=snapshot.recommended
+    ? 'Recommended next: '+snapshot.recommended.id+' · '+snapshot.recommended.percent+'% · '+snapshot.recommended.title+(snapshot.next_milestone?' · gates '+snapshot.next_milestone.id:'')
+    : 'No incomplete backlog item is available.';
+  if(snapshot.current_admission?.status==='ADMITTED') {
+    status.textContent='ADMITTED · '+snapshot.current_admission.backlog_task_id+' → '+snapshot.current_admission.runtime_task_id+' · '+(snapshot.envelope?.ready?'BOUNDED TASK READY':'PLANNING REQUIRED');
+  } else if(snapshot.current_admission?.status==='RELEASED') {
+    status.textContent='No active admission · last released '+snapshot.current_admission.backlog_task_id;
+  } else {
+    status.textContent='No backlog item currently admitted into execution.';
   }
 }
 
-async function refreshRdcExecution() {
+function renderRdcExecution(snapshot) {
   const section=$('rdc-execution-section');
-  try {
-    const snapshot=await send({type:'rdc-intents'});
-    const intent=snapshot?.latest||null;
-    latestRdcIntent=intent;
-    if(!intent) { section.hidden=true; updateRunDetailGroups(); return; }
-    section.hidden=false;
-    const caps=intent.capabilities||{};
-    const approval=intent.approval||{};
-    const result=intent.result||{};
-    appendKeyValues($('rdc-execution-summary'),[
-      ['Intent',intent.intent_id||'-','', 'Stable EDH dispatch intent for this RDC execution attempt.'],
-      ['Run',intent.run_id||'-','', 'RDC Run identity allocated before external execution begins.'],
-      ['Task',intent.task_id||'-','', 'Bounded Task that this RDC Run is allowed to execute.'],
-      ['Status',intent.status||'-','', 'RDC adapter lifecycle: AWAITING_CLAIM, CLAIMED, RUNNING or terminal.'],
-      ['Approval',approval.state||'-','', 'External ChatGPT/RDC platform approval boundary. EDH records it but cannot bypass it.'],
-      ['Device',intent.adapter?.device_id||'-','', 'RDC device chosen by the external adapter when known.'],
-      ['Allowed tools',(caps.rdc_tools||[]).join(', ')||'-','', 'Capability-minimized RDC tool set derived from the bounded Task scope.'],
-      ['Declared reads',(caps.declared_reads||[]).join(', ')||'-','', 'Task-declared read scope. Platform RDC permission may be broader, but adapter policy must remain within this scope.'],
-      ['Declared writes',(caps.declared_writes||[]).join(', ')||'-','', 'Task-declared write scope.'],
-      ['Tool calls',String(intent.metrics?.tool_calls??0),'', 'RDC tool calls recorded under this EDH intent.'],
-      ['Tool errors',String(intent.metrics?.tool_errors??0),'', 'Recorded RDC tool errors under this intent.'],
-      ['Outcome',result.outcome||'-','', 'Terminal executor result reported back to EDH.']
-    ]);
-    updateRunDetailGroups();
-  } catch(e) {
-    latestRdcIntent=null; section.hidden=true; updateRunDetailGroups();
-  }
+  const intent=snapshot?.latest||null;
+  latestRdcIntent=intent;
+  if(!intent) { section.hidden=true; updateRunDetailGroups(); return; }
+  section.hidden=false;
+  const caps=intent.capabilities||{};
+  const approval=intent.approval||{};
+  const result=intent.result||{};
+  appendKeyValues($('rdc-execution-summary'),[
+    ['Intent',intent.intent_id||'-','', 'Stable EDH dispatch intent for this RDC execution attempt.'],
+    ['Run',intent.run_id||'-','', 'RDC Run identity allocated before external execution begins.'],
+    ['Task',intent.task_id||'-','', 'Bounded Task that this RDC Run is allowed to execute.'],
+    ['Status',intent.status||'-','', 'RDC adapter lifecycle: AWAITING_CLAIM, CLAIMED, RUNNING or terminal.'],
+    ['Approval',approval.state||'-','', 'External ChatGPT/RDC platform approval boundary. EDH records it but cannot bypass it.'],
+    ['Device',intent.adapter?.device_id||'-','', 'RDC device chosen by the external adapter when known.'],
+    ['Allowed tools',(caps.rdc_tools||[]).join(', ')||'-','', 'Capability-minimized RDC tool set derived from the bounded Task scope.'],
+    ['Declared reads',(caps.declared_reads||[]).join(', ')||'-','', 'Task-declared read scope. Platform RDC permission may be broader, but adapter policy must remain within this scope.'],
+    ['Declared writes',(caps.declared_writes||[]).join(', ')||'-','', 'Task-declared write scope.'],
+    ['Tool calls',String(intent.metrics?.tool_calls??0),'', 'RDC tool calls recorded under this EDH intent.'],
+    ['Tool errors',String(intent.metrics?.tool_errors??0),'', 'Recorded RDC tool errors under this intent.'],
+    ['Outcome',result.outcome||'-','', 'Terminal executor result reported back to EDH.']
+  ]);
+  updateRunDetailGroups();
 }
 
-async function refreshPreparedDispatch() {
+function renderPreparedDispatchSnapshot(prepared,policy) {
   const box=$('prepared-dispatch');
   const button=$('dispatch-prepared');
   const label=$('prepared-dispatch-label');
   const status=$('prepared-dispatch-status');
-  try {
-    const s=await send({type:'dispatch-state'});
-    if(!s?.ready) { box.hidden=true; status.textContent=''; button.disabled=false; await refreshExecutorPolicy(false); updateRunDetailGroups(); return; }
-    box.hidden=false;
-    const preparedAt=s.prepared_at?Date.parse(s.prepared_at)/1000:null;
-    const preparedAge=Number.isFinite(preparedAt)?seconds(Math.max(0,Date.now()/1000-preparedAt))+' old':'age unknown';
-    label.textContent=(s.label||s.task_id||'Ready handoff')+(s.goal?' — '+s.goal:'')+' · prepared '+preparedAge;
-    label.title=label.textContent;
-    button.title='Dispatch is available only while the handoff state is READY. It starts a new Harness-owned run; completed/PASS handoffs cannot be dispatched again.';
-    status.textContent='READY · not yet dispatched';
-    button.disabled=false;
-    await refreshExecutorPolicy(true);
-    updateRunDetailGroups();
-  } catch(e) {
-    box.hidden=true;
-    updateRunDetailGroups();
+  if(!prepared?.ready) {
+    box.hidden=true; status.textContent=''; button.disabled=false; renderExecutorPolicy(policy,false); updateRunDetailGroups(); return;
   }
+  box.hidden=false;
+  const preparedAt=prepared.prepared_at?Date.parse(prepared.prepared_at)/1000:null;
+  const preparedAge=Number.isFinite(preparedAt)?seconds(Math.max(0,Date.now()/1000-preparedAt))+' old':'age unknown';
+  label.textContent=(prepared.label||prepared.task_id||'Ready handoff')+(prepared.goal?' — '+prepared.goal:'')+' · prepared '+preparedAge;
+  label.title=label.textContent;
+  button.title='Dispatch is available only while the handoff state is READY. It starts a new Harness-owned run; completed/PASS handoffs cannot be dispatched again.';
+  status.textContent='READY · not yet dispatched';
+  button.disabled=false;
+  renderExecutorPolicy(policy,true);
+  updateRunDetailGroups();
 }
 
 async function refreshConnectionRequests() {
@@ -1554,76 +1543,92 @@ function renderTimeline(state) {
   renderTimelineLive(state,events.length,Number.isFinite(scopeTotal)?scopeTotal:allEvents.length,projected.length);
 }
 
+let refreshInFlight=null;
 async function refresh() {
-  let currentConversationState=null;
-  try {
-    currentConversationState=await send({type:'conversation-current'});
-    browserLocalChatActivity=currentConversationState?.activity||null;
-    currentBrowserConversationId=currentConversationState?.binding?.conversation_id||null;
-  } catch {
-    browserLocalChatActivity=null;
-    currentBrowserConversationId=null;
-  }
-  try {
-    const state=await send({type:'observer-state'});
-    state.chat_local_activity=browserLocalChatActivity;
+  if(refreshInFlight) return refreshInFlight;
+  refreshInFlight=(async()=>{
+    let currentConversationState=null;
     try {
-      const conversationState=await send({type:'conversation-state'});
-      const activeBinding=currentConversationState?.binding ? {...currentConversationState.binding,is_current:true} : null;
-      const cachedBindings=conversationState?.bindings||[];
-      const ledgerBindings=[];
-      for(const event of (state.timeline||[])) {
-        const id=timelineConversationId(event);
-        if(!id) continue;
-        const c=event.correlation||{};
-        ledgerBindings.push({
-          conversation_id:id,
-          title:event.meta?.title||'',
-          url:c.locator||event.meta?.url||'',
-          source_quality:c.source_quality||'unknown',
-          observedAt:event.ts||0
-        });
-      }
-      const byMergedId=new Map();
-      for(const binding of [...cachedBindings,...ledgerBindings,...(activeBinding?[activeBinding]:[])]) {
-        if(!binding?.conversation_id) continue;
-        const prior=byMergedId.get(binding.conversation_id)||{};
-        byMergedId.set(binding.conversation_id,{...prior,...binding});
-      }
-      knownConversationBindings=[...byMergedId.values()];
-      renderTimelineScopeOptions();
+      currentConversationState=await send({type:'conversation-current'});
+      browserLocalChatActivity=currentConversationState?.activity||null;
+      currentBrowserConversationId=currentConversationState?.binding?.conversation_id||null;
     } catch {
-      knownConversationBindings=[];
-      currentConversationBinding=null;
+      browserLocalChatActivity=null;
+      currentBrowserConversationId=null;
     }
-    $('error').textContent='';
-    lastState=state;
-    renderActors(state,true);
-    renderHeader(state);
-    renderExtensionVersion(state);
-    renderAttributionHealth(state);
-    renderPreparedResult(state);
-    renderDetachedRun(state);
-    await refreshRdcExecution();
-    await refreshPreparedDispatch();
-    renderRunMeta(state);
-    renderTaskLifecycle(state);
-    renderProjectStatus(state);
-    await refreshProjectTasks();
-    renderSpans(state);
-    renderRdc(state);
-    renderTrace(state);
-    renderTimeline(state);
-    await refreshConnectionRequests();
-  } catch(e) {
-    const message=String(e?.message||e);
-    const degraded=message.includes('observer_unavailable')||message.includes('Observer snapshot is unavailable');
-    $('error').textContent=message;
-    $('state-label').textContent=degraded?'DEGRADED':'OFFLINE';
-    $('state-dot').className='state-dot error';
-    $('active-chain').textContent=degraded?'Observer snapshot unavailable':'Companion unavailable';
-    renderActors(lastState?{...lastState,chat_local_activity:browserLocalChatActivity}:{chat_local_activity:browserLocalChatActivity},false);
-  }
+    try {
+      const dashboard=await send({type:'dashboard-state'});
+      const state=dashboard?.observer;
+      if(!state) throw new Error('dashboard_state_missing_observer');
+      state.chat_local_activity=browserLocalChatActivity;
+      try {
+        const conversationState=await send({type:'conversation-state'});
+        const activeBinding=currentConversationState?.binding ? {...currentConversationState.binding,is_current:true} : null;
+        const cachedBindings=conversationState?.bindings||[];
+        const ledgerBindings=[];
+        for(const event of (state.timeline||[])) {
+          const id=timelineConversationId(event);
+          if(!id) continue;
+          const c=event.correlation||{};
+          ledgerBindings.push({conversation_id:id,title:event.meta?.title||'',url:c.locator||event.meta?.url||'',source_quality:c.source_quality||'unknown',observedAt:event.ts||0});
+        }
+        const byMergedId=new Map();
+        for(const binding of [...cachedBindings,...ledgerBindings,...(activeBinding?[activeBinding]:[])]) {
+          if(!binding?.conversation_id) continue;
+          const prior=byMergedId.get(binding.conversation_id)||{};
+          byMergedId.set(binding.conversation_id,{...prior,...binding});
+        }
+        knownConversationBindings=[...byMergedId.values()];
+        renderTimelineScopeOptions();
+      } catch {
+        knownConversationBindings=[];
+        currentConversationBinding=null;
+      }
+      lastState=state;
+      renderActors(state,dashboard.connection?.status!=='OFFLINE');
+      renderHeader(state);
+      renderExtensionVersion(state);
+      renderAttributionHealth(state);
+      renderPreparedResult(state);
+      renderDetachedRun(state);
+      renderRdcExecution(dashboard.rdc);
+      renderPreparedDispatchSnapshot(dashboard.prepared_dispatch,dashboard.executor_policy);
+      renderRunMeta(state);
+      renderTaskLifecycle(state);
+      renderProjectStatus(state);
+      renderProjectTasks(dashboard.project_tasks);
+      renderSpans(state);
+      renderRdc(state);
+      renderTrace(state);
+      renderTimeline(state);
+      await refreshConnectionRequests();
+      const connection=dashboard.connection||{status:'CONNECTED'};
+      if(connection.status==='THROTTLED') {
+        const retry=Math.max(0,Number(connection.retry_after_ms)||0);
+        $('error').textContent='THROTTLED · companion rate limit · retry in '+Math.ceil(retry/1000)+'s · showing cached state';
+        $('state-label').textContent='THROTTLED';
+        $('state-dot').className='state-dot waiting';
+        $('active-chain').textContent='Cached companion state · browser-local activity remains live';
+      } else if(connection.status==='OFFLINE') {
+        $('error').textContent=connection.error||'Companion unavailable · showing cached state';
+        $('state-label').textContent='OFFLINE';
+        $('state-dot').className='state-dot error';
+        $('active-chain').textContent='Cached companion state · browser-local activity remains live';
+      } else {
+        $('error').textContent='';
+      }
+    } catch(e) {
+      const message=String(e?.message||e);
+      const degraded=message.includes('observer_unavailable')||message.includes('dashboard_unavailable');
+      $('error').textContent=message;
+      $('state-label').textContent=degraded?'DEGRADED':'OFFLINE';
+      $('state-dot').className='state-dot error';
+      $('active-chain').textContent=degraded?'Dashboard snapshot unavailable':'Companion unavailable';
+      renderActors(lastState?{...lastState,chat_local_activity:browserLocalChatActivity}:{chat_local_activity:browserLocalChatActivity},false);
+    }
+  })();
+  try { return await refreshInFlight; }
+  finally { refreshInFlight=null; }
 }
 must('reload-version').addEventListener('click',async()=>{
   const button=must('reload-version');
@@ -1639,7 +1644,7 @@ must('take-next-task').addEventListener('click',async()=>{
     const admission=await send({type:'task-admission',action:'take_next'});
     status.textContent='ADMITTED · '+admission.backlog_task_id+' · creating Current task';
     await refresh();
-  } catch(e) { status.textContent=String(e?.message||e); await refreshProjectTasks(); }
+  } catch(e) { status.textContent=String(e?.message||e); await refresh(); }
 });
 
 must('take-selected-task').addEventListener('click',async()=>{
@@ -1652,7 +1657,7 @@ must('take-selected-task').addEventListener('click',async()=>{
     const admission=await send({type:'task-admission',action:'take',task_id:id});
     status.textContent='ADMITTED · '+admission.backlog_task_id+' · creating Current task';
     await refresh();
-  } catch(e) { status.textContent=String(e?.message||e); await refreshProjectTasks(); }
+  } catch(e) { status.textContent=String(e?.message||e); await refresh(); }
 });
 
 must('prepare-current-task').addEventListener('click',async()=>{
@@ -1663,7 +1668,7 @@ must('prepare-current-task').addEventListener('click',async()=>{
     const result=await send({type:'task-admission',action:'prepare'});
     status.textContent='READY FOR HANDOFF · '+(result.prepared?.task_id||'bounded task');
     await refresh();
-  } catch(e) { status.textContent=String(e?.message||e); await refreshProjectTasks(); }
+  } catch(e) { status.textContent=String(e?.message||e); await refresh(); }
 });
 
 must('release-current-task').addEventListener('click',async()=>{
@@ -1674,7 +1679,7 @@ must('release-current-task').addEventListener('click',async()=>{
     const admission=await send({type:'task-admission',action:'release'});
     status.textContent='RELEASED · '+admission.backlog_task_id;
     await refresh();
-  } catch(e) { status.textContent=String(e?.message||e); await refreshProjectTasks(); }
+  } catch(e) { status.textContent=String(e?.message||e); await refresh(); }
 });
 
 must('timeline').addEventListener('scroll',()=>{
@@ -1700,8 +1705,8 @@ must('timeline-view').addEventListener('click',event=>{
   renderedKeys=null;
   if(lastState) renderTimeline(lastState);
 });
-void refresh();
-setInterval(()=>void refresh(),1500);
+async function refreshLoop(){ await refresh(); setTimeout(()=>void refreshLoop(),1500); }
+void refreshLoop();
 
 must('help-toggle').addEventListener('click',()=>{$('help-panel').hidden=false;if(lastState){renderRunInspection(lastState);renderHeader(lastState);}});
 must('help-close').addEventListener('click',()=>{$('help-panel').hidden=true;});
@@ -1748,8 +1753,7 @@ must('executor-policy-select').addEventListener('change',async event=>{
   try {
     const policy=await send({type:'set-executor-policy',mode:select.value});
     status.textContent=policy.mode+' · dispatch policy · updated '+new Date(policy.updated_at).toLocaleString();
-    const prepared=await send({type:'dispatch-state'}).catch(()=>null);
-    await refreshExecutorPolicy(Boolean(prepared?.ready));
+    await refresh();
   } catch(e) { status.textContent=String(e?.message||e); }
   finally { select.disabled=false; }
 });
@@ -1778,7 +1782,6 @@ must('dispatch-prepared').addEventListener('click',async()=>{
     } else {
       status.textContent=(result?.status||'DISPATCHED')+(result?.executor_policy?' · '+result.executor_policy:'')+(result?.pid?' · pid '+result.pid:'');
     }
-    await refreshPreparedDispatch();
     await refresh();
   } catch(e) {
     const message=String(e?.message||e);

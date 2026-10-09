@@ -360,13 +360,15 @@ test('Observer surfaces Remote Desktop activity and background processes', async
 });
 
 
-test('Observer distinguishes degraded snapshot failure from companion offline', async () => {
+test('Observer distinguishes throttled cached state from degraded/offline companion state', async () => {
   const bg = await readFile(new URL('../chrome/background.js', import.meta.url), 'utf8');
   const js = await readFile(new URL('../chrome/observer.js', import.meta.url), 'utf8');
-  assert.match(bg,/observer_unavailable: Observer snapshot is unavailable/);
+  assert.match(bg,/dashboardBackoffUntil/);
+  assert.match(bg,/decorateDashboard\(dashboardCache,'THROTTLED'/);
   assert.match(bg,/invalid_pairing: Companion rejected the extension pairing token/);
-  assert.match(js,/degraded\?'DEGRADED':'OFFLINE'/);
-  assert.match(js,/Observer snapshot unavailable/);
+  assert.match(js,/connection\.status==='THROTTLED'/);
+  assert.match(js,/showing cached state/);
+  assert.match(js,/Dashboard snapshot unavailable/);
   assert.match(js,/Companion unavailable/);
 });
 
@@ -424,7 +426,7 @@ test('Observer keeps prepared dispatch as an explicit Run action rather than a s
   const preparedIndex=html.indexOf('id="prepared-dispatch"');
   assert.ok(runIndex>=0 && preparedIndex>runIndex);
   assert.match(html,/id="dispatch-prepared"[^>]*>Dispatch</);
-  assert.match(js,/refreshPreparedDispatch/);
+  assert.match(js,/renderPreparedDispatchSnapshot/);
   assert.match(js,/type:'dispatch-prepared'/);
   assert.match(bg,/case 'dispatch-state'/);
   assert.match(bg,/case 'dispatch-prepared'/);
@@ -475,7 +477,7 @@ test('Observer renders provenance-labeled model usage without inventing unavaila
   assert.match(observer,/usage = \(report or \{\}\)\.get\("usage"\) or backfill\.get\("usage"\)/);
 });
 
-test('0.1.45 separates LIVE activity from observer-inferred next-request quiescence', async () => {
+test('0.1.46 separates LIVE activity from observer-inferred next-request quiescence', async () => {
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
@@ -491,7 +493,7 @@ test('0.1.45 separates LIVE activity from observer-inferred next-request quiesce
   assert.match(css,/timeline-quiescence\.quiescent/);
 });
 
-test('0.1.45 estimates ChatGPT Web visible-text usage without storing message text', async () => {
+test('0.1.46 estimates ChatGPT Web visible-text usage without storing message text', async () => {
   const chat=await readFile(new URL('../chrome/chat-context.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const observer=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
@@ -672,7 +674,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.45');
+  assert.equal(manifest.version,'0.1.46');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -689,7 +691,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.45');
+  assert.equal(pkg.version,'0.1.46');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -759,7 +761,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.45"/);
+  assert.match(html,/data-build-version="0\.1\.46"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -824,6 +826,38 @@ test('Current task exposes task/run timeline navigation instead of being an isol
   assert.match(js,/focusTimelineScope\('run:'/);
 });
 
+test('Side Panel steady-state reads one canonical dashboard snapshot and no fragment endpoints', async () => {
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(js,/send\(\{type:'dashboard-state'\}\)/);
+  for(const type of ['observer-state','project-tasks','rdc-intents','dispatch-state','executor-policy']) {
+    assert.doesNotMatch(js,new RegExp("send\\(\\{type:'"+type+"'"));
+  }
+  assert.match(js,/renderProjectTasks\(dashboard\.project_tasks\)/);
+  assert.match(js,/renderRdcExecution\(dashboard\.rdc\)/);
+  assert.match(js,/renderPreparedDispatchSnapshot\(dashboard\.prepared_dispatch,dashboard\.executor_policy\)/);
+});
+
+test('Dashboard refresh is single-flight and self-scheduled instead of overlapping setInterval fetches', async () => {
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
+  assert.match(js,/let refreshInFlight=null/);
+  assert.match(js,/if\(refreshInFlight\) return refreshInFlight/);
+  assert.match(js,/async function refreshLoop\(\)\{ await refresh\(\); setTimeout/);
+  assert.doesNotMatch(js,/setInterval\(\(\)=>void refresh\(\),1500\)/);
+  assert.match(bg,/let dashboardCache=null, dashboardFetchedAt=0, dashboardInFlight=null/);
+  assert.match(bg,/if\(dashboardInFlight\) return dashboardInFlight/);
+  assert.match(bg,/DASHBOARD_MIN_INTERVAL_MS=2000/);
+});
+
+test('Background owns dashboard throttling/backoff and preserves the last good snapshot', async () => {
+  const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
+  assert.match(bg,/error\?\.httpStatus===429/);
+  assert.match(bg,/dashboardBackoffMs=Math\.max/);
+  assert.match(bg,/decorateDashboard\(dashboardCache,'THROTTLED'/);
+  assert.match(bg,/retry_after_ms/);
+  assert.match(bg,/case 'dashboard-state': return getDashboardState/);
+});
+
 test('Project readiness renders Git-derived age, commit velocity and readiness trajectory', async () => {
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
@@ -839,7 +873,7 @@ test('Project readiness exposes backlog admission separate from runtime Current 
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   for(const id of ['project-task-select','take-selected-task','take-next-task','prepare-current-task','release-current-task','project-task-admission-status']) assert.match(html,new RegExp('id=\"'+id+'\"'));
-  assert.match(js,/type:'project-tasks'/);
+  assert.match(js,/renderProjectTasks\(dashboard\.project_tasks\)/);
   assert.match(js,/action:'take_next'/);
   assert.match(js,/action:'take',task_id:id/);
   assert.match(js,/action:'prepare'/);
@@ -854,7 +888,7 @@ test('Run UI exposes RDC intent lifecycle, approval boundary and minimized capab
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   assert.match(html,/id="rdc-execution-section"/);
   assert.match(html,/id="rdc-execution-summary"/);
-  assert.match(js,/type:'rdc-intents'/);
+  assert.match(js,/renderRdcExecution\(dashboard\.rdc\)/);
   assert.match(js,/EDH-controlled RDC execution intent/);
   assert.match(js,/Allowed tools/);
   assert.match(js,/Declared reads/);
