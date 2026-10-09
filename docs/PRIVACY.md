@@ -1,6 +1,6 @@
 # Privacy policy — Execution Delivery Harness Browser Bridge
 
-Current development policy version: **0.1.44**, October 9, 2026.
+Current development policy version: **0.1.45**, October 9, 2026.
 Developer: Daniel Chechik (dzzk).
 Contact: https://github.com/dzzk-r/execution-delivery-harness/issues
 

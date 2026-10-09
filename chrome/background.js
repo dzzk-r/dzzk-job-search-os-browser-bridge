@@ -393,6 +393,10 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
       if (!config.enabled) throw new Error('Connect the companion before reading executor policy.');
       return companion('/bridge/executor-policy');
     }
+    case 'rdc-intents': {
+      if (!config.enabled) throw new Error('Connect the companion before reading RDC execution state.');
+      return companion('/bridge/rdc-intents');
+    }
     case 'project-tasks': {
       if (!config.enabled) throw new Error('Connect the companion before reading project tasks.');
       return companion('/bridge/project-tasks');

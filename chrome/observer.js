@@ -18,6 +18,7 @@ let timelineScope='all';
 let timelineView='raw';
 let transientTimelineScope=null;
 let projectTaskSnapshot=null;
+let latestRdcIntent=null;
 let currentConversationBinding=null;
 let knownConversationBindings=[];
 let timelineScopeOptionsFingerprint='';
@@ -316,6 +317,37 @@ async function refreshProjectTasks() {
   }
 }
 
+async function refreshRdcExecution() {
+  const section=$('rdc-execution-section');
+  try {
+    const snapshot=await send({type:'rdc-intents'});
+    const intent=snapshot?.latest||null;
+    latestRdcIntent=intent;
+    if(!intent) { section.hidden=true; updateRunDetailGroups(); return; }
+    section.hidden=false;
+    const caps=intent.capabilities||{};
+    const approval=intent.approval||{};
+    const result=intent.result||{};
+    appendKeyValues($('rdc-execution-summary'),[
+      ['Intent',intent.intent_id||'-','', 'Stable EDH dispatch intent for this RDC execution attempt.'],
+      ['Run',intent.run_id||'-','', 'RDC Run identity allocated before external execution begins.'],
+      ['Task',intent.task_id||'-','', 'Bounded Task that this RDC Run is allowed to execute.'],
+      ['Status',intent.status||'-','', 'RDC adapter lifecycle: AWAITING_CLAIM, CLAIMED, RUNNING or terminal.'],
+      ['Approval',approval.state||'-','', 'External ChatGPT/RDC platform approval boundary. EDH records it but cannot bypass it.'],
+      ['Device',intent.adapter?.device_id||'-','', 'RDC device chosen by the external adapter when known.'],
+      ['Allowed tools',(caps.rdc_tools||[]).join(', ')||'-','', 'Capability-minimized RDC tool set derived from the bounded Task scope.'],
+      ['Declared reads',(caps.declared_reads||[]).join(', ')||'-','', 'Task-declared read scope. Platform RDC permission may be broader, but adapter policy must remain within this scope.'],
+      ['Declared writes',(caps.declared_writes||[]).join(', ')||'-','', 'Task-declared write scope.'],
+      ['Tool calls',String(intent.metrics?.tool_calls??0),'', 'RDC tool calls recorded under this EDH intent.'],
+      ['Tool errors',String(intent.metrics?.tool_errors??0),'', 'Recorded RDC tool errors under this intent.'],
+      ['Outcome',result.outcome||'-','', 'Terminal executor result reported back to EDH.']
+    ]);
+    updateRunDetailGroups();
+  } catch(e) {
+    latestRdcIntent=null; section.hidden=true; updateRunDetailGroups();
+  }
+}
+
 async function refreshPreparedDispatch() {
   const box=$('prepared-dispatch');
   const button=$('dispatch-prepared');
@@ -468,7 +500,7 @@ function renderAttributionHealth(state) {
 function updateRunDetailGroups() {
   const execution=$('run-execution-group');
   const handoff=$('run-handoff-group');
-  if(execution) execution.hidden=$('detached-run-section')?.hidden!==false;
+  if(execution) execution.hidden=($('detached-run-section')?.hidden!==false)&&($('rdc-execution-section')?.hidden!==false);
   if(handoff) handoff.hidden=($('prepared-dispatch')?.hidden!==false)&&($('prepared-result-section')?.hidden!==false);
 }
 
@@ -491,6 +523,17 @@ function renderRunMeta(state) {
     preview.textContent='Harness-owned execution is active'+(run.safe_to_interrupt?' · interrupt '+run.safe_to_interrupt:'');
     preview.title=preview.textContent;
     meta.title='Current execution phase reported by the Harness-owned run.';
+    setDisclosureDefault(section,true);
+    return;
+  }
+
+  const rdcStatus=String(latestRdcIntent?.status||'').toUpperCase();
+  if(latestRdcIntent && !['DONE','ERROR','CANCELED','DENIED'].includes(rdcStatus)) {
+    stateLabel.textContent=rdcStatus||'RDC';
+    meta.textContent='RDC · '+String(latestRdcIntent.approval?.state||'approval unknown');
+    preview.textContent='EDH-controlled RDC execution intent'+(latestRdcIntent.task_id?' · '+latestRdcIntent.task_id:'');
+    preview.title=preview.textContent;
+    meta.title='RDC backend status from the EDH dispatch intent. Platform approval remains external.';
     setDisclosureDefault(section,true);
     return;
   }
@@ -1561,6 +1604,7 @@ async function refresh() {
     renderAttributionHealth(state);
     renderPreparedResult(state);
     renderDetachedRun(state);
+    await refreshRdcExecution();
     await refreshPreparedDispatch();
     renderRunMeta(state);
     renderTaskLifecycle(state);

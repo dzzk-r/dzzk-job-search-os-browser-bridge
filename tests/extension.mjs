@@ -475,7 +475,7 @@ test('Observer renders provenance-labeled model usage without inventing unavaila
   assert.match(observer,/usage = \(report or \{\}\)\.get\("usage"\) or backfill\.get\("usage"\)/);
 });
 
-test('0.1.44 separates LIVE activity from observer-inferred next-request quiescence', async () => {
+test('0.1.45 separates LIVE activity from observer-inferred next-request quiescence', async () => {
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
@@ -491,7 +491,7 @@ test('0.1.44 separates LIVE activity from observer-inferred next-request quiesce
   assert.match(css,/timeline-quiescence\.quiescent/);
 });
 
-test('0.1.44 estimates ChatGPT Web visible-text usage without storing message text', async () => {
+test('0.1.45 estimates ChatGPT Web visible-text usage without storing message text', async () => {
   const chat=await readFile(new URL('../chrome/chat-context.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const observer=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
@@ -672,7 +672,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.44');
+  assert.equal(manifest.version,'0.1.45');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -689,7 +689,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.44');
+  assert.equal(pkg.version,'0.1.45');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -759,7 +759,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.44"/);
+  assert.match(html,/data-build-version="0\.1\.45"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -847,6 +847,19 @@ test('Project readiness exposes backlog admission separate from runtime Current 
   assert.match(js,/action:'release'/);
   assert.match(js,/PLANNING REQUIRED/);
   assert.match(js,/backlog items complete/);
+});
+
+test('Run UI exposes RDC intent lifecycle, approval boundary and minimized capabilities', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(html,/id="rdc-execution-section"/);
+  assert.match(html,/id="rdc-execution-summary"/);
+  assert.match(js,/type:'rdc-intents'/);
+  assert.match(js,/EDH-controlled RDC execution intent/);
+  assert.match(js,/Allowed tools/);
+  assert.match(js,/Declared reads/);
+  assert.match(js,/Declared writes/);
+  assert.match(js,/Platform approval remains external/);
 });
 
 test('Prepared handoff exposes owner-selectable AUTO EDH RDC COMPARE executor policy', async () => {

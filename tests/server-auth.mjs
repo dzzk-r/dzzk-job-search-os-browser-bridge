@@ -11,7 +11,7 @@ async function setup(t) {
   const configDir=await mkdtemp(join(tmpdir(),'dzzk-server-test-'));
   const observerEventPath=join(configDir,'observer-events.jsonl');
   const browserTurnStatePath=join(configDir,'browser-turn-state.json');
-  const bridge=await createBridgeServer({port:0,configDir,observerEventPath,browserTurnStatePath,executorPolicyPath:join(configDir,'executor-policy.json'),executorCompareRoot:join(configDir,'compare'),observerSnapshot:async()=>({state:'DONE',active_source:'MCP',timeline:[{ts:1,source:'MCP',message:'test'}],versions:{mcp:'test'}})});
+  const bridge=await createBridgeServer({port:0,configDir,observerEventPath,browserTurnStatePath,executorPolicyPath:join(configDir,'executor-policy.json'),executorCompareRoot:join(configDir,'compare'),rdcIntentRoot:join(configDir,'rdc-intents'),observerSnapshot:async()=>({state:'DONE',active_source:'MCP',timeline:[{ts:1,source:'MCP',message:'test'}],versions:{mcp:'test'}})});
   t.after(async()=>{await bridge.close(); await rm(configDir,{recursive:true,force:true});});
   const call=async(path,{method='GET',data,token,headers={}}={})=>{
     const response=await fetch(bridge.issuer+path,{method,headers:{...(data?{'Content-Type':'application/json'}:{}),...(token?{Authorization:'Bearer '+token}:{}),...headers},...(data?{body:JSON.stringify(data)}:{})});
@@ -41,6 +41,33 @@ test('observer snapshot is available only through extension pairing',async t=>{
   assert.equal(observer.value.state,'DONE');
   assert.equal(observer.value.active_source,'MCP');
   assert.equal(observer.value.timeline[0].message,'test');
+});
+
+test('RDC execution intent lifecycle is pairing-protected and capability-bounded',async t=>{
+  const b=await setup(t);
+  assert.equal((await b.call('/bridge/rdc-intents?adapter=chrome')).status,401);
+  const task={task_id:'T-RDC-API',plan_id:'P',goal:'bounded change',scope:{reads:['README.md'],writes:['README.md'],tools:['read','edit','test']},acceptance:[{id:'A1',description:'tests pass'}],budget:{deadline_seconds:90}};
+  const {createRdcAdapter}=await import('../server/rdc-adapter.mjs');
+  const adapter=createRdcAdapter({repoRoot:new URL('..',import.meta.url).pathname,root:join(b.configDir,'rdc-intents'),observerEventPath:b.observerEventPath});
+  const created=await adapter.createIntent({task,conversation_id:'chat-api',turn_id:'turn-api'});
+  let state=await b.extension('rdc-intents');
+  assert.equal(state.status,200); assert.equal(state.value.latest.intent_id,created.intent_id);
+  let step=await b.extension('rdc-intent',{action:'claim',intent_id:created.intent_id,adapter_id:'test-chatgpt',device_id:'dev-1'});
+  assert.equal(step.status,200); assert.equal(step.value.status,'CLAIMED');
+  step=await b.extension('rdc-intent',{action:'start',intent_id:created.intent_id,device_id:'dev-1'});
+  assert.equal(step.status,409); assert.equal(step.value.error,'rdc_approval_required');
+  step=await b.extension('rdc-intent',{action:'approval',intent_id:created.intent_id,state:'APPROVED'});
+  assert.equal(step.status,200); assert.equal(step.value.approval.state,'APPROVED');
+  step=await b.extension('rdc-intent',{action:'start',intent_id:created.intent_id,device_id:'dev-1'});
+  assert.equal(step.status,200); assert.equal(step.value.status,'RUNNING');
+  step=await b.extension('rdc-intent',{action:'tool',intent_id:created.intent_id,tool:'kill_process',phase:'START'});
+  assert.equal(step.status,409); assert.equal(step.value.error,'rdc_capability_denied');
+  step=await b.extension('rdc-intent',{action:'tool',intent_id:created.intent_id,tool:'start_process',phase:'START',call_id:'c1'});
+  assert.equal(step.status,200);
+  step=await b.extension('rdc-intent',{action:'tool',intent_id:created.intent_id,tool:'start_process',phase:'DONE',call_id:'c1',pid:123,duration_ms:20});
+  assert.equal(step.status,200);
+  step=await b.extension('rdc-intent',{action:'complete',intent_id:created.intent_id,outcome:'PASS',exit_code:0,artifacts:['README.md'],metrics:{elapsed_ms:40}});
+  assert.equal(step.status,200); assert.equal(step.value.status,'DONE');
 });
 
 test('executor policy is pairing-only, persistent and owner-switchable',async t=>{
@@ -231,7 +258,7 @@ test('observer snapshot reports disk extension semver without forcing reload',as
   const b=await setup(t);
   const snapshot=await b.extension('observer');
   assert.equal(snapshot.status,200);
-  assert.equal(snapshot.value.extension_version.disk,'0.1.44');
+  assert.equal(snapshot.value.extension_version.disk,'0.1.45');
 });
 
 test('OpenCode-style DCR metadata is accepted without advertising unsupported refresh grants',async t=>{

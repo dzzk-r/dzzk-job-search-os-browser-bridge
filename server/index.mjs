@@ -15,6 +15,7 @@ import { createLocalExecutor } from './local-executor.mjs';
 import { createPreparedDispatch } from './prepared-dispatch.mjs';
 import { createExecutorPolicy } from './executor-policy.mjs';
 import { createTaskAdmission } from './task-admission.mjs';
+import { createRdcAdapter } from './rdc-adapter.mjs';
 import { appendObserverEvent, newCorrelationId } from '../scripts/observer-events.mjs';
 
 const secret = () => randomBytes(32).toString('base64url');
@@ -91,6 +92,11 @@ export async function createBridgeServer(options = {}) {
     currentRunPath: options.currentRunPath
   });
   const observerEventPath = options.observerEventPath ?? null;
+  const rdcAdapter = options.rdcAdapter ?? createRdcAdapter({
+    repoRoot,
+    root: options.rdcIntentRoot,
+    observerEventPath
+  });
   const gatewayRuntimeVersion = {
     commit: await gitHead(),
     server_hash: await fileSha256(gatewaySourcePath),
@@ -718,6 +724,9 @@ export async function createBridgeServer(options = {}) {
         if (path === '/bridge/executor-policy' && req.method === 'GET') {
           return json(res,200,await executorPolicy.state());
         }
+        if (path === '/bridge/rdc-intents' && req.method === 'GET') {
+          return json(res,200,await rdcAdapter.snapshot());
+        }
         if (path === '/bridge/project-tasks' && req.method === 'GET') {
           return json(res,200,await taskAdmission.list());
         }
@@ -797,7 +806,7 @@ export async function createBridgeServer(options = {}) {
             return json(res,200,{ok:true,status:'COMPARE_PLANNED',executor_policy:'COMPARE',comparison_id:plan.comparison_id,runs:plan.runs});
           }
           if(policy.mode==='RDC') {
-            const intent=await executorPolicy.createDispatchIntent({task,executor:'RDC',baseline_commit:baseline,source_run_dir:prepared.run_dir,conversation_id:binding?.conversation_id||null,turn_id:activeTurn?.turn_id||null});
+            const intent=await rdcAdapter.createIntent({task,baseline_commit:baseline,source_run_dir:prepared.run_dir,conversation_id:binding?.conversation_id||null,turn_id:activeTurn?.turn_id||null});
             return json(res,200,{ok:true,status:'AWAITING_RDC',executor_policy:'RDC',intent});
           }
           if(!binding) fail(409,'conversation_admission_required','A current ChatGPT conversation must be observed before EDH dispatch.');
@@ -813,6 +822,40 @@ export async function createBridgeServer(options = {}) {
             if (e.code === 'conversation_binding_conflict') fail(409,e.code,e.message);
             if (e.code === 'invalid_prepared_dispatch') fail(400,'invalid_prepared_dispatch',e.message);
             if (e.code === 'dispatch_launch_invalid') fail(500,'dispatch_launch_invalid',e.message);
+            throw e;
+          }
+        }
+        if (path === '/bridge/rdc-intent') {
+          const action=String(data.action||'');
+          const intentId=typeof data.intent_id==='string'?data.intent_id:null;
+          try {
+            if(action==='claim') {
+              if(!intentId || Object.keys(data).some(k=>!['action','intent_id','adapter_id','device_id'].includes(k))) fail(400,'invalid_rdc_intent');
+              return json(res,200,await rdcAdapter.claim(intentId,{adapter_id:typeof data.adapter_id==='string'?data.adapter_id:'chatgpt-rdc-adapter',device_id:typeof data.device_id==='string'?data.device_id:null}));
+            }
+            if(action==='approval') {
+              if(!intentId || typeof data.state!=='string' || Object.keys(data).some(k=>!['action','intent_id','state'].includes(k))) fail(400,'invalid_rdc_intent');
+              return json(res,200,await rdcAdapter.setApproval(intentId,data.state));
+            }
+            if(action==='start') {
+              if(!intentId || Object.keys(data).some(k=>!['action','intent_id','adapter_id','device_id'].includes(k))) fail(400,'invalid_rdc_intent');
+              return json(res,200,await rdcAdapter.start(intentId,{adapter_id:typeof data.adapter_id==='string'?data.adapter_id:'chatgpt-rdc-adapter',device_id:typeof data.device_id==='string'?data.device_id:null}));
+            }
+            if(action==='heartbeat') {
+              if(!intentId || Object.keys(data).some(k=>!['action','intent_id'].includes(k))) fail(400,'invalid_rdc_intent');
+              return json(res,200,await rdcAdapter.heartbeat(intentId));
+            }
+            if(action==='tool') {
+              if(!intentId || typeof data.tool!=='string' || typeof data.phase!=='string' || Object.keys(data).some(k=>!['action','intent_id','tool','phase','call_id','pid','duration_ms','error'].includes(k))) fail(400,'invalid_rdc_intent');
+              return json(res,200,await rdcAdapter.recordTool(intentId,{tool:data.tool,phase:data.phase,call_id:typeof data.call_id==='string'?data.call_id:null,pid:Number.isInteger(data.pid)?data.pid:null,duration_ms:Number.isFinite(data.duration_ms)?data.duration_ms:null,error:typeof data.error==='string'?data.error:null}));
+            }
+            if(action==='complete') {
+              if(!intentId || Object.keys(data).some(k=>!['action','intent_id','outcome','exit_code','error','artifacts','metrics'].includes(k))) fail(400,'invalid_rdc_intent');
+              return json(res,200,await rdcAdapter.complete(intentId,{outcome:data.outcome,exit_code:data.exit_code,error:data.error,artifacts:data.artifacts,metrics:data.metrics}));
+            }
+            fail(400,'invalid_rdc_intent');
+          } catch(e) {
+            if(['rdc_intent_not_found','rdc_invalid_transition','rdc_invalid_approval','rdc_approval_required','rdc_no_capabilities','rdc_capability_denied','rdc_invalid_tool_phase'].includes(e.code)) fail(409,e.code,e.message);
             throw e;
           }
         }

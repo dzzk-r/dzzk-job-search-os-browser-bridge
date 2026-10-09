@@ -1,6 +1,6 @@
 {
   "name": "execution-delivery-harness",
-  "version": "0.1.44",
+  "version": "0.1.45",
   "description": "Controlled delivery of agent actions into user-owned browser and local execution environments.",
   "scripts": {
     "start": "node --env-file-if-exists=.env server/index.mjs",
@@ -10,7 +10,8 @@
     "test:firefox": "node scripts/firefox-smoke.mjs",
     "knowledge:query": "node scripts/knowledge.mjs query",
     "knowledge:context": "node scripts/knowledge.mjs context",
-    "project:readiness": "node scripts/project-context.mjs"
+    "project:readiness": "node scripts/project-context.mjs",
+    "rdc:intent": "node scripts/rdc-intent-client.mjs"
   },
   "repository": {
     "type": "git",

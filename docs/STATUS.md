@@ -18,11 +18,11 @@ still broader than the intended final policy/sandbox.
 
 ## Current version and test baseline
 
-- Package / Chrome / Firefox development version: **0.1.44**.
+- Package / Chrome / Firefox development version: **0.1.45**.
 - Active worktree: `chore/local-execution`.
 - Current implementation checkpoint: `9ab7663` (`feat: add browser turn usage estimates`).
 - Current documentation checkpoint before this cleanup: `ccef212`.
-- Automated suite: **155/155 passing** on 2026-10-09.
+- Automated suite: **159/159 passing** on 2026-10-09.
 - TODO catalog: **36 tasks, 4 complete, 61.8% simple average**. This average is informative only; release/readiness decisions are gate-based.
 - Next configured milestone: `owner-local-v0` — **BLOCKED** by incomplete `BRW-01`, `LOC-01`, `LOC-02` and `SEC-01` gates.
 - Pre-1.0 target interpretation: `0.2.0` is reserved for the owner-local routine execution loop, not for an arbitrary patch-count threshold.
@@ -52,6 +52,7 @@ still broader than the intended final policy/sandbox.
 - Hidden prepared-handoff controls are removed from layout and the executor selector uses stable grid geometry rather than wrapping flex rows.
 - Backlog admission bridges `TODO.md`/readiness into a durable Current task. `Take next`/`Take selected` creates `WAITING / PLANNING_REQUIRED`; `Release` terminalizes it; a validated admitted `task.json` unlocks `Prepare handoff` and the existing executor policy.
 - Git-derived Project trajectory exposes first commit, EDH identity start, wall-clock age, total/24h/average commit velocity, TODO-change checkpoints, daily readiness history and recent version milestones. Historical readiness is reconstructed from committed `TODO.md` snapshots and does not mutate project history.
+- RDC executor adapter allocates an EDH Run/correlation before external execution, derives a minimized RDC capability set from bounded Task scope, records platform-approval state, accepts claim/start/tool/complete transitions, and renders the latest intent in Run ownership. The platform permission prompt/transport remains external.
 
 ## Important current limitations
 
@@ -118,6 +119,7 @@ Related canonical documents:
 - `docs/SIDE-PANEL-INFORMATION-ARCHITECTURE.md`
 - `docs/EXECUTION-LIFECYCLES.md`
 - `docs/EXECUTOR-COMPARISON.md`
+- `docs/RDC-EXECUTOR-ADAPTER.md`
 - `docs/TASK-ADMISSION.md`
 - `docs/CLIENTS-AND-TRANSPORTS.md`
 - `docs/PRE-1.0-RELEASE-MILESTONE-MODEL.md`
