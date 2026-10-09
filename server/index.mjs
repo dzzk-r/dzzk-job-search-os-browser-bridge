@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { createLocalExecutor } from './local-executor.mjs';
 import { createPreparedDispatch } from './prepared-dispatch.mjs';
 import { createExecutorPolicy } from './executor-policy.mjs';
+import { createTaskAdmission } from './task-admission.mjs';
 import { appendObserverEvent, newCorrelationId } from '../scripts/observer-events.mjs';
 
 const secret = () => randomBytes(32).toString('base64url');
@@ -82,6 +83,12 @@ export async function createBridgeServer(options = {}) {
     statePath: options.executorPolicyPath,
     compareRoot: options.executorCompareRoot,
     intentRoot: options.executorIntentRoot
+  });
+  const taskAdmission = options.taskAdmission ?? createTaskAdmission({
+    repoRoot,
+    statePath: options.taskAdmissionPath,
+    runRoot: options.taskAdmissionRunRoot,
+    currentRunPath: options.currentRunPath
   });
   const observerEventPath = options.observerEventPath ?? null;
   const gatewayRuntimeVersion = {
@@ -711,6 +718,12 @@ export async function createBridgeServer(options = {}) {
         if (path === '/bridge/executor-policy' && req.method === 'GET') {
           return json(res,200,await executorPolicy.state());
         }
+        if (path === '/bridge/project-tasks' && req.method === 'GET') {
+          return json(res,200,await taskAdmission.list());
+        }
+        if (path === '/bridge/task-admission' && req.method === 'GET') {
+          return json(res,200,{admission:await taskAdmission.current()});
+        }
         if (path === '/bridge/gw01-acceptance' && req.method === 'POST') {
           return json(res,200,await runGw01CorrelationAcceptance(adapter));
         }
@@ -800,6 +813,34 @@ export async function createBridgeServer(options = {}) {
             if (e.code === 'conversation_binding_conflict') fail(409,e.code,e.message);
             if (e.code === 'invalid_prepared_dispatch') fail(400,'invalid_prepared_dispatch',e.message);
             if (e.code === 'dispatch_launch_invalid') fail(500,'dispatch_launch_invalid',e.message);
+            throw e;
+          }
+        }
+        if (path === '/bridge/task-admission') {
+          const action=String(data.action||'');
+          try {
+            if(action==='take') {
+              if(typeof data.task_id!=='string' || Object.keys(data).some(k=>!['action','task_id'].includes(k))) fail(400,'invalid_task_admission');
+              return json(res,200,await taskAdmission.take(data.task_id,{source:{client:'chrome-side-panel'}}));
+            }
+            if(action==='take_next') {
+              if(Object.keys(data).some(k=>!['action'].includes(k))) fail(400,'invalid_task_admission');
+              return json(res,200,await taskAdmission.takeNext({source:{client:'chrome-side-panel'}}));
+            }
+            if(action==='release') {
+              if(Object.keys(data).some(k=>!['action'].includes(k))) fail(400,'invalid_task_admission');
+              return json(res,200,await taskAdmission.release({reason:'released by owner from Side Panel'}));
+            }
+            if(action==='prepare') {
+              if(Object.keys(data).some(k=>!['action'].includes(k))) fail(400,'invalid_task_admission');
+              const candidate=await taskAdmission.handoffCandidate();
+              const prepared=await preparedDispatch.prepare(candidate);
+              await taskAdmission.markPrepared(prepared);
+              return json(res,200,{ok:true,prepared});
+            }
+            fail(400,'invalid_task_admission');
+          } catch(e) {
+            if(['unknown_backlog_task','backlog_task_complete','current_task_exists','admission_exists','no_backlog_task','no_admission','planning_required','invalid_task_envelope'].includes(e.code)) fail(409,e.code,e.message);
             throw e;
           }
         }

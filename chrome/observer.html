@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build-version="0.1.42">
+<html lang="en" data-build-version="0.1.43">
 <head>
   <meta charset="utf-8">
   <title>Execution Delivery Harness — Observer</title>
@@ -200,6 +200,19 @@
       </summary>
       <div class="panel-body">
         <div id="project-status-summary" class="run-summary"></div>
+        <section class="detail-group project-admission-group">
+          <h3>Backlog admission</h3>
+          <div class="project-admission-controls">
+            <label for="project-task-select">Backlog item</label>
+            <select id="project-task-select" aria-label="Select an incomplete project backlog item"></select>
+            <button id="take-selected-task" type="button">Take selected</button>
+            <button id="take-next-task" type="button" class="primary">Take next</button>
+            <button id="prepare-current-task" type="button">Prepare handoff</button>
+            <button id="release-current-task" type="button">Release current</button>
+          </div>
+          <div id="project-task-recommendation" class="muted"></div>
+          <div id="project-task-admission-status" class="muted"></div>
+        </section>
       </div>
     </details>
 

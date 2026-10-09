@@ -423,7 +423,7 @@ It does not make browser focus authoritative, and it does not convert generic RD
 
 ### Extension version / reload contract
 
-Development reload is version-visible rather than implicit. Package, Chrome and Firefox manifests share one semantic version (current development baseline `0.1.42`). The Side Panel compares the loaded extension version with the manifest version on disk; when they differ it shows an explicit `Reload <loaded> → <disk>` control. Gateway restart must not reload the extension. File-change revision is only a signal that a newer build exists; the loaded runtime changes only after explicit user action.
+Development reload is version-visible rather than implicit. Package, Chrome and Firefox manifests share one semantic version (current development baseline `0.1.43`). The Side Panel compares the loaded extension version with the manifest version on disk; when they differ it shows an explicit `Reload <loaded> → <disk>` control. Gateway restart must not reload the extension. File-change revision is only a signal that a newer build exists; the loaded runtime changes only after explicit user action.
 
 
 ### Gateway runtime / repository identity

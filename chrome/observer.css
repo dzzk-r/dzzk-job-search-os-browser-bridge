@@ -606,3 +606,17 @@ html, body.observer { width:100%; max-width:100%; overflow-x:hidden; box-sizing:
   .executor-policy-row { grid-template-columns:auto minmax(0,1fr); }
   .executor-policy-row #create-compare-plan { grid-column:1 / -1; justify-self:start; }
 }
+
+.project-admission-controls {
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto auto auto;
+  gap:6px;
+  align-items:center;
+}
+.project-admission-controls label { opacity:.65; font:10px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace; }
+.project-admission-controls select { min-width:0; width:100%; }
+#project-task-recommendation,#project-task-admission-status { margin-top:6px; overflow-wrap:anywhere; }
+@media (max-width:520px) {
+  .project-admission-controls { grid-template-columns:auto minmax(0,1fr); }
+  .project-admission-controls button { grid-column:1 / -1; justify-self:start; }
+}

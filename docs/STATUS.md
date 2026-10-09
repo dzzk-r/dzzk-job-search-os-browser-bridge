@@ -18,12 +18,12 @@ still broader than the intended final policy/sandbox.
 
 ## Current version and test baseline
 
-- Package / Chrome / Firefox development version: **0.1.42**.
+- Package / Chrome / Firefox development version: **0.1.43**.
 - Active worktree: `chore/local-execution`.
 - Current implementation checkpoint: `9ab7663` (`feat: add browser turn usage estimates`).
 - Current documentation checkpoint before this cleanup: `ccef212`.
-- Automated suite: **149/149 passing** on 2026-10-09.
-- TODO catalog: **36 tasks, 4 complete, 60.9% simple average**. This average is informative only; release/readiness decisions are gate-based.
+- Automated suite: **153/153 passing** on 2026-10-09.
+- TODO catalog: **36 tasks, 4 complete, 61.8% simple average**. This average is informative only; release/readiness decisions are gate-based.
 - Next configured milestone: `owner-local-v0` — **BLOCKED** by incomplete `BRW-01`, `LOC-01`, `LOC-02` and `SEC-01` gates.
 - Pre-1.0 target interpretation: `0.2.0` is reserved for the owner-local routine execution loop, not for an arbitrary patch-count threshold.
 
@@ -50,6 +50,7 @@ still broader than the intended final policy/sandbox.
 - Span/Task/Run causal navigation into Unified timeline; current Task/Run scopes are computed from the full ledger.
 - Terminal lifecycle states retire the singleton `current-run.json` pointer into `last-run.json`; historical PASS results no longer remain selected as Current task.
 - Hidden prepared-handoff controls are removed from layout and the executor selector uses stable grid geometry rather than wrapping flex rows.
+- Backlog admission bridges `TODO.md`/readiness into a durable Current task. `Take next`/`Take selected` creates `WAITING / PLANNING_REQUIRED`; `Release` terminalizes it; a validated admitted `task.json` unlocks `Prepare handoff` and the existing executor policy.
 
 ## Important current limitations
 
@@ -116,6 +117,7 @@ Related canonical documents:
 - `docs/SIDE-PANEL-INFORMATION-ARCHITECTURE.md`
 - `docs/EXECUTION-LIFECYCLES.md`
 - `docs/EXECUTOR-COMPARISON.md`
+- `docs/TASK-ADMISSION.md`
 - `docs/CLIENTS-AND-TRANSPORTS.md`
 - `docs/PRE-1.0-RELEASE-MILESTONE-MODEL.md`
 - `TODO.md`

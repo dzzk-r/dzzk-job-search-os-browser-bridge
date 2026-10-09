@@ -86,6 +86,29 @@ export function createPreparedDispatch(options={}) {
     };
   }
 
+  async function prepare(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) fail('Prepared dispatch input must be an object.');
+    const context_path=within(workRoot,input.context_path);
+    const task_path=within(workRoot,input.task_path);
+    const run_dir=within(workRoot,input.run_dir);
+    const [contextText,taskText]=await Promise.all([readFile(context_path,'utf8'),readFile(task_path,'utf8')]);
+    let context,task;
+    try { context=JSON.parse(contextText); task=JSON.parse(taskText); }
+    catch { fail('Prepared context/task JSON is invalid.'); }
+    if(!context||typeof context!=='object'||Array.isArray(context)) fail('Prepared context is invalid.');
+    if(!task||typeof task!=='object'||Array.isArray(task)) fail('Prepared task is invalid.');
+    const value={
+      schema_version:'1.0',status:'READY',
+      label:String(input.label||task.task_id||'Prepared task').trim(),
+      goal:String(input.goal||task.goal||'').trim(),
+      task_id:String(input.task_id||task.task_id||'').trim(),
+      prepared_at:new Date().toISOString(),context_path,task_path,run_dir
+    };
+    if(!value.label||!value.goal||!value.task_id) fail('Prepared dispatch label, goal and task_id are required.');
+    await atomicJson(statePath,value);
+    return state();
+  }
+
   async function dispatch(admission) {
     const prepared = await state();
     if (!prepared.ready) fail('No prepared Harness task is ready.', 'no_prepared_dispatch');
@@ -163,5 +186,5 @@ export function createPreparedDispatch(options={}) {
     };
   }
 
-  return { state, dispatch, statePath };
+  return { state, prepare, dispatch, statePath };
 }

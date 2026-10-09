@@ -475,7 +475,7 @@ test('Observer renders provenance-labeled model usage without inventing unavaila
   assert.match(observer,/usage = \(report or \{\}\)\.get\("usage"\) or backfill\.get\("usage"\)/);
 });
 
-test('0.1.42 separates LIVE activity from observer-inferred next-request quiescence', async () => {
+test('0.1.43 separates LIVE activity from observer-inferred next-request quiescence', async () => {
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
@@ -491,7 +491,7 @@ test('0.1.42 separates LIVE activity from observer-inferred next-request quiesce
   assert.match(css,/timeline-quiescence\.quiescent/);
 });
 
-test('0.1.42 estimates ChatGPT Web visible-text usage without storing message text', async () => {
+test('0.1.43 estimates ChatGPT Web visible-text usage without storing message text', async () => {
   const chat=await readFile(new URL('../chrome/chat-context.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const observer=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
@@ -672,7 +672,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.42');
+  assert.equal(manifest.version,'0.1.43');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -689,7 +689,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.42');
+  assert.equal(pkg.version,'0.1.43');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -759,7 +759,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.42"/);
+  assert.match(html,/data-build-version="0\.1\.43"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -822,6 +822,20 @@ test('Current task exposes task/run timeline navigation instead of being an isol
   assert.match(js,/Show run timeline/);
   assert.match(js,/focusTimelineScope\('task:'/);
   assert.match(js,/focusTimelineScope\('run:'/);
+});
+
+test('Project readiness exposes backlog admission separate from runtime Current task', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  for(const id of ['project-task-select','take-selected-task','take-next-task','prepare-current-task','release-current-task','project-task-admission-status']) assert.match(html,new RegExp('id=\"'+id+'\"'));
+  assert.match(js,/type:'project-tasks'/);
+  assert.match(js,/action:'take_next'/);
+  assert.match(js,/action:'take',task_id:id/);
+  assert.match(js,/action:'prepare'/);
+  assert.match(js,/READY FOR HANDOFF/);
+  assert.match(js,/action:'release'/);
+  assert.match(js,/PLANNING REQUIRED/);
+  assert.match(js,/backlog items complete/);
 });
 
 test('Prepared handoff exposes owner-selectable AUTO EDH RDC COMPARE executor policy', async () => {
@@ -952,7 +966,8 @@ test('Current task uses one key-value grammar with per-field semantic help', asy
   assert.match(html,/id="task-lifecycle-work" class="run-summary"/);
   assert.match(js,/function appendKeyValues\(parent, rows\)/);
   assert.match(js,/k\.classList\.add\('has-help'\)/);
-  assert.match(js,/Stable Harness task identifier/);
+  assert.match(js,/Stable Harness runtime task identifier/);
+  assert.match(js,/Backlog item/);
   assert.match(js,/Current orchestration phase inside the task lifecycle/);
   assert.match(js,/Latest durable progress marker/);
   assert.match(js,/Lifecycle steps already completed/);

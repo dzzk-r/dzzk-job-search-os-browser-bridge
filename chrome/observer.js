@@ -17,6 +17,7 @@ let pendingActionApprovalCount=0;
 let timelineScope='all';
 let timelineView='raw';
 let transientTimelineScope=null;
+let projectTaskSnapshot=null;
 let currentConversationBinding=null;
 let knownConversationBindings=[];
 let timelineScopeOptionsFingerprint='';
@@ -265,6 +266,53 @@ async function refreshExecutorPolicy(preparedReady=false) {
   } catch(e) {
     status.textContent='executor policy unavailable';
     compare.hidden=true; compare.disabled=true;
+  }
+}
+
+async function refreshProjectTasks() {
+  const select=$('project-task-select');
+  const recommendation=$('project-task-recommendation');
+  const status=$('project-task-admission-status');
+  const takeNext=$('take-next-task');
+  const takeSelected=$('take-selected-task');
+  const prepare=$('prepare-current-task');
+  const release=$('release-current-task');
+  try {
+    const snapshot=await send({type:'project-tasks'});
+    projectTaskSnapshot=snapshot;
+    const previous=select.value;
+    const frag=document.createDocumentFragment();
+    for(const task of snapshot.tasks||[]) {
+      const option=document.createElement('option');
+      option.value=task.id;
+      option.textContent=(task.priority==='next_milestone'?'★ ':'')+task.id+' · '+task.percent+'% · '+task.title;
+      frag.append(option);
+    }
+    select.replaceChildren(frag);
+    const ids=new Set((snapshot.tasks||[]).map(x=>x.id));
+    const selected=ids.has(previous)?previous:(snapshot.recommended?.id||'');
+    select.value=selected;
+    select.disabled=!snapshot.tasks?.length || snapshot.current_admission?.status==='ADMITTED';
+    takeSelected.disabled=!snapshot.tasks?.length || snapshot.current_admission?.status==='ADMITTED';
+    takeNext.disabled=!snapshot.recommended || snapshot.current_admission?.status==='ADMITTED';
+    prepare.disabled=!snapshot.envelope?.ready || snapshot.current_admission?.status!=='ADMITTED';
+    release.disabled=snapshot.current_admission?.status!=='ADMITTED';
+    recommendation.textContent=snapshot.recommended
+      ? 'Recommended next: '+snapshot.recommended.id+' · '+snapshot.recommended.percent+'% · '+snapshot.recommended.title+(snapshot.next_milestone?' · gates '+snapshot.next_milestone.id:'')
+      : 'No incomplete backlog item is available.';
+    if(snapshot.current_admission?.status==='ADMITTED') {
+      status.textContent='ADMITTED · '+snapshot.current_admission.backlog_task_id+' → '+snapshot.current_admission.runtime_task_id+' · '+(snapshot.envelope?.ready?'BOUNDED TASK READY':'PLANNING REQUIRED');
+    } else if(snapshot.current_admission?.status==='RELEASED') {
+      status.textContent='No active admission · last released '+snapshot.current_admission.backlog_task_id;
+    } else {
+      status.textContent='No backlog item currently admitted into execution.';
+    }
+  } catch(e) {
+    projectTaskSnapshot=null;
+    select.replaceChildren(); select.disabled=true;
+    takeNext.disabled=true; takeSelected.disabled=true; prepare.disabled=true; release.disabled=true;
+    recommendation.textContent='Backlog admission unavailable';
+    status.textContent=String(e?.message||e);
   }
 }
 
@@ -720,7 +768,7 @@ function renderProjectStatus(state) {
   const projectLabel=p.project_name||p.project_id||'Project identity unavailable';
   $('project-status-project').textContent=projectLabel;
   $('project-status-project').title='Selected Project: '+projectLabel+'. Project scope is independent of the current ChatGPT conversation.';
-  $('project-status-meta').textContent=String(p.average_percent??0)+'% · '+String(p.complete_count??0)+'/'+String(p.task_count??0)+' done';
+  $('project-status-meta').textContent=String(p.average_percent??0)+'% · '+String(p.complete_count??0)+'/'+String(p.task_count??0)+' backlog items complete';
 }
 
 function renderDetachedRun(state) {
@@ -783,7 +831,8 @@ function renderTaskLifecycle(state) {
     ? 'Orchestration safety status: stopping after the current durable checkpoint should preserve accepted progress. This badge is informational; use the owning run/control to actually stop work.'
     : 'Orchestration safety status reported by the owning Harness task/run. This badge does not stop anything by itself.';
   appendKeyValues($('task-lifecycle-summary'),[
-    ['Task',task.task_id||'-','', 'Stable Harness task identifier used to correlate lifecycle state and evidence.'],
+    ['Task',task.task_id||'-','', 'Stable Harness runtime task identifier used to correlate lifecycle state and evidence.'],
+    ['Backlog item',task.source?.backlog_task_id||'-','', 'Project TODO/catalog item that this runtime task was admitted from, when applicable.'],
     ['Status',task.status||'-','', 'High-level task lifecycle status, for example WAITING, RUNNING, DONE or ERROR.'],
     ['Phase',task.phase||'-','', 'Current orchestration phase inside the task lifecycle, such as VERIFYING.'],
     ['Goal',task.goal||'-','', 'Requested outcome the task is expected to produce.'],
@@ -1482,6 +1531,7 @@ async function refresh() {
     renderRunMeta(state);
     renderTaskLifecycle(state);
     renderProjectStatus(state);
+    await refreshProjectTasks();
     renderSpans(state);
     renderRdc(state);
     renderTrace(state);
@@ -1503,6 +1553,52 @@ must('reload-version').addEventListener('click',async()=>{
   try { await send({type:'reload-extension'}); }
   catch { /* runtime reload can invalidate the message channel after acceptance */ }
 });
+must('take-next-task').addEventListener('click',async()=>{
+  const status=$('project-task-admission-status');
+  const button=$('take-next-task');
+  button.disabled=true; status.textContent='Taking recommended backlog item…';
+  try {
+    const admission=await send({type:'task-admission',action:'take_next'});
+    status.textContent='ADMITTED · '+admission.backlog_task_id+' · creating Current task';
+    await refresh();
+  } catch(e) { status.textContent=String(e?.message||e); await refreshProjectTasks(); }
+});
+
+must('take-selected-task').addEventListener('click',async()=>{
+  const id=$('project-task-select').value;
+  const status=$('project-task-admission-status');
+  if(!id) return;
+  const button=$('take-selected-task');
+  button.disabled=true; status.textContent='Taking '+id+'…';
+  try {
+    const admission=await send({type:'task-admission',action:'take',task_id:id});
+    status.textContent='ADMITTED · '+admission.backlog_task_id+' · creating Current task';
+    await refresh();
+  } catch(e) { status.textContent=String(e?.message||e); await refreshProjectTasks(); }
+});
+
+must('prepare-current-task').addEventListener('click',async()=>{
+  const status=$('project-task-admission-status');
+  const button=$('prepare-current-task');
+  button.disabled=true; status.textContent='Preparing bounded handoff…';
+  try {
+    const result=await send({type:'task-admission',action:'prepare'});
+    status.textContent='READY FOR HANDOFF · '+(result.prepared?.task_id||'bounded task');
+    await refresh();
+  } catch(e) { status.textContent=String(e?.message||e); await refreshProjectTasks(); }
+});
+
+must('release-current-task').addEventListener('click',async()=>{
+  const status=$('project-task-admission-status');
+  const button=$('release-current-task');
+  button.disabled=true; status.textContent='Releasing current admission…';
+  try {
+    const admission=await send({type:'task-admission',action:'release'});
+    status.textContent='RELEASED · '+admission.backlog_task_id;
+    await refresh();
+  } catch(e) { status.textContent=String(e?.message||e); await refreshProjectTasks(); }
+});
+
 must('timeline').addEventListener('scroll',()=>{
   const box=must('timeline');
   follow=box.scrollTop<24;

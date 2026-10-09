@@ -393,6 +393,16 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
       if (!config.enabled) throw new Error('Connect the companion before reading executor policy.');
       return companion('/bridge/executor-policy');
     }
+    case 'project-tasks': {
+      if (!config.enabled) throw new Error('Connect the companion before reading project tasks.');
+      return companion('/bridge/project-tasks');
+    }
+    case 'task-admission': {
+      if (!config.enabled) throw new Error('Connect the companion before changing task admission.');
+      const payload={action:m.action};
+      if(typeof m.task_id==='string') payload.task_id=m.task_id;
+      return companion('/bridge/task-admission',payload);
+    }
     case 'set-executor-policy': {
       if (!config.enabled) throw new Error('Connect the companion before changing executor policy.');
       return companion('/bridge/executor-policy',{mode:m.mode});

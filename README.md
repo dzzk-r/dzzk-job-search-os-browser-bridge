@@ -14,7 +14,7 @@ Opera.
 
 ## Current baseline
 
-- package / Chrome / Firefox development version: **0.1.42**;
+- package / Chrome / Firefox development version: **0.1.43**;
 - active development branch/worktree: `chore/local-execution`;
 - automated suite: **148/148 passing** on 2026-10-09;
 - next readiness milestone: `owner-local-v0` (currently blocked);
@@ -37,6 +37,8 @@ for release-capability semantics.
 4. **Gateway/orchestration substrate** — correlation, browser-observed ChatGPT
    turn evidence, detached/prepared dispatch, lifecycle state and knowledge/context
    injection.
+
+Backlog admission from `TODO.md` can now claim an incomplete project item into a durable Current task, with `PLANNING_REQUIRED` gating until a valid bounded task envelope exists.
 
 Current Chrome Observer capabilities include named ChatGPT conversation scopes,
 turn lifecycle observation, versioned extension reload, `LIVE` plus conservative
@@ -147,6 +149,7 @@ the current package version. An unsigned ZIP is not an approved AMO release.
 - [`docs/CLIENTS-AND-TRANSPORTS.md`](docs/CLIENTS-AND-TRANSPORTS.md) — transport-neutral client boundary.
 - [`docs/PRE-1.0-RELEASE-MILESTONE-MODEL.md`](docs/PRE-1.0-RELEASE-MILESTONE-MODEL.md) — minor-version capability model.
 - [`docs/EXECUTOR-COMPARISON.md`](docs/EXECUTOR-COMPARISON.md) — executor policy, RDC handoff and EDH-vs-RDC comparison contract.
+- [`docs/TASK-ADMISSION.md`](docs/TASK-ADMISSION.md) — project backlog → Current task → bounded handoff admission contract.
 - [`TODO.md`](TODO.md) — authoritative cross-cutting engineering task catalog.
 
 ## Knowledge and readiness
