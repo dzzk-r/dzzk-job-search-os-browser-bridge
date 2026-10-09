@@ -1,13 +1,13 @@
 # Execution Delivery Harness — pre-1.0 release milestone model
 
 Status: proposed normative release rationale  
-Baseline when written: 2026-10-08, extension/package `0.1.43`, branch `chore/local-execution`
+Baseline when written: 2026-10-08, extension/package `0.1.44`, branch `chore/local-execution`
 Current implementation checkpoint before documentation cleanup: `9ab7663`
 
 ## Why this document exists
 
 Execution Delivery Harness already changes faster than a patch-number sequence can explain.
-`0.1.33` through `0.1.43` identify concrete builds, but they do not answer the more important question:
+`0.1.33` through `0.1.44` identify concrete builds, but they do not answer the more important question:
 
 > What capability boundary must become true before the project may honestly call itself `0.2.0`?
 
@@ -378,6 +378,10 @@ Example:
 0.1.43
   advanced: Project backlog to runtime Task admission
   evidence: TODO/readiness backlog selection, owner `Take next / Take selected / Release`, durable `PLANNING_REQUIRED` Current task lifecycle, and validated `task.json` gate before prepared handoff
+
+0.1.44
+  advanced: Project trajectory telemetry
+  evidence: Git-derived project/EDH age, rolling commit velocity, daily historical TODO/readiness checkpoints and recent version progression rendered in Project readiness
 ```
 
 This is preferable to pretending that the patch number itself encodes progress.
@@ -449,7 +453,7 @@ A minor version must therefore be explainable as an evidence-backed capability t
 
 ---
 
-# Current interpretation at `0.1.43`
+# Current interpretation at `0.1.44`
 
 The project has crossed the point where `0.1.x` means “small browser extension prototype”.
 It already contains substantial Observer, lifecycle, gateway, knowledge and local-executor infrastructure.

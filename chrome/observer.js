@@ -737,6 +737,24 @@ function renderPreparedResult(state) {
   $('prepared-result-meta').textContent=(p.result||p.run_status||p.status||'?')+(p.seconds!=null?' · '+seconds(p.seconds):'');
   updateRunDetailGroups();
 }
+function projectAge(secondsValue) {
+  const n=Math.max(0,Number(secondsValue)||0);
+  const days=Math.floor(n/86400);
+  const hours=Math.floor((n%86400)/3600);
+  return days?days+'d '+hours+'h':hours+'h';
+}
+function appendTrajectoryRows(parent,rows) {
+  const frag=document.createDocumentFragment();
+  for(const [date,value,detail] of rows) {
+    const row=document.createElement('div'); row.className='trajectory-row';
+    const d=document.createElement('span'); d.className='trajectory-date'; d.textContent=date;
+    const v=document.createElement('span'); v.className='trajectory-value'; v.textContent=value;
+    const rest=document.createElement('span'); rest.className='trajectory-detail'; rest.textContent=detail||'';
+    row.append(d,v,rest); frag.append(row);
+  }
+  parent.replaceChildren(frag);
+}
+
 function hoursRange(low,high) {
   const lo=Number(low)||0, hi=Number(high)||0;
   if(!hi) return '0 h';
@@ -769,6 +787,22 @@ function renderProjectStatus(state) {
   $('project-status-project').textContent=projectLabel;
   $('project-status-project').title='Selected Project: '+projectLabel+'. Project scope is independent of the current ChatGPT conversation.';
   $('project-status-meta').textContent=String(p.average_percent??0)+'% · '+String(p.complete_count??0)+'/'+String(p.task_count??0)+' backlog items complete';
+  const t=p.trajectory||{};
+  appendKeyValues($('project-trajectory-summary'),[
+    ['Started',t.started_at?new Date(t.started_at).toLocaleString():'unknown','', 'First commit in the current Git lineage.'],
+    ['EDH since',t.edh_since?new Date(t.edh_since).toLocaleString():'unknown','', 'First commit whose package identity is execution-delivery-harness.'],
+    ['Project age',t.age_seconds==null?'-':projectAge(t.age_seconds),'', 'Elapsed wall-clock age from the first commit in this lineage.'],
+    ['Commits',String(t.commit_count??0),'', 'Git commits reachable from the current branch HEAD.'],
+    ['Last 24h',String(t.commits_last_24h??0)+' commits','', 'Commits authored in the rolling 24-hour window.'],
+    ['Average velocity',t.average_commits_per_day==null?'-':String(t.average_commits_per_day)+' commits/day','', 'Simple average commit rate over project wall-clock age; this is delivery activity, not story-point throughput.'],
+    ['TODO checkpoints',String(t.todo_commit_count??0),'', 'Commits that changed TODO.md, indicating project-model/readiness evolution.']
+  ]);
+  appendTrajectoryRows($('project-readiness-history'),(t.readiness_trajectory||[]).map(item=>[
+    item.date,String(item.average_percent)+'%',String(item.complete_count)+'/'+String(item.task_count)+' complete · '+item.commit
+  ]));
+  appendTrajectoryRows($('project-version-history'),(t.recent_versions||[]).map(item=>[
+    new Date(item.at).toLocaleDateString(),item.version,item.hash+' · '+item.subject
+  ]));
 }
 
 function renderDetachedRun(state) {

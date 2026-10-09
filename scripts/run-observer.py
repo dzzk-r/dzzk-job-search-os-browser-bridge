@@ -87,18 +87,89 @@ def parse_eta_hours(value):
     return (nums[0]*unit,nums[1]*unit)
 
 
-def project_status(repo: Path, timeline):
+_PROJECT_TRAJECTORY_CACHE = {"repo": None, "ts": 0.0, "data": None}
+
+def parse_todo_metrics(text):
     tasks=[]
-    try:
-        for line in (repo/'TODO.md').read_text(errors='replace').splitlines():
-            m=re.match(r'^\|\s*([A-Z]+-\d+(?:\.\d+)?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(\d+)%\s*\|\s*([^|]+?)\s*\|',line)
-            if not m: continue
-            lo,hi=parse_eta_hours(m.group(6))
-            tasks.append({'id':m.group(1),'title':m.group(2).strip(),'signal':m.group(3).strip(),'size':m.group(4).strip(),'percent':int(m.group(5)),'eta':m.group(6).strip(),'eta_low_hours':lo,'eta_high_hours':hi})
-    except OSError:
-        pass
+    for line in str(text or '').splitlines():
+        m=re.match(r'^\|\s*([A-Z]+-\d+(?:\.\d+)?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(\d+)%\s*\|\s*([^|]+?)\s*\|',line)
+        if not m: continue
+        lo,hi=parse_eta_hours(m.group(6))
+        tasks.append({'id':m.group(1),'title':m.group(2).strip(),'signal':m.group(3).strip(),'size':m.group(4).strip(),'percent':int(m.group(5)),'eta':m.group(6).strip(),'eta_low_hours':lo,'eta_high_hours':hi})
     complete=sum(1 for t in tasks if t['percent']>=100)
-    average=round(sum(t['percent'] for t in tasks)/len(tasks)) if tasks else 0
+    average=round(sum(t['percent'] for t in tasks)/len(tasks),1) if tasks else 0
+    return {'tasks':tasks,'task_count':len(tasks),'complete_count':complete,'average_percent':average}
+
+def git_capture(repo: Path, args, timeout=2.0):
+    try:
+        p=subprocess.run(['git','-C',str(repo),*args],text=True,capture_output=True,timeout=timeout)
+        if p.returncode!=0: return None
+        return p.stdout
+    except Exception:
+        return None
+
+def project_trajectory(repo: Path):
+    now=time.time(); key=str(repo.resolve()); cached=_PROJECT_TRAJECTORY_CACHE
+    if cached.get('repo')==key and cached.get('data') and now-cached.get('ts',0)<60:
+        return cached['data']
+    log=git_capture(repo,['log','--reverse','--date=iso-strict','--pretty=%H%x1f%aI%x1f%s']) or ''
+    commits=[]
+    for line in log.splitlines():
+        parts=line.split('\x1f',2)
+        if len(parts)!=3: continue
+        try: ts=datetime.fromisoformat(parts[1]).timestamp()
+        except ValueError: continue
+        commits.append({'hash':parts[0],'ts':ts,'at':parts[1],'subject':parts[2]})
+    first=commits[0] if commits else None
+    commit_count=len(commits)
+    commits_24h=sum(1 for c in commits if c['ts']>=now-86400)
+    age_seconds=max(0,now-first['ts']) if first else None
+    age_days=max(age_seconds/86400,1/24) if age_seconds is not None else None
+    avg_per_day=round(commit_count/age_days,1) if age_days else None
+    edh_since=None
+    pkg_commits=git_capture(repo,['log','--reverse','--format=%H','--','package.json']) or ''
+    version_points=[]
+    for h in [x.strip() for x in pkg_commits.splitlines() if x.strip()]:
+        raw=git_capture(repo,['show',f'{h}:package.json'],timeout=1.5)
+        if not raw: continue
+        try: pkg=json.loads(raw)
+        except ValueError: continue
+        meta=next((c for c in commits if c['hash']==h),None)
+        if not meta: continue
+        if pkg.get('name')=='execution-delivery-harness' and edh_since is None: edh_since=meta
+        if pkg.get('version'): version_points.append({'version':pkg['version'],'hash':h[:7],'at':meta['at'],'ts':meta['ts'],'subject':meta['subject']})
+    todo_log=git_capture(repo,['log','--reverse','--date=iso-strict','--pretty=%H%x1f%aI','--','TODO.md']) or ''
+    todo_commits=[]
+    for line in todo_log.splitlines():
+        parts=line.split('\x1f',1)
+        if len(parts)!=2: continue
+        try: ts=datetime.fromisoformat(parts[1]).timestamp()
+        except ValueError: continue
+        todo_commits.append({'hash':parts[0],'at':parts[1],'ts':ts})
+    by_day={}
+    for entry in todo_commits:
+        day=datetime.fromtimestamp(entry['ts']).astimezone().date().isoformat(); by_day[day]=entry
+    trajectory=[]
+    for day,entry in sorted(by_day.items()):
+        raw=git_capture(repo,['show',f"{entry['hash']}:TODO.md"],timeout=1.5)
+        if raw is None: continue
+        metrics=parse_todo_metrics(raw)
+        trajectory.append({'date':day,'at':entry['at'],'commit':entry['hash'][:7],'average_percent':metrics['average_percent'],'task_count':metrics['task_count'],'complete_count':metrics['complete_count']})
+    recent_versions=[]; seen=set()
+    for item in reversed(version_points):
+        if item['version'] in seen: continue
+        seen.add(item['version']); recent_versions.append(item)
+        if len(recent_versions)>=6: break
+    data={'started_at':first['at'] if first else None,'started_commit':first['hash'][:7] if first else None,'edh_since':edh_since['at'] if edh_since else None,'edh_since_commit':edh_since['hash'][:7] if edh_since else None,'age_seconds':round(age_seconds) if age_seconds is not None else None,'commit_count':commit_count,'commits_last_24h':commits_24h,'average_commits_per_day':avg_per_day,'todo_commit_count':len(todo_commits),'readiness_trajectory':trajectory[-14:],'recent_versions':recent_versions,'semantics':'Git-derived project history; readiness points are the last committed TODO.md snapshot per local calendar day.'}
+    cached.update(repo=key,ts=now,data=data)
+    return data
+
+def project_status(repo: Path, timeline):
+    try: metrics=parse_todo_metrics((repo/'TODO.md').read_text(errors='replace'))
+    except OSError: metrics=parse_todo_metrics('')
+    tasks=metrics['tasks']
+    complete=metrics['complete_count']
+    average=metrics['average_percent']
     remaining=[t for t in tasks if t['percent']<100]
     eta_low=sum(t['eta_low_hours'] for t in remaining)
     eta_high=sum(t['eta_high_hours'] for t in remaining)
@@ -139,6 +210,7 @@ def project_status(repo: Path, timeline):
         'task_catalog_updated_at':datetime.fromtimestamp(todo_mtime).astimezone().isoformat() if todo_mtime else None,
         'readiness_updated_at':datetime.fromtimestamp(readiness_mtime).astimezone().isoformat() if readiness_mtime else None,
         'calculation_protocol':'todo-percent-average-v1',
+        'trajectory':project_trajectory(repo),
         'refresh_semantics':'Observer recomputes automatically from files on every snapshot; task percentages themselves change only when TODO.md is edited.'
     }
 
