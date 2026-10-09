@@ -16,13 +16,14 @@ import urllib.request
 STATE_FILE = Path.home() / '.local/state/execution-delivery-harness/local-agent.json'
 OBSERVER_EVENTS = Path.home() / '.local/state/execution-delivery-harness/observer-events.jsonl'
 
-def publish_state(**values):
+def publish_state(*, replace=False, **values):
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     current = {}
-    try:
-        current = json.loads(STATE_FILE.read_text())
-    except (OSError, ValueError):
-        pass
+    if not replace:
+        try:
+            current = json.loads(STATE_FILE.read_text())
+        except (OSError, ValueError):
+            pass
     current.update(values)
     tmp = STATE_FILE.with_suffix('.tmp')
     tmp.write_text(json.dumps(current, indent=2) + '\n')
@@ -62,11 +63,50 @@ def append_observer_event(actor, event, *, correlation_id=None, run_id=None, pla
     return value
 
 
-def llama_busy():
+def llama_slots():
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with opener.open('http://127.0.0.1:8080/slots', timeout=0.8) as response:
         slots = json.load(response)
-    return bool(isinstance(slots, list) and any(s.get('is_processing') for s in slots))
+    return slots if isinstance(slots, list) else []
+
+
+def llama_busy():
+    return any(s.get('is_processing') for s in llama_slots())
+
+
+def opencode_progress(path):
+    steps = 0
+    last_tool = None
+    last_tool_status = None
+    try:
+        lines = path.read_text(errors='replace').splitlines()[-1000:]
+    except OSError:
+        return steps, last_tool, last_tool_status
+    for raw in lines:
+        try:
+            event = json.loads(raw)
+        except ValueError:
+            continue
+        if event.get('type') == 'step_finish':
+            steps += 1
+        if event.get('type') == 'tool_use':
+            part = event.get('part') or {}
+            state = part.get('state') or {}
+            last_tool = part.get('tool')
+            last_tool_status = state.get('status')
+    return steps, last_tool, last_tool_status
+
+
+def process_stats(pid):
+    if not pid:
+        return {}
+    try:
+        out = subprocess.run(['ps','-o','%cpu=,rss=','-p',str(pid)], text=True, capture_output=True, timeout=1).stdout.strip().split()
+        if len(out) >= 2:
+            return {'process_cpu_percent':float(out[0]), 'process_rss_mb':round(int(out[1])/1024,1)}
+    except (OSError, ValueError, subprocess.SubprocessError):
+        pass
+    return {}
 
 
 def scoped_path(repo, name):
@@ -214,7 +254,7 @@ def main():
         command = [str(opencode), 'run', '--pure', '--print-logs',
             '--agent', 'scoped-task', '--model', report['model'], '--format', 'json', task]
         (output / 'command.json').write_text(json.dumps({'cwd': str(repo), 'argv': command}, indent=2))
-        publish_state(status='running', run_dir=str(output), repo=str(repo), model=report['model'], opencode_version=opencode_version, started_at=time.time(), updated_at=time.time())
+        publish_state(replace=True, status='running', run_dir=str(output), repo=str(repo), model=report['model'], opencode_version=opencode_version, task_id=args.task_id, run_id=args.run_id, plan_id=args.plan_id, deadline_seconds=args.seconds, max_steps=args.steps, started_at=time.time(), updated_at=time.time())
         append_observer_event('OC','START',correlation_id=args.correlation_id,run_id=args.run_id,plan_id=args.plan_id,task_id=args.task_id,
             span_id=oc_span,parent_span_id=args.parent_span_id,message='OpenCode bounded worker started',source=source,
             meta={'opencode_version':opencode_version,'model':report['model']})
@@ -227,9 +267,12 @@ def main():
                     stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             finally:
                 os.close(slave)
+            last_progress_publish = 0.0
             while child.poll() is None:
+                slots = []
                 try:
-                    busy=llama_busy()
+                    slots=llama_slots()
+                    busy=any(s.get('is_processing') for s in slots)
                 except Exception:
                     busy=model_busy
                 if busy and not model_busy:
@@ -248,7 +291,27 @@ def main():
                         span_id=qwen_span,parent_span_id=oc_span,message='Qwen worker model cycle completed',source=source)
                     qwen_span=llama_span=None
                 model_busy=busy
-                if stop.exists() or time.monotonic() - started >= args.seconds:
+                now_mono=time.monotonic()
+                if now_mono-last_progress_publish>=1.0:
+                    elapsed=max(0.0,now_mono-started)
+                    step_count,last_tool,last_tool_status=opencode_progress(output / 'events.log')
+                    slot=next((x for x in slots if x.get('is_processing')), slots[0] if slots else {})
+                    progress={
+                        'status':'running','updated_at':time.time(),'elapsed_seconds':round(elapsed,1),
+                        'remaining_seconds':round(max(0,args.seconds-elapsed),1),'deadline_seconds':args.seconds,
+                        'model_busy':model_busy,'model_cycle':model_cycle,'step_count':step_count,'max_steps':args.steps,
+                        'last_tool':last_tool,'last_tool_status':last_tool_status,'host_load_1m':round(os.getloadavg()[0],2),
+                        'thermal':'unavailable_without_privileged_sensor',
+                        'llama':{
+                            'is_processing':bool(slot.get('is_processing')),'n_ctx':slot.get('n_ctx'),
+                            'prompt_tokens':slot.get('n_prompt_tokens'),'prompt_tokens_processed':slot.get('n_prompt_tokens_processed'),
+                            'prompt_tokens_cache':slot.get('n_prompt_tokens_cache')
+                        },
+                        **process_stats(child.pid)
+                    }
+                    publish_state(**progress)
+                    last_progress_publish=now_mono
+                if stop.exists() or now_mono - started >= args.seconds:
                     report['termination'] = 'STOP' if stop.exists() else 'deadline'
                     stop_child(child)
                     break
@@ -325,6 +388,7 @@ def main():
             message='OpenCode bounded worker '+str(report.get('status')),source=source,
             meta={'outcome_reason':report.get('outcome_reason'),'exit':report.get('exit')})
         report['seconds'] = round(time.monotonic() - started, 2)
+        publish_state(status=report.get('status','failed'), updated_at=time.time(), elapsed_seconds=report['seconds'], remaining_seconds=0, outcome_reason=report.get('outcome_reason') or report.get('termination') or report.get('error'), model_busy=False)
         (output / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
         publish_state(status=report['status'], run_dir=str(output), repo=str(repo), model=report['model'], opencode_version=opencode_version, updated_at=time.time(), exit=report.get('exit'), termination=report.get('termination'), outcome_reason=report.get('outcome_reason'))
         print('REPORT:', output / 'report.json', flush=True)

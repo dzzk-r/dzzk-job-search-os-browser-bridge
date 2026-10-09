@@ -63,6 +63,9 @@ async function body(req, limit = 131072) {
 
 /** A single-user loopback companion. Page content is never persisted. */
 export async function createBridgeServer(options = {}) {
+  let serviceVersion='unknown';
+  try { serviceVersion=JSON.parse(await readFile(join(repoRoot,'package.json'),'utf8')).version||'unknown'; } catch {}
+  const bridgeApiVersion='dashboard-v1';
   let port;
   if (options.port !== undefined) {
     port=Number(options.port);
@@ -1006,7 +1009,7 @@ export async function createBridgeServer(options = {}) {
         res.once('close',() => {void transport.close(); void sdk.close();});
         await sdk.connect(transport); await transport.handleRequest(req,res,data); return;
       }
-      if (path === '/health' && req.method === 'GET') return json(res,200,{service:'dzzk-browser-bridge',mode:'browser-read-plus-local-executor',localDefault:'blocked'});
+      if (path === '/health' && req.method === 'GET') return json(res,200,{service:'dzzk-browser-bridge',version:serviceVersion,api_version:bridgeApiVersion,mode:'browser-read-plus-local-executor',localDefault:'blocked'});
       fail(404,'not_found');
     } catch(e) {if (!res.headersSent) json(res,e.status ?? 500,{error:e.error ?? 'server_error',...(e.status ? {error_description:e.message}: {})}); else res.end();}
   });

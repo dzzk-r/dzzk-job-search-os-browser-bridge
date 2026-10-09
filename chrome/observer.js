@@ -458,6 +458,82 @@ async function refreshSettings() {
   } catch(e){$('settings-error').textContent=e.message;}
 }
 
+function incidentSummary(incident) {
+  if(!incident) return '';
+  const method=incident.method||'?';
+  const path=incident.path||'?';
+  const status=incident.http_status!=null?'HTTP '+incident.http_status:'transport error';
+  const versions=[];
+  if(incident.client_version) versions.push('client '+incident.client_version);
+  if(incident.server_version) versions.push('server '+incident.server_version);
+  else if(incident.kind==='PROTOCOL_MISMATCH') versions.push('server legacy/unknown');
+  return [incident.kind||'INCIDENT',method+' '+path,status,versions.join(' → ')].filter(Boolean).join(' · ');
+}
+function renderReliabilityIncidents(incidents=[],connection={}) {
+  const section=$('reliability-incidents');
+  if(!section) return;
+  const rows=Array.isArray(incidents)?incidents:[];
+  const latest=connection?.incident||rows.at(-1)||null;
+  if(!latest) { section.hidden=true; $('incident-current').replaceChildren(); $('incident-list').replaceChildren(); return; }
+  section.hidden=false;
+  $('incident-meta').textContent=(latest.last_seen_at?new Date(latest.last_seen_at).toLocaleTimeString():'')+(latest.count>1?' · ×'+latest.count:'');
+  const current=$('incident-current'); current.replaceChildren();
+  const title=document.createElement('strong'); title.textContent=incidentSummary(latest);
+  const detail=document.createElement('div'); detail.textContent=latest.explanation||latest.message||'No diagnostic explanation recorded.';
+  const evidence=document.createElement('div'); evidence.className='incident-row-meta';
+  evidence.textContent='first '+(latest.first_seen_at?new Date(latest.first_seen_at).toLocaleString():'?')+
+    (latest.last_good_at?' · last good '+new Date(latest.last_good_at).toLocaleTimeString():' · no last-good dashboard snapshot');
+  current.append(title,detail,evidence);
+  const frag=document.createDocumentFragment();
+  for(const incident of rows.slice(-10).reverse()) {
+    const row=document.createElement('div'); row.className='incident-row';
+    const head=document.createElement('div'); head.textContent=incidentSummary(incident);
+    const body=document.createElement('div'); body.textContent=incident.explanation||incident.message||'';
+    const meta=document.createElement('div'); meta.className='incident-row-meta';
+    meta.textContent=(incident.last_seen_at?new Date(incident.last_seen_at).toLocaleString():'')+(incident.count>1?' · ×'+incident.count:'');
+    row.append(head,body,meta); frag.append(row);
+  }
+  $('incident-list').replaceChildren(frag);
+}
+
+function renderLocalExecutorProgress(state) {
+  const section=$('local-executor-section');
+  const box=$('local-executor-summary');
+  if(!section||!box) return;
+  const local=state?.local_executor;
+  if(!local || !local.run_dir) { section.hidden=true; box.replaceChildren(); updateRunDetailGroups(); return; }
+  const llama=local.llama||{};
+  const processed=Number(llama.prompt_tokens_processed);
+  const prompt=Number(llama.prompt_tokens);
+  const context=Number.isFinite(processed)&&Number.isFinite(prompt)&&prompt>0
+    ? processed.toLocaleString()+' / '+prompt.toLocaleString()+' · '+Math.min(100,Math.max(0,processed/prompt*100)).toFixed(0)+'%'
+    : (Number.isFinite(prompt)?prompt.toLocaleString()+' prompt tokens':'not reported');
+  const elapsed=local.elapsed_seconds!=null?Number(local.elapsed_seconds):null;
+  const deadline=local.deadline_seconds!=null?Number(local.deadline_seconds):null;
+  const budget=elapsed!=null && deadline!=null ? seconds(elapsed)+' / '+seconds(deadline)+' · '+seconds(Math.max(0,deadline-elapsed))+' remaining' : '-';
+  const step=local.step_count!=null ? String(local.step_count)+' / '+String(local.max_steps??'?') : '-';
+  const resource=[];
+  if(local.process_cpu_percent!=null) resource.push(Number(local.process_cpu_percent).toFixed(1)+'% process CPU');
+  if(local.process_rss_mb!=null) resource.push(Number(local.process_rss_mb).toFixed(1)+' MB RSS');
+  if(local.host_load_1m!=null) resource.push('load1 '+Number(local.host_load_1m).toFixed(2));
+  section.hidden=false;
+  appendKeyValues(box,[
+    ['Status',String(local.status||'?').toUpperCase(),'','Local-agent lifecycle state persisted outside the browser.'],
+    ['Task',local.task_id||'-','','Bounded task currently owned by the local executor.'],
+    ['Run',local.run_id||'-','','Harness run identity for this local worker.'],
+    ['Model',local.model||'-','','Local model selected for this worker.'],
+    ['Model cycle',String(local.model_cycle??0)+(local.model_busy?' · inference active':' · idle'),'','Inference cycle observed by local-agent from llama.cpp slot state.'],
+    ['Context',context,'','llama.cpp prompt tokens processed versus current prompt size while the slot is active.'],
+    ['Step',step,'','Completed OpenCode model/tool steps versus declared maximum.'],
+    ['Last tool',local.last_tool?local.last_tool+' · '+String(local.last_tool_status||'?'):'none','','Most recent OpenCode tool event observed in the worker log.'],
+    ['Budget',budget,'','Elapsed runtime versus declared worker deadline.'],
+    ['Resources',resource.join(' · ')||'not reported','','Worker process CPU/RSS plus host 1-minute load.'],
+    ['Thermal',local.thermal==='unavailable_without_privileged_sensor'?'unavailable · no privileged sensor source':(local.thermal||'unavailable'),'','Temperature is never guessed; macOS privileged sensor telemetry requires a separate authorized source.'],
+    ['Run dir',local.run_dir||'-','','Durable local-agent evidence directory.']
+  ]);
+  updateRunDetailGroups();
+}
+
 function renderExtensionVersion(state) {
   const loaded=chrome.runtime.getManifest().version;
   const disk=state?.extension_version?.disk||null;
@@ -536,7 +612,7 @@ function renderAttributionHealth(state) {
 function updateRunDetailGroups() {
   const execution=$('run-execution-group');
   const handoff=$('run-handoff-group');
-  if(execution) execution.hidden=($('detached-run-section')?.hidden!==false)&&($('rdc-execution-section')?.hidden!==false);
+  if(execution) execution.hidden=($('detached-run-section')?.hidden!==false)&&($('rdc-execution-section')?.hidden!==false)&&($('local-executor-section')?.hidden!==false);
   if(handoff) handoff.hidden=($('prepared-dispatch')?.hidden!==false)&&($('prepared-result-section')?.hidden!==false);
 }
 
@@ -1635,8 +1711,10 @@ async function refresh() {
       renderHeader(state);
       renderExtensionVersion(state);
       renderAttributionHealth(state);
+      renderReliabilityIncidents(dashboard.incidents||[],dashboard.connection||{});
       renderPreparedResult(state);
       renderDetachedRun(state);
+      renderLocalExecutorProgress(state);
       renderRdcExecution(dashboard.rdc);
       renderPreparedDispatchSnapshot(dashboard.prepared_dispatch,dashboard.executor_policy);
       renderRunMeta(state);
@@ -1671,6 +1749,7 @@ async function refresh() {
       $('state-dot').className='state-dot error';
       $('active-chain').textContent=degraded?'Dashboard snapshot unavailable':'Companion unavailable';
       renderActors(lastState?{...lastState,chat_local_activity:browserLocalChatActivity}:{chat_local_activity:browserLocalChatActivity},false);
+      try { const incidentState=await send({type:'observer-incidents'}); renderReliabilityIncidents(incidentState?.incidents||[],{status:'OFFLINE'}); } catch {}
     }
   })();
   try { return await refreshInFlight; }
@@ -1775,6 +1854,8 @@ must('timeline-view').addEventListener('click',event=>{
   renderedKeys=null;
   if(lastState) renderTimeline(lastState);
 });
+const loadedObserverVersion=chrome.runtime.getManifest().version;
+if($('extension-version')) { $('extension-version').textContent='v'+loadedObserverVersion; $('extension-version').title='Loaded Side Panel / extension version '+loadedObserverVersion+' · browser-local identity'; }
 async function refreshLoop(){ await refresh(); setTimeout(()=>void refreshLoop(),1500); }
 void refreshLoop();
 

@@ -18,12 +18,12 @@ still broader than the intended final policy/sandbox.
 
 ## Current version and test baseline
 
-- Package / Chrome / Firefox development version: **0.1.47**.
+- Package / Chrome / Firefox development version: **0.1.48**.
 - Active worktree: `chore/local-execution`.
 - Current implementation checkpoint: `9ab7663` (`feat: add browser turn usage estimates`).
 - Current documentation checkpoint before this cleanup: `ccef212`.
-- Automated suite: **164/164 passing** on 2026-10-09.
-- TODO catalog: **36 tasks, 4 complete, 62.8% simple average**. This average is informative only; release/readiness decisions are gate-based.
+- Automated suite: **169/169 passing** on 2026-10-09.
+- TODO catalog: **36 tasks, 4 complete, 63.0% simple average**. This average is informative only; release/readiness decisions are gate-based.
 - Next configured milestone: `owner-local-v0` — **BLOCKED** by incomplete `BRW-01`, `LOC-01`, `LOC-02` and `SEC-01` gates.
 - Pre-1.0 target interpretation: `0.2.0` is reserved for the owner-local routine execution loop, not for an arbitrary patch-count threshold.
 
@@ -53,7 +53,9 @@ still broader than the intended final policy/sandbox.
 - Backlog admission bridges `TODO.md`/readiness into a durable Current task. `Take next`/`Take selected` creates `WAITING / PLANNING_REQUIRED`; `Release` terminalizes it; a validated admitted `task.json` unlocks `Prepare handoff` and the existing executor policy.
 - Git-derived Project trajectory exposes first commit, EDH identity start, wall-clock age, total/24h/average commit velocity, TODO-change checkpoints, daily readiness history and recent version milestones. Historical readiness is reconstructed from committed `TODO.md` snapshots and does not mutate project history.
 - RDC executor adapter allocates an EDH Run/correlation before external execution, derives a minimized RDC capability set from bounded Task scope, records platform-approval state, accepts claim/start/tool/complete transitions, and renders the latest intent in Run ownership. The platform permission prompt/transport remains external.
-- 0.1.47 canonical dashboard state plane replaces Side Panel fragment polling with one revisioned companion snapshot, background-owned cache/single-flight synchronization and 429 `THROTTLED` backoff while preserving the last good state. Expected active-turn baseline is ~124/240 bridge requests per minute rather than ~200/min from UI reads alone.
+- 0.1.46 canonical dashboard state plane replaced Side Panel fragment polling with one revisioned companion snapshot, background-owned cache/single-flight synchronization and 429 `THROTTLED` backoff while preserving the last good state.
+- 0.1.48 persists that last-good dashboard across extension service-worker reload, adds a bounded durable reliability incident journal for `405/429/offline` failures, exposes client/server protocol identity in `/health`, and publishes live OpenCode/Qwen worker budget/context/step/process telemetry into the canonical observer snapshot. Thermal telemetry is explicitly unavailable until an authorized privileged sensor source exists.
+- Live 0.1.48 telemetry acceptance observed OC/QWEN/LLAMA active with changing elapsed/remaining budget, step count, llama prompt processing, worker CPU/RSS and host load; a second Run verified replacement-state semantics so stale terminal outcome fields do not leak into a new active Run.
 
 ## Important current limitations
 

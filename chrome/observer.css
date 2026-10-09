@@ -687,3 +687,23 @@ html, body.observer { width:100%; max-width:100%; overflow-x:hidden; box-sizing:
   overflow-wrap:anywhere;
   word-break:break-word;
 }
+
+.reliability-incidents {
+  margin:8px 10px 0;
+  padding:8px 9px;
+  border:1px solid #dc262666;
+  border-radius:7px;
+  background:color-mix(in srgb, Canvas 94%, #dc2626 6%);
+  font:10.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+.reliability-incidents[hidden] { display:none !important; }
+.incident-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:4px; }
+.incident-current { min-width:0; overflow-wrap:anywhere; }
+.incident-current strong { display:block; margin-bottom:2px; }
+#incident-history { margin-top:6px; }
+#incident-history summary { cursor:pointer; opacity:.78; }
+.incident-list { display:grid; gap:5px; margin-top:5px; }
+.incident-row { padding-top:5px; border-top:1px solid #8883; min-width:0; overflow-wrap:anywhere; }
+.incident-row:first-child { border-top:0; }
+.incident-row-meta { opacity:.62; }
+#local-executor-section h4 { margin:8px 0 5px; font-size:11px; }

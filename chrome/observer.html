@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build-version="0.1.47">
+<html lang="en" data-build-version="0.1.48">
 <head>
   <meta charset="utf-8">
   <title>Execution Delivery Harness — Observer</title>
@@ -35,6 +35,12 @@
   </header>
 
   <section id="connection-requests" class="connection-requests" aria-live="polite" hidden></section>
+
+  <section id="reliability-incidents" class="reliability-incidents" aria-live="polite" hidden>
+    <div class="incident-head"><strong>Reliability incident</strong><span id="incident-meta" class="muted"></span></div>
+    <div id="incident-current" class="incident-current"></div>
+    <details id="incident-history"><summary>Recent incidents</summary><div id="incident-list" class="incident-list"></div></details>
+  </section>
 
   <aside id="help-panel" class="overlay-panel" hidden>
     <div class="overlay-head"><strong>Observer help</strong><button id="help-close" class="icon-button" aria-label="Close help">×</button></div>
@@ -168,6 +174,10 @@
           <div id="rdc-execution-section" hidden>
             <h4>RDC execution</h4>
             <div id="rdc-execution-summary" class="run-summary"></div>
+          </div>
+          <div id="local-executor-section" hidden>
+            <h4>Local executor</h4>
+            <div id="local-executor-summary" class="run-summary"></div>
           </div>
         </section>
         <section id="run-handoff-group" class="detail-group" hidden>

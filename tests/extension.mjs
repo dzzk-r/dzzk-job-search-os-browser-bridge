@@ -477,7 +477,7 @@ test('Observer renders provenance-labeled model usage without inventing unavaila
   assert.match(observer,/usage = \(report or \{\}\)\.get\("usage"\) or backfill\.get\("usage"\)/);
 });
 
-test('0.1.47 separates LIVE activity from observer-inferred next-request quiescence', async () => {
+test('0.1.48 separates LIVE activity from observer-inferred next-request quiescence', async () => {
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
@@ -493,7 +493,7 @@ test('0.1.47 separates LIVE activity from observer-inferred next-request quiesce
   assert.match(css,/timeline-quiescence\.quiescent/);
 });
 
-test('0.1.47 estimates ChatGPT Web visible-text usage without storing message text', async () => {
+test('0.1.48 estimates ChatGPT Web visible-text usage without storing message text', async () => {
   const chat=await readFile(new URL('../chrome/chat-context.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const observer=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
@@ -676,7 +676,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.47');
+  assert.equal(manifest.version,'0.1.48');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -693,7 +693,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.47');
+  assert.equal(pkg.version,'0.1.48');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -766,7 +766,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.47"/);
+  assert.match(html,/data-build-version="0\.1\.48"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -1240,4 +1240,61 @@ test('turn-v5 approval detection is structural and does not read dialog or messa
   assert.match(approval,/\[role="alertdialog"\]/);
   assert.match(approval,/controls\.length>=2/);
   assert.doesNotMatch(approval,/\.innerText\b|\.textContent\b/);
+});
+
+test('Observer continuity persists last-good dashboard state and bounded incident history across extension reloads', async () => {
+  const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
+  assert.match(bg,/dashboardLastGood/);
+  assert.match(bg,/observerIncidents/);
+  assert.match(bg,/MAX_OBSERVER_INCIDENTS=50/);
+  assert.match(bg,/persistObserverContinuity/);
+  assert.match(bg,/PROTOCOL_MISMATCH/);
+  assert.match(bg,/companionPath/);
+  assert.match(bg,/companionMethod/);
+  assert.match(bg,/case 'observer-incidents'/);
+  assert.match(bg,/saved\.dashboardLastGood\?\.snapshot/);
+});
+
+test('Side Panel keeps browser-local version identity and renders durable reliability incidents while companion is degraded', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(html,/id="reliability-incidents"/);
+  assert.match(html,/id="incident-current"/);
+  assert.match(js,/function renderReliabilityIncidents/);
+  assert.match(js,/type:'observer-incidents'/);
+  assert.match(js,/loadedObserverVersion=chrome\.runtime\.getManifest\(\)\.version/);
+  assert.match(js,/browser-local identity/);
+});
+
+test('Local worker publishes budget, context, step and resource progress without guessing thermal telemetry', async () => {
+  const agent=await readFile(new URL('../scripts/local-agent.py',import.meta.url),'utf8');
+  const observer=await readFile(new URL('../scripts/run-observer.py',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(agent,/elapsed_seconds/);
+  assert.match(agent,/remaining_seconds/);
+  assert.match(agent,/step_count/);
+  assert.match(agent,/prompt_tokens_processed/);
+  assert.match(agent,/process_cpu_percent/);
+  assert.match(agent,/process_rss_mb/);
+  assert.match(agent,/host_load_1m/);
+  assert.match(agent,/unavailable_without_privileged_sensor/);
+  assert.match(observer,/"local_executor": d\.get\("local_executor"\)/);
+  assert.match(observer,/local_model_busy/);
+  assert.match(js,/function renderLocalExecutorProgress/);
+  assert.match(js,/Context/);
+  assert.match(js,/Resources/);
+});
+
+test('Companion health advertises service and dashboard protocol versions for compatibility diagnostics', async () => {
+  const server=await readFile(new URL('../server/index.mjs',import.meta.url),'utf8');
+  assert.match(server,/bridgeApiVersion='dashboard-v1'/);
+  assert.match(server,/version:serviceVersion/);
+  assert.match(server,/api_version:bridgeApiVersion/);
+});
+
+test('A new local-agent run replaces prior terminal state instead of inheriting stale outcome fields', async () => {
+  const agent=await readFile(new URL('../scripts/local-agent.py',import.meta.url),'utf8');
+  assert.match(agent,/def publish_state\(\*, replace=False, \*\*values\)/);
+  assert.match(agent,/if not replace:/);
+  assert.match(agent,/publish_state\(replace=True, status='running'/);
 });

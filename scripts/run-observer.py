@@ -892,8 +892,20 @@ def run_inspection(run: Path, report, local_agent):
         "opencode": (report or {}).get("opencode") or ((command.get("argv") or ["-"])[0]),
         "steps": (report or {}).get("steps") or agent.get("steps"),
         "tokens_per_turn": (report or {}).get("tokens_per_turn") or (((config.get("provider") or {}).get("llamacpp") or {}).get("models") or {}).get("qwen3.8-27b", {}).get("limit", {}).get("output"),
-        "deadline_seconds": (report or {}).get("deadline_seconds"),
-        "elapsed_seconds": (report or {}).get("seconds"),
+        "deadline_seconds": (report or {}).get("deadline_seconds") or (local_agent or {}).get("deadline_seconds"),
+        "elapsed_seconds": (report or {}).get("seconds") if report else (local_agent or {}).get("elapsed_seconds"),
+        "remaining_seconds": (local_agent or {}).get("remaining_seconds"),
+        "step_count": (local_agent or {}).get("step_count"),
+        "max_steps": (local_agent or {}).get("max_steps") or (report or {}).get("steps") or agent.get("steps"),
+        "last_tool": (local_agent or {}).get("last_tool"),
+        "last_tool_status": (local_agent or {}).get("last_tool_status"),
+        "model_busy": (local_agent or {}).get("model_busy"),
+        "model_cycle": (local_agent or {}).get("model_cycle"),
+        "llama_progress": (local_agent or {}).get("llama"),
+        "process_cpu_percent": (local_agent or {}).get("process_cpu_percent"),
+        "process_rss_mb": (local_agent or {}).get("process_rss_mb"),
+        "host_load_1m": (local_agent or {}).get("host_load_1m"),
+        "thermal": (local_agent or {}).get("thermal"),
         "process_exit": (report or {}).get("exit"),
         "reads": (report or {}).get("reads") or [],
         "writes": (report or {}).get("writes") or [],
@@ -1002,6 +1014,9 @@ def snapshot(root: Path, repo: Path, commands: Path, mcp: Path):
         for s in spans
     )
     local_running = bool(local_agent and local_agent.get("status") == "running")
+    local_updated = to_epoch(local_agent.get("updated_at")) if isinstance(local_agent, dict) else None
+    local_fresh = bool(local_updated and now-local_updated <= 5)
+    local_model_busy = bool(local_running and local_fresh and local_agent.get("model_busy"))
     recent = {}
     for item in data["timeline"]:
         if item.get("ts"):
@@ -1046,10 +1061,11 @@ def snapshot(root: Path, repo: Path, commands: Path, mcp: Path):
         "RDC": rdc_recent,
         "TERM": open_term,
         "OC": "OC" in harness_active or local_running or process_actor() == "OC",
-        "QWEN": "QWEN" in harness_active,
-        "LLAMA": "LLAMA" in harness_active,
+        "QWEN": "QWEN" in harness_active or local_model_busy,
+        "LLAMA": "LLAMA" in harness_active or local_model_busy,
         "GIT": bool(recent.get("GIT") and now - recent["GIT"] <= 30),
     }
+    data["local_executor"] = local_agent
     data["harness_spans"] = sorted(harness_spans.values(), key=lambda x:x.get("started") or 0)
     return data
 
@@ -1415,6 +1431,7 @@ def print_json(root, repo, commands, mcp):
         "actor_activity": d.get("actor_activity", {}),
         "actors": d.get("actors", BUILTIN_ACTORS),
         "run_inspection": d.get("run_inspection"),
+        "local_executor": d.get("local_executor"),
         "task_lifecycle": d.get("task_lifecycle"),
         "detached_run": d.get("detached_run"),
         "rdc": d.get("rdc"),

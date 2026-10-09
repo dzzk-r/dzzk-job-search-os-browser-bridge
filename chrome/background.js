@@ -9,9 +9,51 @@ let publishedConversationSignature = null, publishedConversationAt = 0;
 const chatDetectorByTab = new Map();
 let policyWrites = Promise.resolve(), pauseIntent = 0;
 let dashboardCache=null, dashboardFetchedAt=0, dashboardInFlight=null, dashboardBackoffUntil=0, dashboardBackoffMs=0;
-const DASHBOARD_MIN_INTERVAL_MS=2000;
+let observerIncidents=[];
+const DASHBOARD_MIN_INTERVAL_MS=2000, MAX_OBSERVER_INCIDENTS=50;
 const isPaused = () => localPaused || serverPaused;
 async function persistConversationBindings() { const api=globalThis.chrome || globalThis.browser; await api.storage.local.set({conversationBindings:conversations.serialize()}); }
+async function persistObserverContinuity() {
+  const api=globalThis.chrome || globalThis.browser;
+  await api.storage.local.set({
+    dashboardLastGood:dashboardCache?{snapshot:dashboardCache,fetchedAt:dashboardFetchedAt}:null,
+    observerIncidents:observerIncidents.slice(-MAX_OBSERVER_INCIDENTS)
+  });
+}
+async function probeCompanionHealth(cfg=config) {
+  try {
+    const response=await fetch(cfg.endpoint+'/health',{method:'GET',cache:'no-store',credentials:'omit'});
+    if(!response.ok) return {status:response.status};
+    return await response.json();
+  } catch(error) { return {error:String(error?.message||error)}; }
+}
+async function recordObserverIncident(error) {
+  const now=new Date().toISOString();
+  const status=Number(error?.httpStatus)||null;
+  const path=error?.companionPath||null;
+  const method=error?.companionMethod||null;
+  const health=status===405 ? await probeCompanionHealth() : null;
+  const kind=status===405?'PROTOCOL_MISMATCH':status===429?'RATE_LIMIT':status?'HTTP_ERROR':'COMPANION_UNAVAILABLE';
+  const clientVersion=chrome.runtime.getManifest().version;
+  const detail=status===405 && path==='/bridge/dashboard-state'
+    ? 'Dashboard API method is unsupported by the running companion; restart/upgrade the companion to the current protocol.'
+    : String(error?.message||error);
+  const fingerprint=[kind,status||'',method||'',path||'',detail].join('|');
+  const prior=observerIncidents.at(-1);
+  if(prior?.fingerprint===fingerprint) {
+    prior.last_seen_at=now; prior.count=(prior.count||1)+1;
+  } else {
+    observerIncidents.push({
+      id:'incident:'+Date.now().toString(36),kind,fingerprint,first_seen_at:now,last_seen_at:now,count:1,
+      http_status:status,method,path,message:String(error?.message||error),explanation:detail,
+      client_version:clientVersion,server_version:health?.version||null,server_api_version:health?.api_version||null,
+      last_good_at:dashboardFetchedAt?new Date(dashboardFetchedAt).toISOString():null
+    });
+    observerIncidents=observerIncidents.slice(-MAX_OBSERVER_INCIDENTS);
+  }
+  await persistObserverContinuity();
+  return observerIncidents.at(-1);
+}
 function writePolicy(body) {
   policyWrites = policyWrites.catch(()=>{}).then(()=>companion('/bridge/policy',body));
   return policyWrites;
@@ -48,6 +90,9 @@ async function companion(path, body, cfg = config) {
       if (response.status===401) throw new Error('invalid_pairing: Companion rejected the extension pairing token.');
       const error=new Error('companion_http_'+response.status+(detail?': '+detail:''));
       error.httpStatus=response.status;
+      error.companionPath=path.split('?')[0];
+      error.companionMethod=body === undefined ? 'GET' : 'POST';
+      error.companionDetail=detail||null;
       const retry=Number(response.headers.get('Retry-After'));
       error.retryAfterMs=Number.isFinite(retry)&&retry>0?retry*1000:null;
       throw error;
@@ -59,7 +104,7 @@ function invalidateDashboardState() {
   dashboardFetchedAt=0;
 }
 function decorateDashboard(snapshot,status='CONNECTED',extra={}) {
-  return {...snapshot,connection:{status,stale:status!=='CONNECTED',fetched_at:dashboardFetchedAt?new Date(dashboardFetchedAt).toISOString():null,...extra}};
+  return {...snapshot,incidents:observerIncidents.slice(-20),connection:{status,stale:status!=='CONNECTED',fetched_at:dashboardFetchedAt?new Date(dashboardFetchedAt).toISOString():null,...extra}};
 }
 async function getDashboardState({force=false}={}) {
   if(!config.enabled) throw new Error('Connect the companion before opening the observer.');
@@ -73,16 +118,18 @@ async function getDashboardState({force=false}={}) {
     try {
       const snapshot=await companion('/bridge/dashboard-state');
       dashboardCache=snapshot; dashboardFetchedAt=Date.now(); dashboardBackoffUntil=0; dashboardBackoffMs=0;
+      await persistObserverContinuity();
       return decorateDashboard(snapshot);
     } catch(error) {
+      const incident=await recordObserverIncident(error);
       const rateLimited=error?.httpStatus===429 || /companion_http_429/.test(String(error?.message||error));
       if(rateLimited) {
         const requested=Number(error?.retryAfterMs)||0;
         dashboardBackoffMs=Math.max(requested,dashboardBackoffMs?Math.min(dashboardBackoffMs*2,30000):3000);
         dashboardBackoffUntil=Date.now()+dashboardBackoffMs;
-        if(dashboardCache) return decorateDashboard(dashboardCache,'THROTTLED',{retry_after_ms:dashboardBackoffMs,error:'rate_limited'});
+        if(dashboardCache) return decorateDashboard(dashboardCache,'THROTTLED',{retry_after_ms:dashboardBackoffMs,error:'rate_limited',incident});
       } else if(dashboardCache) {
-        return decorateDashboard(dashboardCache,'OFFLINE',{error:String(error?.message||error)});
+        return decorateDashboard(dashboardCache,'OFFLINE',{error:String(error?.message||error),incident});
       }
       throw error;
     } finally { dashboardInFlight=null; }
@@ -423,6 +470,7 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
       return {ok:true,version:chrome.runtime.getManifest().version};
     }
     case 'dashboard-state': return getDashboardState({force:m.force===true});
+    case 'observer-incidents': return {incidents:observerIncidents.slice(-20),last_good_at:dashboardFetchedAt?new Date(dashboardFetchedAt).toISOString():null};
     case 'observer-state': {
       if (!config.enabled) throw new Error('Connect the companion before opening the observer.');
       return companion('/bridge/observer');
@@ -514,9 +562,11 @@ chrome.runtime.onMessage.addListener(async (m,sender) => {
 });
 chrome.runtime.onInstalled.addListener(() => {void chrome.runtime.openOptionsPage();});
 void (async () => {
-  const saved = await chrome.storage.local.get(['config','localPaused','conversationBindings','seenReloadRevision']); localPaused = saved.localPaused === true;
+  const saved = await chrome.storage.local.get(['config','localPaused','conversationBindings','seenReloadRevision','dashboardLastGood','observerIncidents']); localPaused = saved.localPaused === true;
   seenReloadRevision = Number(saved.seenReloadRevision)||0;
   conversations = new DzzkConversationBindings(saved.conversationBindings || []);
+  observerIncidents=Array.isArray(saved.observerIncidents)?saved.observerIncidents.slice(-MAX_OBSERVER_INCIDENTS):[];
+  if(saved.dashboardLastGood?.snapshot) { dashboardCache=saved.dashboardLastGood.snapshot; dashboardFetchedAt=Number(saved.dashboardLastGood.fetchedAt)||0; }
   if (saved.config) {try {config = validateConfig(saved.config);} catch {}}
   await chrome.alarms.create('connection',{periodInMinutes:0.5});
   try {
