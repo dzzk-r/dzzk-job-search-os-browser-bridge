@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, readdir } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
@@ -103,12 +103,25 @@ export async function runTaskEnvelope(taskPath,{repo=process.cwd(),opencode='/op
   await writeFile(resolve(runDir,'worker-report.json'),JSON.stringify(workerReport,null,2)+'\n');
 
   if(result.code===0) {
-    await updateLifecycle(runDir,{
-      status:'WAITING',phase:'VERIFYING',completed:['task_validated','worker_execution'],
-      current:'Harness-owned acceptance verification',pending:['Acceptance decision'],
-      waiting_reason:'verification not yet implemented in this adapter',
-      safe_to_interrupt:'yes',last_durable_checkpoint:'worker-report.json'
-    },{type:'WAITING',message:'worker finished; verification pending'});
+    let acceptanceReport=null;
+    try {
+      const dirs=(await readdir(resolve(runDir,'agent-runs'),{withFileTypes:true})).filter(x=>x.isDirectory()).map(x=>x.name).sort();
+      if(dirs.length) acceptanceReport=JSON.parse(await readFile(resolve(runDir,'agent-runs',dirs.at(-1),'report.json'),'utf8'));
+    } catch {}
+    if(acceptanceReport?.outcome_reason==='acceptance_passed') {
+      await updateLifecycle(runDir,{
+        status:'DONE',phase:'FINISHED',completed:['task_validated','worker_execution','acceptance_verified'],
+        current:null,pending:[],waiting_reason:null,safe_to_interrupt:'yes',
+        last_durable_checkpoint:'agent-runs/'+(await readdir(resolve(runDir,'agent-runs'))).sort().at(-1)+'/report.json'
+      },{type:'DONE',message:'worker acceptance passed; lifecycle retired'});
+    } else {
+      await updateLifecycle(runDir,{
+        status:'WAITING',phase:'VERIFYING',completed:['task_validated','worker_execution'],
+        current:'Harness-owned acceptance verification',pending:['Acceptance decision'],
+        waiting_reason:'verification not yet implemented in this adapter',
+        safe_to_interrupt:'yes',last_durable_checkpoint:'worker-report.json'
+      },{type:'WAITING',message:'worker finished; verification pending'});
+    }
   } else {
     await updateLifecycle(runDir,{
       status:'ERROR',phase:'WORKER_FAILED',completed:['task_validated'],

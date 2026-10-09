@@ -37,7 +37,8 @@ test('run lifecycle keeps JSON snapshot and append-only JSONL transitions', asyn
     assert.deepEqual(lines.map(x=>x.type),['START','PROGRESS','PROGRESS','PROGRESS','DONE']);
     assert.ok(lines.every(x=>x.run_id==='run-1'&&x.task_id==='task-1'));
 
-    const pointer=JSON.parse(await readFile(state,'utf8'));
+    await assert.rejects(()=>readFile(state,'utf8'),error=>error?.code==='ENOENT');
+    const pointer=JSON.parse(await readFile(join(root,'last-run.json'),'utf8'));
     assert.equal(pointer.run_id,'run-1');
     assert.equal(pointer.status,'DONE');
     assert.equal(pointer.safe_to_interrupt,'yes');

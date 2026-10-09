@@ -1,13 +1,13 @@
 # Execution Delivery Harness — pre-1.0 release milestone model
 
 Status: proposed normative release rationale  
-Baseline when written: 2026-10-08, extension/package `0.1.41`, branch `chore/local-execution`
+Baseline when written: 2026-10-08, extension/package `0.1.42`, branch `chore/local-execution`
 Current implementation checkpoint before documentation cleanup: `9ab7663`
 
 ## Why this document exists
 
 Execution Delivery Harness already changes faster than a patch-number sequence can explain.
-`0.1.33` through `0.1.41` identify concrete builds, but they do not answer the more important question:
+`0.1.33` through `0.1.42` identify concrete builds, but they do not answer the more important question:
 
 > What capability boundary must become true before the project may honestly call itself `0.2.0`?
 
@@ -370,6 +370,10 @@ Example:
 0.1.41
   advanced: Executor dispatch policy and causal evidence navigation
   evidence: persisted AUTO/EDH/RDC/COMPARE policy, durable RDC external-executor intent, sibling comparison plans, and Span/Task/Run → Unified timeline scopes
+
+0.1.42
+  advanced: Lifecycle retirement and stable handoff presentation
+  evidence: terminal task lifecycles retire `current-run.json` into `last-run.json`; historical successful GW-02 state was reconciled from persisted acceptance evidence; hidden handoff controls no longer remain in layout and executor controls use stable grid geometry
 ```
 
 This is preferable to pretending that the patch number itself encodes progress.
@@ -441,7 +445,7 @@ A minor version must therefore be explainable as an evidence-backed capability t
 
 ---
 
-# Current interpretation at `0.1.41`
+# Current interpretation at `0.1.42`
 
 The project has crossed the point where `0.1.x` means “small browser extension prototype”.
 It already contains substantial Observer, lifecycle, gateway, knowledge and local-executor infrastructure.

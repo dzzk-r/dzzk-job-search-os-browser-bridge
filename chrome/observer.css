@@ -578,9 +578,31 @@ html, body.observer { width:100%; max-width:100%; overflow-x:hidden; box-sizing:
 .actor-chip.pending { opacity:.78; }
 .actor-chip.pending .dot { background:#8a8a8a; box-shadow:0 0 0 2px rgba(128,128,128,.08); }
 
-.executor-policy-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:6px; }
+.executor-policy-row { display:grid; grid-template-columns:auto minmax(120px,1fr) auto; align-items:center; gap:6px; width:100%; margin-top:6px; }
 .executor-policy-row label { opacity:.65; font:10px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace; }
-.executor-policy-row select { min-width:120px; max-width:100%; }
+.executor-policy-row select { min-width:0; width:100%; max-width:100%; }
 .evidence-actions { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
 .evidence-actions button,.span-actions button { margin:0; padding:3px 6px; font:9.5px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace; }
 .span-actions { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
+
+.inline-action[hidden] { display:none !important; }
+
+#prepared-dispatch {
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;
+  gap:6px 10px;
+}
+#prepared-dispatch > strong { grid-column:1; }
+#prepared-dispatch-label { grid-column:2 / 4; min-width:0; overflow-wrap:anywhere; }
+#prepared-dispatch .executor-policy-row { grid-column:1 / -1; }
+#executor-policy-status { grid-column:1 / 3; min-width:0; overflow-wrap:anywhere; }
+#dispatch-prepared { grid-column:3; justify-self:end; }
+#prepared-dispatch-status { grid-column:1 / -1; min-width:0; overflow-wrap:anywhere; }
+@media (max-width:420px) {
+  #prepared-dispatch { grid-template-columns:1fr; }
+  #prepared-dispatch > strong,#prepared-dispatch-label,#prepared-dispatch .executor-policy-row,#executor-policy-status,#dispatch-prepared,#prepared-dispatch-status { grid-column:1; }
+  #dispatch-prepared { justify-self:start; }
+  .executor-policy-row { grid-template-columns:auto minmax(0,1fr); }
+  .executor-policy-row #create-compare-plan { grid-column:1 / -1; justify-self:start; }
+}

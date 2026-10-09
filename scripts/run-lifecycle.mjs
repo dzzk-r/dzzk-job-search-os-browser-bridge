@@ -1,8 +1,10 @@
-import { appendFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, rename, writeFile, unlink } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
 export const DEFAULT_CURRENT_RUN_STATE = join(homedir(),'.local','state','execution-delivery-harness','current-run.json');
+export const DEFAULT_LAST_RUN_STATE = join(homedir(),'.local','state','execution-delivery-harness','last-run.json');
+const TERMINAL_STATUSES = new Set(['DONE','ERROR','CANCELED']);
 
 async function readJson(path) {
   try { return JSON.parse(await readFile(path,'utf8')); }
@@ -23,8 +25,8 @@ async function appendEvent(runDir,event) {
 
 function nowIso() { return new Date().toISOString(); }
 
-async function publishPointer(checkpoint,stateFile) {
-  await atomicJson(stateFile,{
+function pointerValue(checkpoint) {
+  return {
     schema_version:'1.0',
     run_dir:checkpoint.run_dir,
     run_id:checkpoint.run_id,
@@ -34,7 +36,20 @@ async function publishPointer(checkpoint,stateFile) {
     phase:checkpoint.phase,
     safe_to_interrupt:checkpoint.safe_to_interrupt,
     updated_at:checkpoint.updated_at
-  });
+  };
+}
+
+async function publishPointer(checkpoint,stateFile) {
+  await atomicJson(stateFile,pointerValue(checkpoint));
+}
+
+async function retirePointer(checkpoint,stateFile) {
+  const lastStateFile=join(dirname(stateFile),'last-run.json');
+  await atomicJson(lastStateFile,pointerValue(checkpoint));
+  const current=await readJson(stateFile);
+  if(current?.run_id===checkpoint.run_id && current?.run_dir===checkpoint.run_dir) {
+    await unlink(stateFile).catch(error=>{ if(error.code!=='ENOENT') throw error; });
+  }
 }
 
 export async function startLifecycle(runDir,input,{stateFile=DEFAULT_CURRENT_RUN_STATE}={}) {
@@ -91,7 +106,8 @@ export async function updateLifecycle(runDir,patch,{type='PROGRESS',message,stat
     task_id:next.task_id,status:next.status,phase:next.phase,
     message:message||patch.current||patch.waiting_reason||type.toLowerCase()
   });
-  await publishPointer(next,stateFile);
+  if(TERMINAL_STATUSES.has(String(next.status||'').toUpperCase())) await retirePointer(next,stateFile);
+  else await publishPointer(next,stateFile);
   return next;
 }
 

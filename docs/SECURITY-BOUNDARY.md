@@ -1,6 +1,6 @@
 # Security boundary
 
-Current development baseline: **0.1.41**
+Current development baseline: **0.1.42**
 Updated: **2026-10-09**
 
 EDH is currently a single-owner local system. Browser access, MCP client access and local filesystem/process execution are separate authority domains and must not be collapsed into one permission.

@@ -14,7 +14,7 @@ Opera.
 
 ## Current baseline
 
-- package / Chrome / Firefox development version: **0.1.41**;
+- package / Chrome / Firefox development version: **0.1.42**;
 - active development branch/worktree: `chore/local-execution`;
 - automated suite: **148/148 passing** on 2026-10-09;
 - next readiness milestone: `owner-local-v0` (currently blocked);
