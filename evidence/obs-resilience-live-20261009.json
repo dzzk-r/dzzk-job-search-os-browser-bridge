@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0",
+  "build": "0.1.48",
+  "implementation_commit": "6599a3c27f68521a69e8e2bd88ffaf67c6a4c5e9",
+  "tests": {"pass": 169, "fail": 0},
+  "lint": {"errors": 0, "warnings": 0, "notices": 0},
+  "companion_live": {
+    "health": {"version": "0.1.48", "api_version": "dashboard-v1"},
+    "dashboard_http_status": 200,
+    "runtime_commit_matches_repo_head": true,
+    "restart_required": false
+  },
+  "local_worker_live_samples": [
+    {
+      "task_id": "TELEMETRY-PROBE",
+      "elapsed_seconds": 15.2,
+      "remaining_seconds": 74.8,
+      "step_count": 0,
+      "model_cycle": 1,
+      "model_busy": true,
+      "prompt_tokens": 620,
+      "prompt_tokens_processed": 32,
+      "process_cpu_percent": 7.5,
+      "process_rss_mb": 338.5,
+      "host_load_1m": 5.72,
+      "actors": {"OC": true, "QWEN": true, "LLAMA": true}
+    },
+    {
+      "task_id": "TELEMETRY-PROBE",
+      "elapsed_seconds": 43.0,
+      "remaining_seconds": 47.0,
+      "step_count": 1,
+      "last_tool": "read",
+      "model_cycle": 1,
+      "model_busy": true,
+      "prompt_tokens": 2056,
+      "prompt_tokens_processed": 224,
+      "process_cpu_percent": 8.0,
+      "process_rss_mb": 345.0,
+      "host_load_1m": 5.37
+    }
+  ],
+  "state_reset_acceptance": {
+    "task_id": "TELEMETRY-PROBE2",
+    "status": "running",
+    "elapsed_seconds": 19.2,
+    "remaining_seconds": 10.8,
+    "step_count": 1,
+    "model_busy": true,
+    "stale_terminal_fields_absent": ["exit", "termination", "outcome_reason"]
+  },
+  "thermal": {
+    "status": "unavailable_without_privileged_sensor",
+    "rule": "never infer temperature from fan noise, CPU load or model activity"
+  }
+}

@@ -20,7 +20,7 @@ still broader than the intended final policy/sandbox.
 
 - Package / Chrome / Firefox development version: **0.1.48**.
 - Active worktree: `chore/local-execution`.
-- Current implementation checkpoint: `9ab7663` (`feat: add browser turn usage estimates`).
+- Current implementation checkpoint: `6599a3c` (`feat: persist observer continuity and local worker telemetry`).
 - Current documentation checkpoint before this cleanup: `ccef212`.
 - Automated suite: **169/169 passing** on 2026-10-09.
 - TODO catalog: **36 tasks, 4 complete, 63.0% simple average**. This average is informative only; release/readiness decisions are gate-based.
@@ -56,6 +56,7 @@ still broader than the intended final policy/sandbox.
 - 0.1.46 canonical dashboard state plane replaced Side Panel fragment polling with one revisioned companion snapshot, background-owned cache/single-flight synchronization and 429 `THROTTLED` backoff while preserving the last good state.
 - 0.1.48 persists that last-good dashboard across extension service-worker reload, adds a bounded durable reliability incident journal for `405/429/offline` failures, exposes client/server protocol identity in `/health`, and publishes live OpenCode/Qwen worker budget/context/step/process telemetry into the canonical observer snapshot. Thermal telemetry is explicitly unavailable until an authorized privileged sensor source exists.
 - Live 0.1.48 telemetry acceptance observed OC/QWEN/LLAMA active with changing elapsed/remaining budget, step count, llama prompt processing, worker CPU/RSS and host load; a second Run verified replacement-state semantics so stale terminal outcome fields do not leak into a new active Run.
+- Live evidence: `evidence/obs-resilience-live-20261009.json`.
 
 ## Important current limitations
 
