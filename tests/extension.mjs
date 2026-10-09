@@ -477,7 +477,7 @@ test('Observer renders provenance-labeled model usage without inventing unavaila
   assert.match(observer,/usage = \(report or \{\}\)\.get\("usage"\) or backfill\.get\("usage"\)/);
 });
 
-test('0.1.46 separates LIVE activity from observer-inferred next-request quiescence', async () => {
+test('0.1.47 separates LIVE activity from observer-inferred next-request quiescence', async () => {
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
@@ -493,7 +493,7 @@ test('0.1.46 separates LIVE activity from observer-inferred next-request quiesce
   assert.match(css,/timeline-quiescence\.quiescent/);
 });
 
-test('0.1.46 estimates ChatGPT Web visible-text usage without storing message text', async () => {
+test('0.1.47 estimates ChatGPT Web visible-text usage without storing message text', async () => {
   const chat=await readFile(new URL('../chrome/chat-context.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const observer=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
@@ -624,9 +624,11 @@ test('GW-01 Observer exposes chat-scoped timeline projections without changing t
   const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/id="timeline-scope"/);
+  assert.match(html,/id="timeline-scope-control"/);
+  assert.match(html,/id="timeline-scope-trigger"/);
+  assert.match(html,/id="timeline-scope-list"/);
   assert.match(html,/All activity/);
-  assert.match(html,/Unscoped/);
+  assert.match(js,/label:'Unscoped'/);
   assert.doesNotMatch(html,/Current chat/);
   assert.doesNotMatch(html,/Other chats/);
   assert.match(html,/id="current-conversation"/);
@@ -674,7 +676,7 @@ test('Chrome Observer exposes explicit semver reload only when disk and loaded v
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
   const manifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.version,'0.1.46');
+  assert.equal(manifest.version,'0.1.47');
   assert.match(html,/id="extension-version"/);
   assert.match(html,/id="reload-version"/);
   assert.match(js,/Reload '\+loaded\+' → '\+disk/);
@@ -691,7 +693,7 @@ test('CHR-02 versioned reload is explicit and semver surfaces are synchronized',
   const chromeManifest=JSON.parse(await readFile(new URL('../chrome/manifest.json',import.meta.url),'utf8'));
   const firefoxManifest=JSON.parse(await readFile(new URL('../firefox/manifest.json',import.meta.url),'utf8'));
   const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  assert.equal(pkg.version,'0.1.46');
+  assert.equal(pkg.version,'0.1.47');
   assert.equal(chromeManifest.version,pkg.version);
   assert.equal(firefoxManifest.version,pkg.version);
   assert.match(html,/id="extension-version"/);
@@ -709,7 +711,10 @@ test('chat-scope change invalidates timeline render cache even when filtered res
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   assert.match(js,/let renderedKeys=null/);
   assert.match(js,/Array\.isArray\(renderedKeys\)/);
-  assert.match(js,/timelineScope=event\.target\.value;[\s\S]*renderedKeys=null;[\s\S]*renderTimeline\(lastState\)/);
+  assert.match(js,/function applyTimelineScope/);
+  assert.match(js,/timelineScope=wanted;/);
+  assert.match(js,/renderedKeys=null;/);
+  assert.match(js,/if\(lastState\) renderTimeline\(lastState\)/);
 });
 
 
@@ -761,7 +766,7 @@ test('Side Panel document is versioned and self-heals after extension runtime re
   const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
   const bg=await readFile(new URL('../chrome/background.js',import.meta.url),'utf8');
-  assert.match(html,/data-build-version="0\.1\.46"/);
+  assert.match(html,/data-build-version="0\.1\.47"/);
   assert.match(js,/panelDocumentVersion/);
   assert.match(js,/location\.replace\(target\)/);
   assert.match(bg,/chrome\.sidePanel\.setOptions\(\{path:'observer\.html\?v='/);
@@ -793,17 +798,24 @@ test('ChatGPT turn detector recovers an active turn when generation outlives loc
 });
 
 
-test('Unified timeline scope selector is a persistent DOM island across polling refreshes', async () => {
+test('Unified timeline scope control is a persistent responsive listbox across polling refreshes', async () => {
+  const html=await readFile(new URL('../chrome/observer.html',import.meta.url),'utf8');
+  const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
   const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(html,/aria-haspopup="listbox"/);
+  assert.match(html,/role="listbox"/);
+  assert.doesNotMatch(html,/<select id="timeline-scope"/);
   assert.match(js,/timelineScopeOptionsFingerprint/);
   assert.match(js,/function reconcileTimelineScopeOptions/);
-  assert.match(js,/if\(fingerprint===timelineScopeOptionsFingerprint\) return false/);
-  const refreshBlock=js.slice(js.indexOf('knownConversationBindings=[...byMergedId.values()]'),js.indexOf('    } catch {',js.indexOf('knownConversationBindings=[...byMergedId.values()]')));
-  assert.doesNotMatch(refreshBlock,/selector\.replaceChildren\(/);
-  assert.match(refreshBlock,/renderTimelineScopeOptions\(\)/);
-  const scopeHelper=js.slice(js.indexOf('function renderTimelineScopeOptions'),js.indexOf('function compactMessage'));
-  assert.match(scopeHelper,/reconcileTimelineScopeOptions\(selector,model\)/);
-  assert.match(scopeHelper,/const wanted=valid\.has\(previous\)\?previous:'all'/);
+  assert.match(js,/function applyTimelineScope/);
+  assert.match(js,/ArrowDown/);
+  assert.match(js,/ArrowUp/);
+  assert.match(js,/Home/);
+  assert.match(js,/End/);
+  assert.match(js,/Escape/);
+  assert.match(js,/aria-selected/);
+  assert.match(css,/timeline-scope-list/);
+  assert.match(css,/overflow-wrap:anywhere/);
 });
 
 
@@ -881,6 +893,16 @@ test('Project readiness exposes backlog admission separate from runtime Current 
   assert.match(js,/action:'release'/);
   assert.match(js,/PLANNING REQUIRED/);
   assert.match(js,/backlog items complete/);
+});
+
+test('RDC transport long operation uses a full-width wrapping forensic value', async () => {
+  const css=await readFile(new URL('../chrome/observer.css',import.meta.url),'utf8');
+  const js=await readFile(new URL('../chrome/observer.js',import.meta.url),'utf8');
+  assert.match(js,/transport-command/);
+  assert.match(css,/transport-summary/);
+  assert.match(css,/grid-column:1 \/ -1/);
+  assert.match(css,/white-space:pre-wrap/);
+  assert.match(css,/word-break:break-word/);
 });
 
 test('Run UI exposes RDC intent lifecycle, approval boundary and minimized capabilities', async () => {

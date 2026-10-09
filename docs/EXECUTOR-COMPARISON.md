@@ -122,3 +122,45 @@ lists:
   belong to the current task/run/chat or finished inside the short recent window.
 
 Raw evidence is unchanged.
+
+## First real dogfood: UI responsive controls
+
+0.1.47 records the first non-toy attempt to use the local EDH worker for work that ChatGPT would otherwise perform through RDC. This is **not** a controlled A/B comparison because the runs were sequential, used different decompositions/budgets and shared one mutable worktree. It is suitability evidence only.
+
+Task family: `UI-RESPONSIVE-CONTROLS-01`.
+
+Local EDH worker attempt:
+
+```text
+executor       OpenCode 1.14.48 -> Qwen3.8-27B -> llama.cpp
+budget         420 s / 6 steps / 2048 tokens per turn
+outcome        deadline
+elapsed        420.12 s
+changed files  0
+```
+
+The worker spent the run reading the four allowed UI/test files and processing a large context; it did not reach an edit before deadline.
+
+Supervisor-decomposed CSS-only local repair:
+
+```text
+executor       OpenCode 1.14.48 -> Qwen3.8-27B -> llama.cpp
+budget         240 s / 4 steps / 1200 tokens per turn
+outcome        max_steps_reached
+elapsed        194.9 s
+changed files  0
+```
+
+Both local attempts first tried to read the repository root even though the scoped agent allowed only explicit files. The permission boundary correctly denied that discovery call, but the behavior consumed a step/latency and shows that the worker prompt/tool strategy still assumes project exploration before bounded execution.
+
+After the permitted local repair failed, the task escalated to the ChatGPT/RDC supervisor path. The supervisor implemented the two UI changes within the same declared file scope and the repository passed the full automated suite and extension lint.
+
+Conclusions that are supported:
+
+- the local executor path is real and capability-bounded;
+- its permission boundary held under an attempted out-of-scope root read;
+- current OpenCode/Qwen behavior has unacceptable latency/step efficiency for this UI task shape;
+- supervisor/RDC escalation remains necessary today;
+- future COMPARE must use identical Task/baseline/isolation before declaring an executor winner.
+
+This dogfood run creates concrete follow-up work for local execution: avoid generic repository-exploration behavior when a bounded file set is already supplied, reduce context acquisition, and make worker progress/usage visible while it is consuming the budget.

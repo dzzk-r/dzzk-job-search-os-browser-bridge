@@ -1,7 +1,7 @@
 # Compatibility and cost
 
 Updated: **2026-10-09**
-Current development baseline: **0.1.46**
+Current development baseline: **0.1.47**
 
 | Component | Current support |
 | --- | --- |

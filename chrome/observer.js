@@ -48,41 +48,88 @@ function scopeOptionModel(bindings) {
   return {model,byId};
 }
 
-function reconcileTimelineScopeOptions(selector, model) {
+function reconcileTimelineScopeOptions(list, model) {
   const fingerprint=JSON.stringify(model.map(x=>[x.value,x.label]));
-  if(fingerprint===timelineScopeOptionsFingerprint) return false;
-  const existing=new Map([...selector.options].map(option=>[option.value,option]));
-  const ordered=[];
-  for(const item of model) {
-    let option=existing.get(item.value);
-    if(!option) {
-      option=document.createElement('option');
-      option.value=item.value;
+  if(fingerprint!==timelineScopeOptionsFingerprint) {
+    const existing=new Map([...list.querySelectorAll('.timeline-scope-option')].map(option=>[option.dataset.value,option]));
+    const ordered=[];
+    for(const item of model) {
+      let option=existing.get(item.value);
+      if(!option) {
+        option=document.createElement('button');
+        option.type='button';
+        option.className='timeline-scope-option';
+        option.setAttribute('role','option');
+        option.dataset.value=item.value;
+      }
+      if(option.textContent!==item.label) option.textContent=item.label;
+      ordered.push(option);
+      existing.delete(item.value);
     }
-    if(option.textContent!==item.label) option.textContent=item.label;
-    ordered.push(option);
-    existing.delete(item.value);
+    for(const option of existing.values()) option.remove();
+    for(let index=0;index<ordered.length;index++) {
+      const option=ordered[index];
+      if(list.children[index]!==option) list.insertBefore(option,list.children[index]||null);
+    }
+    timelineScopeOptionsFingerprint=fingerprint;
   }
-  for(const option of existing.values()) option.remove();
-  for(let index=0;index<ordered.length;index++) {
-    const option=ordered[index];
-    if(selector.options[index]!==option) selector.insertBefore(option,selector.options[index]||null);
+  for(const option of list.querySelectorAll('.timeline-scope-option')) {
+    option.setAttribute('aria-selected',String(option.dataset.value===timelineScope));
+    option.tabIndex=option.dataset.value===timelineScope?0:-1;
   }
-  timelineScopeOptionsFingerprint=fingerprint;
-  return true;
+}
+
+function setTimelineScopeOpen(open,{focusSelected=true}={}) {
+  const trigger=$('timeline-scope-trigger'), list=$('timeline-scope-list');
+  if(!trigger||!list) return;
+  trigger.setAttribute('aria-expanded',String(open));
+  list.hidden=!open;
+  if(open && focusSelected) {
+    const selected=list.querySelector('.timeline-scope-option[aria-selected="true"]')||list.querySelector('.timeline-scope-option');
+    selected?.focus();
+  }
+}
+
+function applyTimelineScope(value,{close=true,focusTrigger=true}={}) {
+  const {model,byId}=scopeOptionModel(knownConversationBindings);
+  const valid=new Set(model.map(item=>item.value));
+  const wanted=valid.has(value)?value:'all';
+  timelineScope=wanted;
+  if(!transientTimelineScope || timelineScope!==transientTimelineScope.value) transientTimelineScope=null;
+  currentConversationBinding=timelineScope.startsWith('chat:') ? byId.get(timelineScope.slice(5))||null : null;
+  renderedKeys=null;
+  renderTimelineScopeOptions();
+  if(close) setTimelineScopeOpen(false,{focusSelected:false});
+  if(focusTrigger) $('timeline-scope-trigger')?.focus();
+  if(lastState) renderTimeline(lastState);
 }
 
 function renderTimelineScopeOptions() {
-  const selector=$('timeline-scope');
-  if(!selector) return;
+  const list=$('timeline-scope-list'), label=$('timeline-scope-label'), trigger=$('timeline-scope-trigger');
+  if(!list||!label||!trigger) return;
   const previous=timelineScope;
   const {model,byId}=scopeOptionModel(knownConversationBindings);
-  reconcileTimelineScopeOptions(selector,model);
   const valid=new Set(model.map(item=>item.value));
   const wanted=valid.has(previous)?previous:'all';
-  selector.value=wanted;
   timelineScope=wanted;
   currentConversationBinding=timelineScope.startsWith('chat:') ? byId.get(timelineScope.slice(5))||null : null;
+  reconcileTimelineScopeOptions(list,model);
+  const selected=model.find(item=>item.value===timelineScope)||model[0];
+  label.textContent=selected?.label||'All activity';
+  trigger.title=selected?.label||'Timeline scope';
+}
+
+function moveTimelineScopeFocus(direction) {
+  const list=$('timeline-scope-list');
+  if(!list) return;
+  const options=[...list.querySelectorAll('.timeline-scope-option')];
+  if(!options.length) return;
+  let index=options.indexOf(document.activeElement);
+  if(direction==='home') index=0;
+  else if(direction==='end') index=options.length-1;
+  else if(direction>0) index=index<0?0:(index+1)%options.length;
+  else index=index<0?options.length-1:(index-1+options.length)%options.length;
+  options[index].focus();
 }
 
 function compactMessage(message) {
@@ -1023,7 +1070,7 @@ function renderRdc(state) {
   const rows=[];
   if(rdc.last_tool) {
     rows.push(['Transport','Remote Desktop Commander','', 'Observed transport/provider carrying remote filesystem, search or process-control operations.']);
-    rows.push(['Last operation',String(rdc.last_summary||rdc.last_tool),'', 'Most recent RDC operation observed by the Harness.']);
+    rows.push(['Last operation',String(rdc.last_summary||rdc.last_tool),'transport-command', 'Most recent RDC operation observed by the Harness.']);
     rows.push(['Last activity',seconds(rdc.last_activity_seconds??0)+' ago','', 'Age of the most recent observed RDC event; this is not the duration of current work.']);
   }
   for(const proc of (rdc.open_processes||[])) {
@@ -1158,7 +1205,6 @@ function focusTimelineScope(value,label) {
   renderedKeys=null;
   if(lastState) {
     renderTimelineScopeOptions();
-    $('timeline-scope').value=value;
     renderTimeline(lastState);
   }
   $('timeline-section')?.scrollIntoView({block:'start',behavior:'smooth'});
@@ -1686,14 +1732,38 @@ must('timeline').addEventListener('scroll',()=>{
   const box=must('timeline');
   follow=box.scrollTop<24;
 });
-must('timeline-scope').addEventListener('change',event=>{
-  timelineScope=event.target.value;
-  if(!transientTimelineScope || timelineScope!==transientTimelineScope.value) transientTimelineScope=null;
-  currentConversationBinding=timelineScope.startsWith('chat:')
-    ? knownConversationBindings.find(x=>x.conversation_id===timelineScope.slice(5))||null
-    : null;
-  renderedKeys=null;
-  if(lastState) renderTimeline(lastState);
+must('timeline-scope-trigger').addEventListener('click',()=>{
+  const list=must('timeline-scope-list');
+  setTimelineScopeOpen(list.hidden);
+});
+must('timeline-scope-trigger').addEventListener('keydown',event=>{
+  if(['ArrowDown','ArrowUp','Enter',' '].includes(event.key)) {
+    event.preventDefault();
+    setTimelineScopeOpen(true);
+    if(event.key==='ArrowDown') moveTimelineScopeFocus(1);
+    else if(event.key==='ArrowUp') moveTimelineScopeFocus(-1);
+  }
+});
+must('timeline-scope-list').addEventListener('click',event=>{
+  const option=event.target.closest('.timeline-scope-option');
+  if(option) applyTimelineScope(option.dataset.value);
+});
+must('timeline-scope-list').addEventListener('keydown',event=>{
+  if(event.key==='ArrowDown'){event.preventDefault();moveTimelineScopeFocus(1);}
+  else if(event.key==='ArrowUp'){event.preventDefault();moveTimelineScopeFocus(-1);}
+  else if(event.key==='Home'){event.preventDefault();moveTimelineScopeFocus('home');}
+  else if(event.key==='End'){event.preventDefault();moveTimelineScopeFocus('end');}
+  else if(event.key==='Enter'||event.key===' '){
+    const option=event.target.closest('.timeline-scope-option');
+    if(option){event.preventDefault();applyTimelineScope(option.dataset.value);}
+  } else if(event.key==='Escape') {
+    event.preventDefault();
+    setTimelineScopeOpen(false,{focusSelected:false});
+    must('timeline-scope-trigger').focus();
+  }
+});
+document.addEventListener('pointerdown',event=>{
+  if(!event.target.closest('#timeline-scope-control')) setTimelineScopeOpen(false,{focusSelected:false});
 });
 must('timeline-view').addEventListener('click',event=>{
   const button=event.target.closest('button[data-view]');

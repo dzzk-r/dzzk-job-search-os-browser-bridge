@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build-version="0.1.46">
+<html lang="en" data-build-version="0.1.47">
 <head>
   <meta charset="utf-8">
   <title>Execution Delivery Harness — Observer</title>
@@ -90,10 +90,12 @@
     <section id="timeline-section" class="evidence-section">
       <div class="section-head">
         <h2>Unified timeline</h2>
-        <select id="timeline-scope" aria-label="Timeline scope">
-          <option value="all">All activity</option>
-          <option value="unscoped">Unscoped</option>
-        </select>
+        <div id="timeline-scope-control" class="timeline-scope-control">
+          <button id="timeline-scope-trigger" class="timeline-scope-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="timeline-scope-list">
+            <span id="timeline-scope-label">All activity</span><span class="timeline-scope-caret" aria-hidden="true">▾</span>
+          </button>
+          <div id="timeline-scope-list" class="timeline-scope-list" role="listbox" aria-label="Timeline scope" hidden></div>
+        </div>
         <div id="timeline-view" class="timeline-view-control" role="group" aria-label="Timeline view">
           <span class="timeline-view-label">View</span>
           <button type="button" data-view="raw" aria-pressed="true">Raw</button>

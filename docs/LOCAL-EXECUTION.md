@@ -19,6 +19,7 @@
 - Future portable execution profiles should define executor/provider/model/
   runtime/budgets/permissions/acceptance separately. User authorization remains
   explicit.
+- First self-hosting UI dogfood on 2026-10-09 exposed a local-worker efficiency problem: a four-file bounded task hit its 420 s deadline with zero edits, and a CSS-only repair hit `max_steps_reached` after 194.9 s with zero edits. In both attempts OpenCode/Qwen first attempted a repository-root read that the scoped policy correctly denied. Treat this as executor evidence, not a reason to weaken scope: improve bounded-worker instructions/context selection before raising budgets.
 
 Routine coding and checks belong to a bounded local worker. The worker task
 should normally be emitted by the local planner contract in
